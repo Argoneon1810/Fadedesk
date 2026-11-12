@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>Sound Manager — Mockup v7 (Finalized Layout C, Non-Destructive FX & Linear RSS Master VU)</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    .hidden { display: none !important; }
+    .no-select { user-select: none; -webkit-user-select: none; }
+    .tabular { font-variant-numeric: tabular-nums; }
+    #console-root { background: var(--c-bg); border-color: var(--c-border); color: var(--c-text); max-width: min(792px, 100vw); }
+    #console-root[data-dark="true"] { box-shadow: 0 14px 30px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04); }
+    #console-root[data-dark="false"] { box-shadow: 0 10px 24px rgba(15,23,30,0.12), inset 0 1px 0 rgba(255,255,255,0.88); }
+    .c-surface { background: var(--c-surface); border-color: var(--c-border); }
+    .c-raised { background: var(--c-raised); border-color: var(--c-border); }
+    .c-recessed { background: var(--c-bg); border-color: var(--c-border); }
+    .c-muted { color: var(--c-muted); }
+    .fader-well { position: relative; flex: 1 1 auto; min-height: 148px; background: var(--c-bg); border-color: var(--c-border); }
+    #console-root[data-dark="true"] .fader-well { box-shadow: inset 0 1.5px 3.5px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.03); }
+    #console-root[data-dark="false"] .fader-well { box-shadow: inset 0 1px 2.5px rgba(0,0,0,0.11), 0 1px 0 rgba(255,255,255,0.9); }
+    .fader-slot { background: var(--c-surface); border-color: var(--c-border); box-shadow: inset 0 1px 2px rgba(0,0,0,0.55); }
+    #console-root[data-dark="true"] .fader-cap { box-shadow: 0 2px 5px rgba(0,0,0,0.68), inset 0 1px 0 rgba(255,255,255,0.2); }
+    #console-root[data-dark="false"] .fader-cap { box-shadow: 0 2px 4px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.95); }
+    .fader-cap { cursor: grab; pointer-events: auto; touch-action: none; }
+    .fader-cap:active { cursor: grabbing; }
+    .cors-zone { border-color: var(--c-border); background-image: repeating-linear-gradient(-45deg, rgba(128,128,128,0.24), rgba(128,128,128,0.24) 2px, transparent 2px, transparent 5px); }
+    .attenuated-band { background-image: repeating-linear-gradient(-45deg, var(--c-primary), var(--c-primary) 1.5px, transparent 1.5px, transparent 4px); opacity: 0.52; }
+    .vu-col { width: 7px; height: 100%; display: flex; flex-direction: column-reverse; gap: 2px; }
+    .vu-seg { width: 100%; flex: 1 1 0; min-height: 3.5px; border-radius: 1px; display: block; }
+    .console-btn { padding: 0; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; transition: filter 90ms ease, transform 60ms ease; }
+    .console-btn:hover:not(:disabled) { filter: brightness(1.08); }
+    .console-btn:active:not(:disabled) { transform: translateY(0.5px); }
+    .console-btn:disabled { opacity: 0.36; cursor: default; }
+    .console-btn svg { display: block; flex-shrink: 0; }
+    .grip-bar { cursor: grab; touch-action: none; }
+    .grip-bar:active { cursor: grabbing; }
+    .drop-marker { width: 3px; border-radius: 9999px; background: var(--c-primary); box-shadow: 0 0 8px var(--c-primary); flex-shrink: 0; margin: 6px -2px; }
+    #channels-scroll::-webkit-scrollbar { height: 5px; }
+    #channels-scroll::-webkit-scrollbar-track { background: transparent; }
+    #channels-scroll::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 9999px; }
+    #console-root[data-dark="true"] #master-dock { box-shadow: -6px 0 12px rgba(0,0,0,0.28); }
+    #console-root[data-dark="false"] #master-dock { box-shadow: -6px 0 12px rgba(15,23,30,0.06); }
+    input[type="range"].fx-range { -webkit-appearance: none; appearance: none; height: 5px; border-radius: 9999px; background: var(--c-bg); border: 1px solid var(--c-border); outline: none; cursor: ew-resize; }
+    input[type="range"].fx-range::-webkit-slider-thumb { -webkit-appearance: none; width: 10px; height: 13px; border-radius: 3px; background: var(--c-raised); border: 1px solid var(--c-primary); cursor: grab; }
+    .fx-cards-disabled { opacity: 0.42; pointer-events: none; }
+  </style>
+</head>
+<body class="bg-[var(--background)] text-[var(--foreground)] antialiased p-3 m-0 no-select">
+  <!-- 시안 검증 컨트롤 바 (확장 외부의 시뮬레이션 도구) -->
+  <div id="lab-bar" class="mb-3 p-2.5 rounded-lg border border-[var(--border)] bg-[var(--card)] flex flex-wrap items-center justify-between gap-2 text-xs max-w-[792px]">
+    <div class="flex items-center gap-2">
+      <span class="font-semibold" style="color:var(--c-primary)">확정 시안 v7 (C안 정본):</span>
+      <span class="c-muted">하단 3버튼 고정 · 세로 페이더/미터 자동 확장 · 비파괴 2계층 노멀라이저 · 선형 RSS 마스터 미터</span>
+    </div>
+    <div class="flex flex-wrap items-center gap-1.5">
+      <button type="button" id="track-shift-btn" class="lab-util-btn console-btn px-2.5 h-[25px] rounded border text-xs cursor-pointer" title="탭 내부에서 다음 곡·영상으로 넘어갈 때 Pre-Fader 노멀라이저 재동기화를 시뮬레이션합니다">곡·영상 음압 전환 ↻</button>
+    </div>
+  </div>
+
+  <!-- 실제 확장 프로그램 팝업 프레임 (#console-root, Chrome 800px 한도 내 792px 상한) -->
+  <div id="console-root" data-dark="true" class="relative inline-flex flex-col rounded-xl border overflow-hidden">
+    <header class="c-surface flex flex-wrap items-center justify-between gap-x-2.5 gap-y-1.5 px-3 py-1.5 min-h-[42px] border-b text-xs">
+      <div class="flex items-center gap-2 min-w-0">
+        <button id="theme-dot-btn" type="button" title="컬러 테마 및 화면 모드 설정" class="console-btn w-6 h-6 rounded-md border shrink-0 cursor-pointer">
+          <span id="brand-dot" class="w-2.5 h-2.5 rounded-full"></span>
+        </button>
+        <span class="font-bold tracking-[0.06em] text-xs whitespace-nowrap">SOUND MANAGER</span>
+        <div id="status-pill" class="c-recessed flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs tabular whitespace-nowrap min-w-0 max-w-[180px]">
+          <span id="status-dot" class="w-1.5 h-1.5 rounded-full shrink-0"></span>
+          <span id="status-text" class="truncate leading-[16px]"></span>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-1.5 shrink-0 ml-auto">
+        <div id="alpha-box" class="c-recessed flex items-center gap-1.5 px-2 h-[26px] rounded-md border whitespace-nowrap" title="Focus 스무딩(α): 노브 드래그·휠 조절 · 더블클릭 0.70 복귀">
+          <span id="alpha-label" class="text-xs font-medium whitespace-nowrap">Focus <i class="not-italic font-mono">α</i></span>
+          <div id="alpha-track" class="relative w-[48px] h-3.5 flex items-center shrink-0">
+            <div class="c-surface w-full h-1.5 rounded-full border relative overflow-hidden">
+              <div id="alpha-fill" class="absolute inset-y-0 left-0 rounded-full"></div>
+            </div>
+            <div id="alpha-thumb" class="fader-cap c-raised absolute w-2.5 h-3.5 rounded-[3px] border"></div>
+          </div>
+          <span id="alpha-readout" class="font-mono text-[11px] tabular whitespace-nowrap min-w-[72px] text-right"></span>
+        </div>
+        <button id="reset-modes-btn" type="button" class="console-btn c-raised h-[26px] px-2 rounded-md border text-xs font-medium cursor-pointer">S·F 해제</button>
+        <button id="auto-norm-btn" type="button" class="console-btn h-[26px] px-2 rounded-md border text-xs font-medium cursor-pointer" title="전역 자동 노멀라이저(균일 N): '전역 따름' 채널에만 표준 프리셋을 적용하며 고급 개별 설정을 덮어쓰지 않습니다">균일 N</button>
+        <button id="adv-rack-btn" type="button" class="console-btn h-[26px] px-2 rounded-md border text-xs font-medium cursor-pointer" title="선택 채널 고급 FX 사이드 랙 열기/닫기">고급 FX ▸</button>
+      </div>
+    </header>
+
+    <div id="theme-popover" role="dialog" class="c-surface hidden absolute left-3 top-[46px] z-30 w-[368px] max-w-[calc(100%-24px)] rounded-lg border p-2.5 shadow-2xl text-xs">
+      <div class="flex items-center justify-between gap-2 whitespace-nowrap mb-2">
+        <span class="c-muted font-medium">컬러 테마</span>
+        <span id="pop-cur-summary" class="font-mono text-[11px]"></span>
+      </div>
+      <div id="pop-theme-grid" class="grid grid-cols-2 gap-1.5"></div>
+      <div class="mt-2.5 pt-2 border-t" style="border-color:var(--c-border)">
+        <div class="c-muted font-medium mb-1.5">화면 모드</div>
+        <div id="pop-mode-seg" class="grid grid-cols-3 rounded-md border overflow-hidden" style="border-color:var(--c-border)"></div>
+      </div>
+    </div>
+
+    <main class="flex items-stretch min-w-0">
+      <div id="channels-scroll" class="flex-1 flex items-stretch gap-2 p-2.5 overflow-x-auto min-w-[114px]"></div>
+      <div id="master-dock" class="relative z-10 flex items-stretch p-2.5 pl-2 border-l shrink-0" style="border-color:var(--c-border)"></div>
+      <aside id="side-fx-rack" class="c-surface hidden w-[214px] shrink-0 border-l p-2.5 flex-col justify-between gap-2 text-xs" style="border-color:var(--c-border)"></aside>
+    </main>
+  </div>
+
+  <script>
+    const PALETTES = {
+      teal: { label: "스튜디오 틸", dark: { bg: "#091112", surface: "#131d1e", raised: "#1d292a", border: "#2d3b3c", text: "#e5edee", muted: "#98a4a6", primary: "#00bdce", onPrimary: "#000000", accent: "#e69732", onAccent: "#000000", states: { success: "#4fc678", warning: "#eda922", danger: "#f5605b", onDanger: "#000000" } }, light: { bg: "#eff5f5", surface: "#fafcfd", raised: "#e3ebec", border: "#c1cdcf", text: "#0e1819", muted: "#4e5b5c", primary: "#00808f", onPrimary: "#ffffff", accent: "#a05c00", onAccent: "#ffffff", states: { success: "#007f3b", warning: "#a96100", danger: "#bc272c", onDanger: "#ffffff" } } },
+      amber: { label: "콘솔 앰버", dark: { bg: "#130e0a", surface: "#1f1914", raised: "#2c251e", border: "#3e362e", text: "#efeae6", muted: "#a8a098", primary: "#eb992e", onPrimary: "#000000", accent: "#00c4d6", onAccent: "#000000", states: { success: "#4fc678", warning: "#eda922", danger: "#f5605b", onDanger: "#000000" } }, light: { bg: "#f6f3ef", surface: "#fdfbfa", raised: "#eee8e3", border: "#d1c9c1", text: "#1b150f", muted: "#5e574f", primary: "#d58200", onPrimary: "#000000", accent: "#007f8f", onAccent: "#ffffff", states: { success: "#007f3b", warning: "#a96100", danger: "#bc272c", onDanger: "#ffffff" } } },
+      cobalt: { label: "프리시전 코발트", dark: { bg: "#0d0f15", surface: "#171b21", raised: "#22272e", border: "#333842", text: "#e8ebf1", muted: "#9da2ab", primary: "#6591e1", onPrimary: "#000000", accent: "#00c6c7", onAccent: "#000000", states: { success: "#4fc678", warning: "#eda922", danger: "#f5605b", onDanger: "#000000" } }, light: { bg: "#f1f3f8", surface: "#fbfcfe", raised: "#e6eaf0", border: "#c6cbd4", text: "#12161d", muted: "#535861", primary: "#3569cd", onPrimary: "#ffffff", accent: "#008183", onAccent: "#ffffff", states: { success: "#007f3b", warning: "#a96100", danger: "#bc272c", onDanger: "#ffffff" } } },
+      emerald: { label: "브로드캐스트 에메랄드", dark: { bg: "#0b110d", surface: "#161d18", raised: "#202923", border: "#313b34", text: "#e7ede9", muted: "#9ba49e", primary: "#49bf7b", onPrimary: "#000000", accent: "#e29a2c", onAccent: "#000000", states: { success: "#4fc678", warning: "#eda922", danger: "#f5605b", onDanger: "#000000" } }, light: { bg: "#f0f5f2", surface: "#fafcfb", raised: "#e5ebe7", border: "#c4cdc7", text: "#111813", muted: "#515b54", primary: "#00864b", onPrimary: "#ffffff", accent: "#9d5e00", onAccent: "#ffffff", states: { success: "#007f3b", warning: "#a96100", danger: "#bc272c", onDanger: "#ffffff" } } }
+    };
+    const MIN_DB = -60, MAX_DB = 12, LED_COUNT = 20, SCALE_TICKS = [12, 6, 0, -12, -24, -48];
+    const ICONS = {
+      grip: `<svg width="16" height="6" viewBox="0 0 16 6" fill="currentColor"><circle cx="3" cy="1.5" r="1"/><circle cx="8" cy="1.5" r="1"/><circle cx="13" cy="1.5" r="1"/><circle cx="3" cy="4.5" r="1"/><circle cx="8" cy="4.5" r="1"/><circle cx="13" cy="4.5" r="1"/></svg>`,
+      play: `<svg width="10" height="10" viewBox="0 0 12 12" fill="currentColor"><path d="M3 2.2v7.6L9.8 6 3 2.2z"/></svg>`,
+      pause: `<svg width="10" height="10" viewBox="0 0 12 12" fill="currentColor"><rect x="2.6" y="2.2" width="2.4" height="7.6" rx="0.6"/><rect x="7" y="2.2" width="2.4" height="7.6" rx="0.6"/></svg>`,
+      pin: `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M7.6 1.8l2.6 2.6-1.7.7-1.9 1.9.4 2.2-1-.9-2.5 2.5-.5-.5L5.5 7.8l-.9-1 2.2.4 1.9-1.9.7-1.7z"/></svg>`,
+      jump: `<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.2 2.8h5v5"/><path d="M9 3L3.2 8.8"/></svg>`,
+      wave: `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2 6h1.5l1.2-3 2.2 6 1.4-3H10"/></svg>`,
+      speakerOff: `<svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M2 4.4h2l2.6-2.2v7.6L4 7.6H2V4.4z"/><path d="M8.4 4.4l2.4 3.2m0-3.2L8.4 7.6"/></svg>`
+    };
+    const TRACK_PROFILES = [
+      [{ sub: "발라드 (-21 LUFS)", srcDb: -7.5 }, { sub: "라이브 토크 (-16 LUFS)", srcDb: -2.0 }, { sub: "고자극 쇼츠 (-8 LUFS)", srcDb: 5.8 }, { sub: "OTT 영화 (DRM)", srcDb: -4.0 }, { sub: "어쿠스틱 (-19 LUFS)", srcDb: -4.5 }],
+      [{ sub: "EDM 신곡 (-7 LUFS)", srcDb: 6.5 }, { sub: "게임 교전음 (-10 LUFS)", srcDb: 4.0 }, { sub: "정석 강의 (-19 LUFS)", srcDb: -5.5 }, { sub: "OTT 영화 (DRM)", srcDb: -4.0 }, { sub: "재즈 피아노 (-20 LUFS)", srcDb: -5.0 }]
+    ];
+
+    const state = {
+      autoNormEnabled: true, advRackOpen: true, theme: "teal", modePref: "dark", popoverOpen: false,
+      profileIdx: 0, alpha: 0.70, masterDb: 0.0, masterMuted: false, selectedId: 1, toast: "",
+      domainDefaults: { "melon.com": -6.0, "chzzk.naver.com": 0.0 },
+      channels: [
+        { id: 1, shortHost: "melon", domain: "melon.com", title: "멜론 스트리밍", playing: true, db: -6.0, muted: false, solo: false, focus: false, corsCap: false, fx: { normMode: "on", normTargetLufs: -14, normSpeed: "fast", pan: -25, gateEnabled: false, gateThresholdDb: -48, compEnabled: false, compRatio: 4 }, trimDb: 6.5, srcDb: -7.5, subTrack: "발라드 (-21 LUFS)" },
+        { id: 2, shortHost: "chzzk", domain: "chzzk.naver.com", title: "침착맨 라이브", playing: true, db: 0.0, muted: false, solo: false, focus: true, corsCap: false, fx: { normMode: "follow", normTargetLufs: -16, normSpeed: "std", pan: 0, gateEnabled: true, gateThresholdDb: -45, compEnabled: true, compRatio: 4 }, trimDb: 1.5, srcDb: -2.0, subTrack: "라이브 토크 (-16 LUFS)" },
+        { id: 3, shortHost: "youtube", domain: "youtube.com", title: "고자극 쇼츠 모음", playing: true, db: 0.0, muted: false, solo: false, focus: false, corsCap: false, fx: { normMode: "follow", normTargetLufs: -16, normSpeed: "std", pan: 30, gateEnabled: false, gateThresholdDb: -48, compEnabled: false, compRatio: 4 }, trimDb: -5.5, srcDb: 5.8, subTrack: "고자극 쇼츠 (-8 LUFS)" },
+        { id: 4, shortHost: "netflix", domain: "netflix.com", title: "넷플릭스 영화", playing: true, db: 0.0, muted: false, solo: false, focus: false, corsCap: true, fx: { normMode: "follow", normTargetLufs: -16, normSpeed: "std", pan: 0, gateEnabled: false, gateThresholdDb: -48, compEnabled: false, compRatio: 4 }, trimDb: 0, srcDb: -4.0, subTrack: "OTT 영화 (DRM)" },
+        { id: 5, shortHost: "soundcloud", domain: "soundcloud.com", title: "오후 플레이리스트", playing: false, db: -3.0, muted: false, solo: false, focus: false, corsCap: false, fx: { normMode: "off", normTargetLufs: -18, normSpeed: "slow", pan: 0, gateEnabled: false, gateThresholdDb: -50, compEnabled: false, compRatio: 2 }, trimDb: 0, srcDb: -4.5, subTrack: "어쿠스틱 (-19 LUFS)" }
+      ]
+    };
+
+    const dbToLinear = (db) => (!Number.isFinite(db) || db <= MIN_DB) ? 0 : Math.pow(10, db / 20);
+    const linearToDb = (g) => (!Number.isFinite(g) || g <= 0) ? -Infinity : (20 * Math.log10(g) <= MIN_DB ? -Infinity : 20 * Math.log10(g));
+    const dbToRatio = (db) => (!Number.isFinite(db) || db <= MIN_DB) ? 0 : db >= MAX_DB ? 1 : (db - MIN_DB) / (MAX_DB - MIN_DB);
+    const ratioToLinearAmp = (r) => r <= 0 ? 0 : dbToLinear(MIN_DB + Math.min(1, r) * (MAX_DB - MIN_DB));
+    const clampDb = (db, cap) => Math.max(MIN_DB, Math.min(cap ? 0 : MAX_DB, Math.round(db * 10) / 10));
+    const ratioToDb = (r, cap) => clampDb(Math.round((MIN_DB + Math.max(0, Math.min(1, r)) * (MAX_DB - MIN_DB)) * 2) / 2, cap);
+    const getFocusDimDb = (a) => a <= 0 ? -Infinity : a >= 1 ? 0 : -Math.round(40 * (1 - a) * 10) / 10;
+    const fmtDb = (db) => (!Number.isFinite(db) || db <= MIN_DB) ? "-∞" : (db > 0 ? "+" : "") + (db.toFixed(1) === "-0.0" ? "0.0" : db.toFixed(1));
+    const fmtPan = (p) => p === 0 ? "C" : p < 0 ? `L${Math.abs(p)}` : `R${p}`;
+    const resolvedMode = () => state.modePref !== "system" ? state.modePref : (window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark");
+    const tokens = () => PALETTES[state.theme][resolvedMode()];
+
+    // 비파괴 2계층 노멀라이저 해석: 전역 균일 N을 아무리 토글해도 ch.fx 값은 절대 변경되지 않음
+    function resolveNorm(ch) {
+      if (ch.corsCap) return { active: false, targetLufs: -16, speed: "std", source: "off" };
+      if (ch.fx.normMode === "on") return { active: true, targetLufs: ch.fx.normTargetLufs, speed: ch.fx.normSpeed, source: "custom-on" };
+      if (ch.fx.normMode === "off") return { active: false, targetLufs: ch.fx.normTargetLufs, speed: ch.fx.normSpeed, source: "custom-off" };
+      return { active: state.autoNormEnabled, targetLufs: -16, speed: "std", source: state.autoNormEnabled ? "auto" : "off" };
+    }
+
+    // 선형 진폭 제곱합 제곱근(RSS) 기반 스테레오 마스터 미터 연산 (로그 비율 단순 합산 포화 버그 해결)
+    function computeMasterStereoVu(items) {
+      if (state.masterMuted) return { left: 0, right: 0 };
+      let sumSqL = 0, sumSqR = 0;
+      for (const it of items) {
+        if (it.vuRatio <= 0) continue;
+        const amp = ratioToLinearAmp(it.vuRatio);
+        const pan = Math.max(-100, Math.min(100, it.pan || 0));
+        const gL = pan <= 0 ? 1 : Math.cos((pan / 100) * (Math.PI / 2));
+        const gR = pan >= 0 ? 1 : Math.cos((-pan / 100) * (Math.PI / 2));
+        sumSqL += (amp * gL) ** 2;
+        sumSqR += (amp * gR) ** 2;
+      }
+      const ampL = Math.sqrt(sumSqL), ampR = Math.sqrt(sumSqR);
+      return {
+        left: ampL <= 0 ? 0 : dbToRatio(Math.min(MAX_DB, linearToDb(ampL))),
+        right: ampR <= 0 ? 0 : dbToRatio(Math.min(MAX_DB, linearToDb(ampR)))
+      };
+    }
+
+    function flashToast(msg) {
+      state.toast = msg;
+      clearTimeout(flashToast.timer);
+      flashToast.timer = setTimeout(() => { state.toast = ""; renderAll(); }, 1800);
+      renderAll();
+    }
+
+    function computeEffDb(ch) {
+      if (!ch.playing || ch.muted || state.masterMuted || ch.db <= MIN_DB || state.masterDb <= MIN_DB) return -Infinity;
+      const anySolo = state.channels.some((c) => c.solo), anyFocus = state.channels.some((c) => c.focus);
+      let tot = (ch.corsCap ? Math.min(0, ch.db) : ch.db) + state.masterDb;
+      if (anySolo) { if (!ch.solo) return -Infinity; }
+      else if (anyFocus && !ch.focus) {
+        const d = getFocusDimDb(state.alpha);
+        if (!Number.isFinite(d)) return -Infinity;
+        tot += d;
+      }
+      if (ch.corsCap) tot = Math.min(0, tot);
+      return tot <= MIN_DB ? -Infinity : tot;
+    }
+
+    function attachKnobOnlyDrag(knobEl, trackEl, axis, onRatio, onReset) {
+      const resetFn = (ev) => { ev.preventDefault(); ev.stopPropagation(); onReset?.(); };
+      knobEl.addEventListener("dblclick", resetFn);
+      trackEl.addEventListener("dblclick", resetFn);
+      knobEl.addEventListener("pointerdown", (ev) => {
+        if (ev.button !== 0 || ev.detail >= 2) return;
+        ev.preventDefault(); ev.stopPropagation();
+        const move = (me) => {
+          const rect = trackEl.getBoundingClientRect();
+          if (rect.width <= 0 || rect.height <= 0) return;
+          const raw = axis === "y" ? 1 - (me.clientY - rect.top) / rect.height : (me.clientX - rect.left) / rect.width;
+          onRatio(Math.max(0, Math.min(1, raw)));
+        };
+        const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
+        window.addEventListener("pointermove", move);
+        window.addEventListener("pointerup", up);
+      });
+    }
+
+    function attachInlineDbEdit(box, dispRow, editRow, input, subEl, getDb, isCap, onCommit) {
+      let initTxt = "", closed = false;
+      box.onclick = (ev) => {
+        if (box.dataset.editing === "true") return;
+        ev.stopPropagation();
+        const cur = getDb();
+        initTxt = cur <= MIN_DB ? "-60" : cur.toFixed(1);
+        closed = false; box.dataset.editing = "true";
+        dispRow.classList.add("hidden"); editRow.classList.remove("hidden");
+        subEl.textContent = "직접 입력"; input.value = initTxt; input.focus(); input.select();
+      };
+      input.onclick = (e) => e.stopPropagation();
+      input.onpointerdown = (e) => e.stopPropagation();
+      const finish = (applyChange, forceApply) => {
+        const raw = input.value.trim().replace(/\s*db$/i, "");
+        delete box.dataset.editing; editRow.classList.add("hidden"); dispRow.classList.remove("hidden");
+        if (applyChange && (forceApply || raw !== initTxt)) {
+          const v = raw === "-inf" || raw === "-∞" ? MIN_DB : Number(raw);
+          if (raw && Number.isFinite(v)) onCommit(clampDb(v, isCap()));
+        }
+        renderAll();
+      };
+      input.onkeydown = (ev) => {
+        ev.stopPropagation();
+        if (ev.key === "Enter" || ev.key === "Escape") { ev.preventDefault(); closed = true; finish(ev.key === "Enter", true); }
+      };
+      input.onblur = () => { if (!closed && box.dataset.editing === "true") finish(true, false); };
+    }
+
+    function paintVu(segs, ratio, peakRatio, t) {
+      const lit = Math.round(ratio * LED_COUNT);
+      const pk = peakRatio > 0.04 ? Math.min(LED_COUNT - 1, Math.max(0, Math.round(peakRatio * LED_COUNT) - 1)) : -1;
+      const zSeg = Math.round(dbToRatio(0) * LED_COUNT), hSeg = Math.round(dbToRatio(7.5) * LED_COUNT);
+      segs.forEach((s, i) => {
+        const col = i >= hSeg ? t.states.danger : i >= zSeg ? t.states.warning : t.states.success;
+        const on = i < lit, isPk = i === pk && pk >= lit;
+        s.style.backgroundColor = (on || isPk) ? col : t.border;
+        s.style.opacity = on ? "0.95" : isPk ? "0.85" : "0.26";
+      });
+    }
+
+    let dragState = null;
+    function beginChannelDrag(ev, ch) {
+      if (ev.button !== 0) return;
+      ev.preventDefault(); ev.stopPropagation();
+      state.selectedId = ch.id;
+      const scrollEl = document.getElementById("channels-scroll");
+      const marker = document.createElement("div");
+      marker.className = "drop-marker";
+      dragState = { id: ch.id, targetGroup: ch.playing ? "playing" : "paused", targetIdx: 0 };
+      renderAll();
+      const onMove = (me) => {
+        const divider = scrollEl.querySelector('[data-role="zone-divider"]');
+        const divRect = divider ? divider.getBoundingClientRect() : null;
+        const targetGroup = (divRect && me.clientX > divRect.left + divRect.width / 2) ? "paused" : "playing";
+        const groupEls = [...scrollEl.querySelectorAll(`.channel-card[data-zone="${targetGroup}"]`)].filter((el) => Number(el.dataset.id) !== ch.id);
+        let idx = groupEls.length;
+        for (let i = 0; i < groupEls.length; i++) {
+          const r = groupEls[i].getBoundingClientRect();
+          if (me.clientX < r.left + r.width / 2) { idx = i; break; }
+        }
+        dragState.targetGroup = targetGroup; dragState.targetIdx = idx;
+        marker.remove();
+        if (idx < groupEls.length) scrollEl.insertBefore(marker, groupEls[idx]);
+        else if (targetGroup === "playing" && divider) scrollEl.insertBefore(marker, divider);
+        else scrollEl.appendChild(marker);
+      };
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp);
+        marker.remove();
+        if (!dragState) return;
+        const { targetGroup, targetIdx } = dragState;
+        dragState = null;
+        const wasPlaying = ch.playing, nextPlaying = targetGroup === "playing";
+        const rest = state.channels.filter((c) => c.id !== ch.id);
+        const playList = rest.filter((c) => c.playing), pauseList = rest.filter((c) => !c.playing);
+        ch.playing = nextPlaying;
+        if (nextPlaying) playList.splice(targetIdx, 0, ch); else pauseList.splice(targetIdx, 0, ch);
+        state.channels = [...playList, ...pauseList];
+        if (wasPlaying !== nextPlaying) flashToast(`${ch.title}: ${nextPlaying ? "재생 구역 이동 · 즉시 재생" : "일시정지 구역 이동 · 즉시 정지"}`);
+        else renderAll();
+      };
+      window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp);
+    }
+
+    const stripDomCache = new Map();
+    function createChannelCard(ch) {
+      const zeroPct = dbToRatio(0) * 100;
+      const el = document.createElement("section");
+      el.className = "channel-card w-[94px] relative shrink-0 rounded-lg border flex flex-col p-1.5 pt-1 gap-1.5 overflow-hidden";
+      el.dataset.id = String(ch.id);
+      el.innerHTML = `<div data-ref="topAccent" class="absolute inset-x-0 top-0 h-[2.5px]"></div>
+        <div data-ref="grip" class="grip-bar flex items-center justify-between px-0.5 h-[14px] rounded hover:opacity-100 opacity-80" title="드래그하여 순서 변경 · 재생↔일시정지 구역 이동 시 즉시 전환"><span class="c-muted">${ICONS.grip}</span><span data-ref="normBadge" class="font-mono text-[9px] px-1 rounded leading-[12px] hidden">N</span></div>
+        <button data-ref="header" type="button" class="group w-full h-[40px] text-left pb-1 border-b flex flex-col justify-between cursor-pointer overflow-hidden" style="border-color:var(--c-border);padding-inline:0;padding-top:1px">
+          <div class="flex items-center gap-1 w-full min-w-0"><span data-ref="fav" class="c-surface w-[15px] h-[15px] rounded-[3px] border flex items-center justify-center shrink-0">${ICONS.wave}</span><span class="c-muted text-[10px] truncate flex-1 leading-[14px]">${ch.shortHost}</span><span class="opacity-45 group-hover:opacity-100 shrink-0" style="color:var(--c-primary)">${ICONS.jump}</span></div>
+          <div data-ref="title" class="w-full text-xs font-semibold truncate leading-[18px]"></div>
+        </button>
+        <div class="fader-well rounded-md border px-2 py-[9px] flex items-center justify-between">
+          <div data-ref="track" class="relative w-[24px] h-full flex items-center justify-center" title="노브 드래그 · 휠 조절 · 더블클릭 0.0dB 복귀">
+            <span class="absolute left-0.5 w-[3px] border-t pointer-events-none" style="bottom:${zeroPct}%;border-color:var(--c-muted)"></span><span class="absolute right-0.5 w-[3px] border-t pointer-events-none" style="bottom:${zeroPct}%;border-color:var(--c-muted)"></span>
+            <div class="fader-slot w-[5px] h-full rounded-full border relative overflow-hidden"><div data-ref="effFill" class="absolute inset-x-0 bottom-0 rounded-full"></div><div data-ref="attenBand" class="attenuated-band absolute inset-x-0 hidden"></div><div data-ref="corsZone" class="cors-zone absolute inset-x-0 top-0 border-b hidden" style="height:${100 - zeroPct}%"></div></div>
+            <div data-ref="knob" class="fader-cap absolute w-[22px] h-[14px] rounded-[3px] border flex flex-col items-center justify-center gap-[1.5px]" title="노브를 잡아 드래그 · 더블클릭 0.0dB"><span class="w-[10px] h-px bg-current opacity-30"></span><span data-ref="knobLine" class="w-[13px] h-[1.5px] rounded-full block"></span><span class="w-[10px] h-px bg-current opacity-30"></span></div>
+          </div>
+          <div data-ref="scaleWrap" class="relative w-[20px] h-full pointer-events-none"></div>
+          <div data-ref="vuCol" class="vu-col"></div>
+        </div>
+        <div data-ref="readoutBtn" role="button" tabindex="0" title="클릭하여 dB 직접 입력 (0.0dB 리셋 없음)" class="c-recessed w-full rounded border py-1 px-1 text-center cursor-text overflow-hidden shrink-0">
+          <div data-ref="dispRow" class="flex items-baseline justify-center gap-0.5 whitespace-nowrap leading-[15px] font-mono"><span data-ref="dbText" class="text-xs font-bold tabular"></span><span class="c-muted text-[10px]">dB</span></div>
+          <div data-ref="editRow" class="hidden flex items-baseline justify-center gap-0.5 whitespace-nowrap leading-[15px] font-mono"><input data-ref="dbInput" type="text" class="w-[44px] h-[15px] bg-transparent border-0 outline-none text-right text-xs font-bold tabular" style="color:var(--c-text)" /><span class="c-muted text-[10px]">dB</span></div>
+          <div data-ref="subText" class="block w-full text-[10px] truncate tabular whitespace-nowrap mt-0.5 text-center leading-[14px]"></div>
+        </div>
+        <div class="flex items-center gap-1 shrink-0"><button data-ref="playBtn" type="button" class="console-btn flex-1 h-[25px] rounded border gap-1 text-[11px] cursor-pointer"></button><button data-ref="pinBtn" type="button" class="console-btn relative w-[26px] h-[25px] rounded border shrink-0 cursor-pointer">${ICONS.pin}<span data-ref="pinDot" class="absolute top-1 right-1 w-1 h-1 rounded-full"></span></button></div>
+        <div class="c-recessed grid grid-cols-3 gap-[3px] p-[2px] rounded-md border shrink-0">
+          <button data-ref="mBtn" type="button" class="console-btn flex-col h-[24px] rounded-[4px] border text-[11px] font-mono cursor-pointer" title="음소거 (Mute)"><span data-ref="mPip" class="w-2.5 h-[2px] rounded-full mb-0.5"></span><span class="leading-none">M</span></button>
+          <button data-ref="sBtn" type="button" class="console-btn flex-col h-[24px] rounded-[4px] border text-[11px] font-mono cursor-pointer" title="Solo (Focus와 상호 배타)"><span data-ref="sPip" class="w-2.5 h-[2px] rounded-full mb-0.5"></span><span class="leading-none">S</span></button>
+          <button data-ref="fBtn" type="button" class="console-btn flex-col h-[24px] rounded-[4px] border text-[11px] font-mono cursor-pointer" title="Focus (비선택 채널만 α 감쇠)"><span data-ref="fPip" class="w-2.5 h-[2px] rounded-full mb-0.5"></span><span class="leading-none">F</span></button>
+        </div>`;
+      const q = (k) => el.querySelector(`[data-ref="${k}"]`);
+      const scaleItems = SCALE_TICKS.map((db) => {
+        const d = document.createElement("div"); d.className = "absolute inset-x-0 text-right text-[9.5px] leading-none tabular whitespace-nowrap";
+        d.style.bottom = `calc(${dbToRatio(db) * 100}% - 4.5px)`; d.textContent = db > 0 ? `+${db}` : String(db); q("scaleWrap").appendChild(d);
+        return { db, el: d };
+      });
+      const vuSegs = Array.from({ length: LED_COUNT }, () => { const s = document.createElement("span"); s.className = "vu-seg"; q("vuCol").appendChild(s); return s; });
+      el.addEventListener("pointerdown", () => { if (state.selectedId !== ch.id) { state.selectedId = ch.id; renderAll(); } });
+      q("grip").addEventListener("pointerdown", (ev) => beginChannelDrag(ev, ch));
+      q("header").onclick = () => flashToast(`탭 이동: ${ch.title} (${ch.domain})`);
+      el.addEventListener("wheel", (ev) => { ev.preventDefault(); ch.db = clampDb(ch.db + (ev.deltaY < 0 ? (ev.shiftKey ? 0.5 : 1.5) : -(ev.shiftKey ? 0.5 : 1.5)), ch.corsCap); renderAll(); }, { passive: false });
+      attachKnobOnlyDrag(q("knob"), q("track"), "y", (r) => { ch.db = ratioToDb(r, ch.corsCap); renderAll(); }, () => { ch.db = 0; renderAll(); });
+      attachInlineDbEdit(q("readoutBtn"), q("dispRow"), q("editRow"), q("dbInput"), q("subText"), () => ch.db, () => ch.corsCap, (v) => { ch.db = v; });
+      q("playBtn").onclick = () => { ch.playing = !ch.playing; renderAll(); };
+      q("pinBtn").onclick = () => {
+        if (state.domainDefaults[ch.domain] === ch.db) { delete state.domainDefaults[ch.domain]; flashToast(`${ch.shortHost} 기본값 해제`); }
+        else { state.domainDefaults[ch.domain] = ch.db; flashToast(`${ch.shortHost} ${fmtDb(ch.db)}dB 고정`); }
+      };
+      q("mBtn").onclick = () => { ch.muted = !ch.muted; renderAll(); };
+      const toggleEx = (mode, shift) => {
+        const other = mode === "solo" ? "focus" : "solo";
+        state.channels.forEach((c) => { c[other] = false; });
+        if (shift) ch[mode] = !ch[mode];
+        else { const sole = ch[mode] && state.channels.filter((c) => c[mode]).length === 1; state.channels.forEach((c) => { c[mode] = false; }); ch[mode] = !sole; }
+        renderAll();
+      };
+      q("sBtn").onclick = (ev) => toggleEx("solo", ev.shiftKey);
+      q("fBtn").onclick = (ev) => toggleEx("focus", ev.shiftKey);
+      return { el, q, scaleItems, vuSegs, vuCur: 0.4, vuPeak: 0.5 };
+    }
+
+    let masterRef = null;
+    function buildMaster() {
+      const zeroPct = dbToRatio(0) * 100;
+      const el = document.createElement("section");
+      el.className = "c-surface relative w-[98px] shrink-0 rounded-lg border flex flex-col p-1.5 gap-1.5 overflow-hidden";
+      el.innerHTML = `<div data-ref="topAccent" class="absolute inset-x-0 top-0 h-[2.5px]"></div>
+        <div class="h-[40px] pb-1 border-b flex flex-col justify-between text-center shrink-0" style="border-color:var(--c-border);padding-top:1px"><div class="font-mono text-[9px] tracking-[0.12em] uppercase leading-[14px]" style="color:var(--c-primary)">MASTER BUS</div><div class="text-xs font-semibold leading-[18px] whitespace-nowrap">전체 출력</div></div>
+        <div class="fader-well rounded-md border px-2.5 py-[9px] flex items-center justify-between">
+          <div data-ref="vuL" class="vu-col"></div>
+          <div data-ref="track" class="relative w-[28px] h-full flex items-center justify-center" title="노브 드래그 · 더블클릭 0.0dB 복귀">
+            <span class="absolute left-0.5 w-[3px] border-t pointer-events-none" style="bottom:${zeroPct}%;border-color:var(--c-muted)"></span><span class="absolute right-0.5 w-[3px] border-t pointer-events-none" style="bottom:${zeroPct}%;border-color:var(--c-muted)"></span>
+            <div class="fader-slot w-[6px] h-full rounded-full border relative overflow-hidden"><div data-ref="fill" class="absolute inset-x-0 bottom-0 rounded-full"></div></div>
+            <div data-ref="knob" class="fader-cap c-raised absolute w-[24px] h-[15px] rounded-[3px] border flex flex-col items-center justify-center gap-[1.5px]"><span class="w-[11px] h-px bg-current opacity-30"></span><span data-ref="knobLine" class="w-[14px] h-[1.5px] rounded-full block"></span><span class="w-[11px] h-px bg-current opacity-30"></span></div>
+          </div>
+          <div data-ref="vuR" class="vu-col"></div>
+        </div>
+        <div data-ref="readoutBtn" role="button" tabindex="0" class="c-recessed w-full rounded border py-1 px-1 text-center cursor-text overflow-hidden shrink-0" title="클릭하여 마스터 dB 직접 입력">
+          <div data-ref="dispRow" class="flex items-baseline justify-center gap-0.5 whitespace-nowrap leading-[15px] font-mono"><span data-ref="dbText" class="text-xs font-bold tabular"></span><span data-ref="dbUnit" class="c-muted text-[10px]">dB</span></div>
+          <div data-ref="editRow" class="hidden flex items-baseline justify-center gap-0.5 whitespace-nowrap leading-[15px] font-mono"><input data-ref="dbInput" type="text" class="w-[44px] h-[15px] bg-transparent border-0 outline-none text-right text-xs font-bold tabular" style="color:var(--c-text)" /><span class="c-muted text-[10px]">dB</span></div>
+          <div data-ref="subText" class="c-muted block w-full text-[10px] truncate mt-0.5 leading-[14px]">마스터 게인</div>
+        </div>
+        <button data-ref="pauseAll" type="button" class="console-btn c-raised w-full h-[25px] rounded border text-[11px] font-medium gap-1 cursor-pointer shrink-0"></button>
+        <button data-ref="muteAll" type="button" class="console-btn w-full h-[28px] rounded border text-[11px] font-medium gap-1 cursor-pointer shrink-0"></button>`;
+      const q = (k) => el.querySelector(`[data-ref="${k}"]`);
+      const mkSegs = (box) => Array.from({ length: LED_COUNT }, () => { const s = document.createElement("span"); s.className = "vu-seg"; box.appendChild(s); return s; });
+      const vuL = mkSegs(q("vuL")), vuR = mkSegs(q("vuR"));
+      attachKnobOnlyDrag(q("knob"), q("track"), "y", (r) => { state.masterDb = ratioToDb(r, false); renderAll(); }, () => { state.masterDb = 0; renderAll(); });
+      attachInlineDbEdit(q("readoutBtn"), q("dispRow"), q("editRow"), q("dbInput"), q("subText"), () => state.masterDb, () => false, (v) => { state.masterDb = v; });
+      el.addEventListener("wheel", (ev) => { ev.preventDefault(); state.masterDb = clampDb(state.masterDb + (ev.deltaY < 0 ? 1.5 : -1.5), false); renderAll(); }, { passive: false });
+      q("pauseAll").onclick = () => { const next = !state.channels.some((c) => c.playing); state.channels.forEach((c) => { c.playing = next; }); renderAll(); };
+      q("muteAll").onclick = () => { state.masterMuted = !state.masterMuted; renderAll(); };
+      document.getElementById("master-dock").appendChild(el);
+      return { el, q, vuL, vuR, curL: 0.35, curR: 0.35, pkL: 0.42, pkR: 0.42 };
+    }
+
+    function renderSideRack(container, t) {
+      const ch = state.channels.find((c) => c.id === state.selectedId) || state.channels[0];
+      if (!ch) return;
+      const resolved = resolveNorm(ch);
+      const badgeTxt = ch.corsCap ? "보안 0dB · 우회" : resolved.active ? `보정 ${ch.trimDb >= 0 ? "+" : ""}${ch.trimDb.toFixed(1)}dB` : "보정 OFF";
+      const badgeCol = ch.corsCap ? t.states.warning : resolved.active ? t.primary : t.muted;
+      const subDesc = ch.corsCap ? "교차 출처·DRM 보안으로 DSP 자동 우회" : `${ch.subTrack} · ${resolved.source === "custom-on" ? "개별 고정 ON" : resolved.source === "custom-off" ? "전역 제외 OFF" : state.autoNormEnabled ? "전역 균일 적용" : "전역 대기"}`;
+
+      container.innerHTML = `
+        <div class="pb-1.5 border-b space-y-0.5 shrink-0" style="border-color:var(--c-border)">
+          <div class="flex items-center justify-between gap-1.5">
+            <span class="font-semibold truncate">${ch.title}</span>
+            <span class="font-mono text-[10px] px-1.5 py-0.5 rounded border c-recessed shrink-0 tabular" style="color:${badgeCol}">${badgeTxt}</span>
+          </div>
+          <div class="c-muted text-[10.5px] truncate">${subDesc}</div>
+        </div>
+        <div class="flex flex-col gap-2 ${ch.corsCap ? "fx-cards-disabled" : ""}">
+          <div class="c-recessed p-2 rounded-md border flex flex-col gap-1.5">
+            <div class="flex items-center justify-between gap-1">
+              <span class="font-semibold">노멀라이저</span>
+              <span class="text-[10px] font-mono c-muted">${ch.fx.normMode === "follow" ? "표준 -16" : `개별 ${ch.fx.normTargetLufs}`}</span>
+            </div>
+            <div class="grid grid-cols-3 gap-1">
+              ${[["follow", "전역 따름"], ["on", "개별 ON"], ["off", "개별 OFF"]].map(([m, lbl]) => {
+                const active = ch.fx.normMode === m;
+                const bg = active ? (m === "on" ? t.accent : m === "follow" && state.autoNormEnabled ? t.primary : t.raised) : t.surface;
+                const fg = active ? (m === "on" ? t.onAccent : m === "follow" && state.autoNormEnabled ? t.onPrimary : t.text) : t.muted;
+                const bd = active ? (m === "on" ? t.accent : t.primary) : t.border;
+                return `<button data-norm-mode="${m}" type="button" class="console-btn h-[20px] rounded border text-[10px] cursor-pointer" style="background:${bg};color:${fg};border-color:${bd};font-weight:${active ? 700 : 500}">${lbl}</button>`;
+              }).join("")}
+            </div>
+            <div class="flex items-center justify-between text-[10.5px] c-muted"><span>개별 목표 음압</span><span class="font-mono tabular" style="color:${t.text}">${ch.fx.normTargetLufs} LUFS</span></div>
+            <input data-fx="normTarget" type="range" min="-20" max="-12" step="1" value="${ch.fx.normTargetLufs}" class="fx-range w-full" />
+            <div class="grid grid-cols-3 gap-1">${[["slow", "완만"], ["std", "표준"], ["fast", "민감"]].map(([k, lbl]) => `<button data-speed="${k}" type="button" class="console-btn h-[19px] rounded border text-[10px] cursor-pointer" style="background:${ch.fx.normSpeed === k ? t.primary : t.surface};color:${ch.fx.normSpeed === k ? t.onPrimary : t.muted};border-color:${ch.fx.normSpeed === k ? t.primary : t.border}">${lbl}</button>`).join("")}</div>
+          </div>
+          <div class="c-recessed p-2 rounded-md border flex flex-col gap-1.5">
+            <div class="flex items-center justify-between"><span class="font-semibold">패닝 (Pan)</span><button data-fx="panReset" type="button" class="console-btn px-1.5 h-[18px] rounded border text-[10px] font-mono cursor-pointer">${fmtPan(ch.fx.pan)}</button></div>
+            <div class="flex items-center justify-between text-[10px] c-muted font-mono"><span>L100</span><span>C</span><span>R100</span></div>
+            <input data-fx="pan" type="range" min="-100" max="100" step="5" value="${ch.fx.pan}" class="fx-range w-full" />
+          </div>
+          <div class="c-recessed p-2 rounded-md border flex flex-col gap-1.5">
+            <div class="flex items-center justify-between"><span class="font-semibold">노이즈 게이트</span><button data-fx="gate" type="button" class="console-btn px-1.5 h-[18px] rounded border text-[10px] font-mono cursor-pointer">${ch.fx.gateEnabled ? "ON" : "OFF"}</button></div>
+            <div class="flex items-center justify-between text-[10.5px] c-muted"><span>바닥 차단</span><span class="font-mono tabular" style="color:${t.text}">${ch.fx.gateThresholdDb} dB</span></div>
+            <input data-fx="gateTh" type="range" min="-65" max="-30" step="1" value="${ch.fx.gateThresholdDb}" class="fx-range w-full" />
+          </div>
+          <div class="c-recessed p-2 rounded-md border flex flex-col gap-1.5">
+            <div class="flex items-center justify-between"><span class="font-semibold">컴프레서</span><button data-fx="comp" type="button" class="console-btn px-1.5 h-[18px] rounded border text-[10px] font-mono cursor-pointer">${ch.fx.compEnabled ? "ON" : "OFF"}</button></div>
+            <div class="grid grid-cols-3 gap-1">${[[2, "약 2:1"], [4, "중 4:1"], [8, "강 8:1"]].map(([r, lbl]) => `<button data-ratio="${r}" type="button" class="console-btn h-[19px] rounded border text-[10px] cursor-pointer" style="background:${ch.fx.compRatio === r ? t.primary : t.surface};color:${ch.fx.compRatio === r ? t.onPrimary : t.muted};border-color:${ch.fx.compRatio === r ? t.primary : t.border}">${lbl}</button>`).join("")}</div>
+          </div>
+        </div>`;
+
+      if (ch.corsCap) return;
+      const styleTgl = (sel, on) => { const b = container.querySelector(sel); if (b) { b.style.backgroundColor = on ? t.primary : t.surface; b.style.color = on ? t.onPrimary : t.muted; b.style.borderColor = on ? t.primary : t.border; } };
+      styleTgl('[data-fx="gate"]', ch.fx.gateEnabled); styleTgl('[data-fx="comp"]', ch.fx.compEnabled); styleTgl('[data-fx="panReset"]', ch.fx.pan !== 0);
+      container.querySelectorAll("[data-norm-mode]").forEach((b) => { b.onclick = () => { ch.fx.normMode = b.dataset.normMode; renderAll(); }; });
+      container.querySelector('[data-fx="normTarget"]').oninput = (e) => { ch.fx.normTargetLufs = Number(e.target.value); if (ch.fx.normMode === "follow") ch.fx.normMode = "on"; renderAll(); };
+      container.querySelectorAll("[data-speed]").forEach((b) => { b.onclick = () => { ch.fx.normSpeed = b.dataset.speed; if (ch.fx.normMode === "follow") ch.fx.normMode = "on"; renderAll(); }; });
+      container.querySelector('[data-fx="pan"]').oninput = (e) => { ch.fx.pan = Number(e.target.value); renderAll(); };
+      container.querySelector('[data-fx="panReset"]').onclick = () => { ch.fx.pan = 0; renderAll(); };
+      container.querySelector('[data-fx="gate"]').onclick = () => { ch.fx.gateEnabled = !ch.fx.gateEnabled; renderAll(); };
+      container.querySelector('[data-fx="gateTh"]').oninput = (e) => { ch.fx.gateThresholdDb = Number(e.target.value); renderAll(); };
+      container.querySelector('[data-fx="comp"]').onclick = () => { ch.fx.compEnabled = !ch.fx.compEnabled; renderAll(); };
+      container.querySelectorAll("[data-ratio]").forEach((b) => { b.onclick = () => { ch.fx.compRatio = Number(b.dataset.ratio); renderAll(); }; });
+    }
+
+    function renderPopover(t, isDark) {
+      document.getElementById("brand-dot").style.backgroundColor = t.primary;
+      const pop = document.getElementById("theme-popover");
+      pop.classList.toggle("hidden", !state.popoverOpen);
+      if (!state.popoverOpen) return;
+      const sum = document.getElementById("pop-cur-summary");
+      sum.textContent = `${PALETTES[state.theme].label} · ${isDark ? "다크" : "라이트"}`; sum.style.color = t.primary;
+      const grid = document.getElementById("pop-theme-grid"); grid.innerHTML = "";
+      Object.entries(PALETTES).forEach(([k, p]) => {
+        const sw = isDark ? p.dark : p.light, sel = state.theme === k;
+        const b = document.createElement("button"); b.type = "button";
+        b.className = "console-btn justify-start gap-1.5 px-2 py-1.5 rounded-md border text-xs cursor-pointer";
+        b.style.cssText = `background:${sel ? t.raised : t.bg};border-color:${sel ? t.primary : t.border};font-weight:${sel ? 700 : 500}`;
+        b.innerHTML = `<span class="w-3.5 h-3.5 rounded-full shrink-0 inline-block" style="background:${sw.primary}"></span><span class="whitespace-nowrap">${p.label}</span>`;
+        b.onclick = () => { state.theme = k; renderAll(); };
+        grid.appendChild(b);
+      });
+      const seg = document.getElementById("pop-mode-seg"); seg.innerHTML = "";
+      [["dark", "다크"], ["light", "라이트"], ["system", "시스템"]].forEach(([m, lbl], idx) => {
+        const b = document.createElement("button"); b.type = "button"; b.className = "console-btn py-1 text-xs cursor-pointer";
+        const active = state.modePref === m;
+        b.style.cssText = `${idx > 0 ? `border-left:1px solid ${t.border};` : ""}background:${active ? t.primary : t.bg};color:${active ? t.onPrimary : t.muted}`;
+        b.textContent = lbl; b.onclick = () => { state.modePref = m; renderAll(); };
+        seg.appendChild(b);
+      });
+    }
+
+    function renderAll() {
+      const mode = resolvedMode(), isDark = mode === "dark", t = tokens();
+      const root = document.getElementById("console-root");
+      root.dataset.dark = String(isDark);
+      Object.entries({ "--c-bg": t.bg, "--c-surface": t.surface, "--c-raised": t.raised, "--c-border": t.border, "--c-text": t.text, "--c-muted": t.muted, "--c-primary": t.primary, "--c-accent": t.accent }).forEach(([k, v]) => {
+        root.style.setProperty(k, v);
+        document.documentElement.style.setProperty(k, v);
+      });
+
+      const labBar = document.getElementById("lab-bar");
+      labBar.style.backgroundColor = t.surface; labBar.style.borderColor = t.border; labBar.style.color = t.text;
+      document.querySelectorAll(".lab-util-btn").forEach((b) => { b.style.backgroundColor = t.raised; b.style.color = t.text; b.style.borderColor = t.border; });
+
+      renderPopover(t, isDark);
+
+      const playing = state.channels.filter((c) => c.playing), paused = state.channels.filter((c) => !c.playing);
+      const anySolo = state.channels.some((c) => c.solo), anyFocus = state.channels.some((c) => c.focus);
+
+      document.getElementById("status-dot").style.backgroundColor = state.toast ? t.primary : anySolo ? t.accent : playing.length > 0 ? t.states.success : t.muted;
+      document.getElementById("status-text").textContent = state.toast || `재생 ${playing.length} · 대기 ${paused.length}`;
+      document.getElementById("status-text").style.color = state.toast ? t.primary : t.muted;
+
+      document.getElementById("alpha-box").style.borderColor = anyFocus ? t.primary : t.border;
+      document.getElementById("alpha-label").style.color = anyFocus ? t.primary : t.muted;
+      document.getElementById("alpha-fill").style.cssText = `width:${state.alpha * 100}%;background:${t.primary}`;
+      document.getElementById("alpha-thumb").style.cssText = `left:calc(${state.alpha * 100}% - 5px);border-color:${t.primary}`;
+      const dim = getFocusDimDb(state.alpha);
+      document.getElementById("alpha-readout").textContent = `${state.alpha.toFixed(2)} · ${Number.isFinite(dim) ? (dim === 0 ? "0dB" : `${dim}dB`) : "-∞"}`;
+      document.getElementById("reset-modes-btn").disabled = !(anySolo || anyFocus);
+
+      const paintTgl = (btn, on, lbl) => { btn.textContent = lbl; btn.style.backgroundColor = on ? t.primary : t.raised; btn.style.color = on ? t.onPrimary : t.text; btn.style.borderColor = on ? t.primary : t.border; btn.style.fontWeight = on ? "700" : "500"; };
+      paintTgl(document.getElementById("auto-norm-btn"), state.autoNormEnabled, "균일 N");
+      paintTgl(document.getElementById("adv-rack-btn"), state.advRackOpen, state.advRackOpen ? "고급 FX ◂" : "고급 FX ▸");
+
+      const scrollEl = document.getElementById("channels-scroll"); scrollEl.innerHTML = "";
+      const appendCard = (ch, zone) => {
+        let ref = stripDomCache.get(ch.id);
+        if (!ref) { ref = createChannelCard(ch); stripDomCache.set(ch.id, ref); }
+        ref.el.dataset.zone = zone;
+        syncCard(ref, ch, t, anyFocus, anySolo);
+        scrollEl.appendChild(ref.el);
+      };
+      playing.forEach((c) => appendCard(c, "playing"));
+      if ((playing.length > 0 && paused.length > 0) || dragState) {
+        const div = document.createElement("div"); div.dataset.role = "zone-divider"; div.className = "w-px my-2 shrink-0";
+        div.style.backgroundColor = dragState ? t.primary : t.border; scrollEl.appendChild(div);
+      }
+      paused.forEach((c) => appendCard(c, "paused"));
+      if (dragState && paused.length === 0) {
+        const dz = document.createElement("div"); dz.className = "w-[84px] shrink-0 rounded-lg border border-dashed flex items-center justify-center text-[11px] c-muted text-center px-2";
+        dz.style.borderColor = t.primary; dz.textContent = "여기에 놓아 일시정지"; scrollEl.appendChild(dz);
+      }
+
+      const mPct = dbToRatio(state.masterDb) * 100;
+      masterRef.q("topAccent").style.backgroundColor = state.masterMuted ? t.states.danger : t.primary;
+      masterRef.q("fill").style.cssText = `height:${mPct}%;background:${state.masterMuted ? t.muted : t.primary}`;
+      masterRef.q("knob").style.cssText = `bottom:calc(${mPct}% - 7.5px);border-color:${state.masterMuted ? t.states.danger : t.text}`;
+      masterRef.q("knobLine").style.backgroundColor = state.masterMuted ? t.states.danger : t.primary;
+      if (masterRef.q("readoutBtn").dataset.editing !== "true") {
+        masterRef.q("dbText").textContent = state.masterMuted ? "MUTE" : fmtDb(state.masterDb);
+        masterRef.q("dbText").style.color = state.masterMuted ? t.states.danger : state.masterDb > 0 ? t.states.warning : t.text;
+        masterRef.q("dbUnit").style.display = state.masterMuted ? "none" : "inline";
+        masterRef.q("subText").textContent = "마스터 게인";
+      }
+      masterRef.q("pauseAll").innerHTML = playing.length > 0 ? `${ICONS.pause}<span>전체 정지</span>` : `${ICONS.play}<span>전체 재생</span>`;
+      const muteAll = masterRef.q("muteAll");
+      muteAll.innerHTML = `${ICONS.speakerOff}<span>전체 음소거</span>`;
+      muteAll.style.cssText = `background:${state.masterMuted ? t.states.danger : t.raised};color:${state.masterMuted ? t.states.onDanger : t.text};border-color:${state.masterMuted ? t.states.danger : t.border}`;
+
+      const sideRack = document.getElementById("side-fx-rack");
+      sideRack.classList.toggle("hidden", !state.advRackOpen);
+      sideRack.classList.toggle("flex", state.advRackOpen);
+      if (state.advRackOpen) renderSideRack(sideRack, t);
+    }
+
+    function syncCard(ref, ch, t, anyFocus, anySolo) {
+      const effDb = computeEffDb(ch), userPct = dbToRatio(ch.db) * 100;
+      const effPct = Number.isFinite(effDb) ? dbToRatio(Math.min(MAX_DB, effDb)) * 100 : 0;
+      const attenuated = (anyFocus || anySolo) && ch.playing && !ch.muted && (userPct - effPct > 0.5);
+      const pinned = state.domainDefaults[ch.domain] === ch.db, selected = state.selectedId === ch.id;
+      const resolved = resolveNorm(ch);
+
+      ref.el.style.cssText = `background:${ch.playing ? t.raised : t.surface};border-color:${ch.focus ? t.primary : ch.solo ? t.accent : t.border};box-shadow:${selected ? `inset 0 0 0 1px ${t.primary}` : "none"};opacity:${ch.playing ? 1 : 0.74}`;
+      ref.q("topAccent").style.backgroundColor = ch.focus ? t.primary : ch.solo ? t.accent : ch.muted ? t.states.danger : "transparent";
+
+      const nBadge = ref.q("normBadge");
+      const showCustomOff = !ch.corsCap && ch.fx.normMode === "off" && state.autoNormEnabled;
+      nBadge.classList.toggle("hidden", !(resolved.active || showCustomOff));
+      if (resolved.source === "custom-on") {
+        nBadge.textContent = "N*"; nBadge.style.backgroundColor = t.accent; nBadge.style.color = t.onAccent; nBadge.title = "개별 노멀라이저 고정 ON";
+      } else if (showCustomOff) {
+        nBadge.textContent = "N×"; nBadge.style.backgroundColor = t.surface; nBadge.style.color = t.muted; nBadge.title = "전역 균일 N 개별 제외됨";
+      } else {
+        nBadge.textContent = "N"; nBadge.style.backgroundColor = t.primary; nBadge.style.color = t.onPrimary; nBadge.title = "전역 균일 N 적용 중";
+      }
+
+      ref.q("title").textContent = ch.title;
+      ref.q("fav").style.cssText = `border-color:${ch.focus ? t.primary : t.border};color:${ch.focus ? t.primary : ch.solo ? t.accent : t.text}`;
+
+      const effFill = ref.q("effFill"), attenBand = ref.q("attenBand");
+      if (attenuated) {
+        effFill.style.height = `${effPct}%`; effFill.style.opacity = "0.9";
+        attenBand.classList.remove("hidden"); attenBand.style.bottom = `${effPct}%`; attenBand.style.height = `${userPct - effPct}%`;
+      } else {
+        effFill.style.height = `${userPct}%`; effFill.style.opacity = ch.muted ? "0.25" : "0.85"; attenBand.classList.add("hidden");
+      }
+      effFill.style.backgroundColor = ch.muted ? t.muted : ch.solo ? t.accent : t.primary;
+      ref.q("corsZone").classList.toggle("hidden", !ch.corsCap);
+      ref.q("knob").style.cssText = `bottom:calc(${userPct}% - 7px);background:${ch.focus ? t.primary : ch.solo ? t.accent : t.surface};border-color:${ch.focus ? t.primary : ch.solo ? t.accent : t.muted};color:${ch.focus ? t.onPrimary : ch.solo ? t.onAccent : t.text}`;
+      ref.q("knobLine").style.backgroundColor = ch.focus ? t.onPrimary : ch.solo ? t.onAccent : t.text;
+      ref.scaleItems.forEach(({ db, el }) => { el.style.color = db === 0 ? t.text : t.muted; el.style.fontWeight = db === 0 ? "700" : "400"; el.style.opacity = ch.corsCap && db > 0 ? "0.3" : "0.8"; });
+
+      if (ref.q("readoutBtn").dataset.editing !== "true") {
+        ref.q("dbText").textContent = fmtDb(ch.db); ref.q("dbText").style.color = ch.muted ? t.states.danger : ch.db > 0 ? t.states.warning : t.text;
+        const sub = ref.q("subText");
+        const [txt, col] = ch.corsCap ? ["보안 0dB 상한", t.muted] : !ch.playing ? ["일시정지", t.muted] : ch.muted ? ["음소거", t.states.danger] : attenuated ? [`실효 ${fmtDb(effDb)}dB`, t.primary] : resolved.active ? [`균일 ${ch.trimDb >= 0 ? "+" : ""}${ch.trimDb.toFixed(1)}dB`, resolved.source === "custom-on" ? t.accent : t.primary] : [pinned ? "도메인 고정" : "개별 볼륨", pinned ? t.accent : t.muted];
+        sub.textContent = txt; sub.style.color = col;
+      }
+      ref.q("playBtn").innerHTML = ch.playing ? `${ICONS.pause}<span>재생</span>` : `${ICONS.play}<span>대기</span>`;
+      ref.q("playBtn").style.cssText = `background:${ch.playing ? t.surface : t.bg};border-color:${ch.playing ? t.primary : t.border};color:${ch.playing ? t.primary : t.muted}`;
+      ref.q("pinBtn").style.cssText = `background:${pinned ? t.accent : t.surface};border-color:${pinned ? t.accent : t.border};color:${pinned ? t.onAccent : t.muted}`;
+      ref.q("pinDot").style.backgroundColor = state.domainDefaults[ch.domain] !== undefined ? (pinned ? t.onAccent : t.accent) : "transparent";
+
+      const paintSw = (btn, pip, on, bg, fg) => { btn.style.cssText = `background:${on ? bg : t.raised};color:${on ? fg : t.muted};border-color:${on ? bg : t.border};font-weight:${on ? 700 : 600}`; pip.style.backgroundColor = on ? fg : t.border; };
+      paintSw(ref.q("mBtn"), ref.q("mPip"), ch.muted, t.states.danger, t.states.onDanger);
+      paintSw(ref.q("sBtn"), ref.q("sPip"), ch.solo, t.accent, t.onAccent);
+      paintSw(ref.q("fBtn"), ref.q("fPip"), ch.focus, t.primary, t.onPrimary);
+    }
+
+    function tickMeters() {
+      const t = tokens();
+      const mixItems = [];
+      state.channels.forEach((ch) => {
+        const ref = stripDomCache.get(ch.id);
+        if (!ref) return;
+        const resolved = resolveNorm(ch);
+        const targetOffset = resolved.targetLufs - (-16);
+        const targetTrim = resolved.active ? Math.max(-14, Math.min(10, (-ch.srcDb + targetOffset) * 0.92)) : 0;
+        const rate = resolved.speed === "fast" ? 0.35 : resolved.speed === "slow" ? 0.08 : 0.18;
+        ch.trimDb += (targetTrim - ch.trimDb) * rate;
+        const eff = computeEffDb(ch);
+        let targetVu = 0;
+        if (Number.isFinite(eff)) {
+          const jitterDb = (Math.random() - 0.5) * 2.2;
+          const peakDb = Math.min(MAX_DB, eff + ch.srcDb + (resolved.active ? ch.trimDb : 0) + jitterDb);
+          targetVu = dbToRatio(peakDb);
+        }
+        ref.vuCur = targetVu > ref.vuCur ? ref.vuCur + (targetVu - ref.vuCur) * 0.55 : Math.max(0, ref.vuCur - 0.05);
+        ref.vuPeak = ref.vuCur >= ref.vuPeak ? ref.vuCur : Math.max(ref.vuCur, ref.vuPeak - 0.015);
+        paintVu(ref.vuSegs, ref.vuCur, ref.vuPeak, t);
+        if (Number.isFinite(eff)) mixItems.push({ vuRatio: ref.vuCur, pan: ch.corsCap ? 0 : ch.fx.pan });
+      });
+      if (masterRef) {
+        const { left, right } = computeMasterStereoVu(mixItems);
+        masterRef.curL = left > masterRef.curL ? masterRef.curL + (left - masterRef.curL) * 0.6 : Math.max(0, masterRef.curL - 0.05);
+        masterRef.curR = right > masterRef.curR ? masterRef.curR + (right - masterRef.curR) * 0.6 : Math.max(0, masterRef.curR - 0.05);
+        masterRef.pkL = Math.max(masterRef.curL, masterRef.pkL - 0.015);
+        masterRef.pkR = Math.max(masterRef.curR, masterRef.pkR - 0.015);
+        paintVu(masterRef.vuL, masterRef.curL, masterRef.pkL, t);
+        paintVu(masterRef.vuR, masterRef.curR, masterRef.pkR, t);
+      }
+    }
+
+    masterRef = buildMaster();
+    attachKnobOnlyDrag(document.getElementById("alpha-thumb"), document.getElementById("alpha-track"), "x", (r) => { state.alpha = Math.round(r * 20) / 20; renderAll(); }, () => { state.alpha = 0.70; renderAll(); });
+    document.getElementById("alpha-box").addEventListener("wheel", (e) => { e.preventDefault(); state.alpha = Math.max(0, Math.min(1, Math.round((state.alpha + (e.deltaY < 0 ? 0.05 : -0.05)) * 20) / 20)); renderAll(); }, { passive: false });
+    document.getElementById("reset-modes-btn").onclick = () => { state.channels.forEach((c) => { c.solo = false; c.focus = false; }); renderAll(); };
+    document.getElementById("auto-norm-btn").onclick = () => {
+      state.autoNormEnabled = !state.autoNormEnabled;
+      flashToast(state.autoNormEnabled ? "전역 균일 N 켜짐 (개별 설정 보존)" : "전역 균일 N 꺼짐 (개별 ON 채널은 유지)");
+    };
+    document.getElementById("adv-rack-btn").onclick = () => { state.advRackOpen = !state.advRackOpen; renderAll(); };
+    document.getElementById("theme-dot-btn").onclick = (e) => { e.stopPropagation(); state.popoverOpen = !state.popoverOpen; renderAll(); };
+    document.getElementById("theme-popover").onclick = (e) => e.stopPropagation();
+    window.addEventListener("pointerdown", () => { if (state.popoverOpen) { state.popoverOpen = false; renderAll(); } });
+    document.getElementById("track-shift-btn").onclick = () => {
+      state.profileIdx = (state.profileIdx + 1) % TRACK_PROFILES.length;
+      const prof = TRACK_PROFILES[state.profileIdx];
+      state.channels.forEach((ch, idx) => { const p = prof[idx % prof.length]; ch.subTrack = p.sub; ch.srcDb = p.srcDb; });
+      flashToast("탭 내 다음 음원·영상으로 전환됨 — 노멀라이저 보정치 재동기화");
+    };
+    renderAll();
+    setInterval(tickMeters, 90);
+  </script>
+</body>
+</html>
