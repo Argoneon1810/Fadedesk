@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>Sound Manager — Mockup v4 (Studio Console Production Design)</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    .no-select { user-select: none; -webkit-user-select: none; }
+    .tabular { font-variant-numeric: tabular-nums; }
+
+    /* Scoped Console Design System Tokens (Bound 100% to color-preset.md) */
+    #console-root {
+      background: var(--c-bg);
+      border-color: var(--c-border);
+      color: var(--c-text);
+    }
+    #console-root[data-dark="true"] {
+      box-shadow: 0 14px 30px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    }
+    #console-root[data-dark="false"] {
+      box-shadow: 0 10px 24px rgba(15, 23, 30, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.88);
+    }
+    .c-surface { background: var(--c-surface); border-color: var(--c-border); }
+    .c-raised { background: var(--c-raised); border-color: var(--c-border); }
+    .c-recessed { background: var(--c-bg); border-color: var(--c-border); }
+    .c-muted { color: var(--c-muted); }
+
+    #console-root[data-dark="true"] .fader-well {
+      background: var(--c-bg);
+      border-color: var(--c-border);
+      box-shadow: inset 0 1.5px 3.5px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.03);
+    }
+    #console-root[data-dark="false"] .fader-well {
+      background: var(--c-bg);
+      border-color: var(--c-border);
+      box-shadow: inset 0 1px 2.5px rgba(0, 0, 0, 0.11), 0 1px 0 rgba(255, 255, 255, 0.9);
+    }
+    .fader-slot {
+      background: var(--c-surface);
+      border-color: var(--c-border);
+      box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.55);
+    }
+    #console-root[data-dark="true"] .fader-cap {
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.68), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+    #console-root[data-dark="false"] .fader-cap {
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    }
+    .cors-zone {
+      border-color: var(--c-border);
+      background-image: repeating-linear-gradient(
+        -45deg, rgba(128, 128, 128, 0.24), rgba(128, 128, 128, 0.24) 2px, transparent 2px, transparent 5px
+      );
+    }
+    .console-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: filter 100ms ease, transform 60ms ease, background-color 120ms ease, border-color 120ms ease;
+    }
+    .console-btn:hover:not(:disabled) { filter: brightness(1.08); }
+    .console-btn:active:not(:disabled) { transform: translateY(0.5px); }
+    .console-btn svg { display: block; flex-shrink: 0; }
+  </style>
+</head>
+<body class="bg-transparent text-[var(--foreground)] antialiased p-0 m-0 no-select">
+  <div class="py-1.5">
+    <div id="console-root" data-dark="true" class="relative inline-block rounded-xl border overflow-hidden transition-colors duration-150">
+      <!-- Top Control Deck -->
+      <header class="c-surface flex items-center justify-between gap-4 px-3.5 h-[40px] border-b text-xs">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <button id="theme-dot-btn" type="button" aria-haspopup="dialog" aria-expanded="false" title="컬러 테마 및 화면 모드 설정" class="console-btn w-6 h-6 rounded-md border cursor-pointer">
+            <span id="brand-dot" class="w-2.5 h-2.5 rounded-full"></span>
+          </button>
+          <span class="font-bold tracking-[0.07em] text-xs">SOUND MANAGER</span>
+          <div id="status-pill" class="c-recessed flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs tabular truncate max-w-[195px]">
+            <span id="status-dot" class="w-1.5 h-1.5 rounded-full shrink-0"></span>
+            <span id="status-text" class="truncate"></span>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2.5 shrink-0">
+          <div id="alpha-box" class="c-recessed flex items-center gap-2 px-2 py-1 rounded-md border" title="Focus 스무딩(α): 드래그·휠 조절 · 더블클릭 시 0.70(-12dB) 복귀">
+            <span id="alpha-label" class="text-xs font-medium">Focus <i class="not-italic font-mono">α</i></span>
+            <div id="alpha-track" class="relative w-[68px] h-3.5 flex items-center cursor-ew-resize">
+              <div class="c-surface w-full h-1.5 rounded-full border relative overflow-hidden">
+                <div id="alpha-fill" class="absolute inset-y-0 left-0 rounded-full"></div>
+              </div>
+              <div id="alpha-thumb" class="c-raised absolute w-2.5 h-3.5 rounded-[3px] border pointer-events-none"></div>
+            </div>
+            <span id="alpha-readout" class="font-mono text-xs tabular w-[78px] text-right"></span>
+          </div>
+          <button id="reset-modes-btn" type="button" title="켜져 있는 Solo / Focus 모드를 모두 해제합니다" class="console-btn c-raised h-[26px] px-2 rounded-md border text-xs font-medium cursor-pointer disabled:opacity-35 disabled:cursor-default">S·F 해제</button>
+        </div>
+      </header>
+
+      <!-- Floating Mini Theme Popover (Kept as approved in v3) -->
+      <div id="theme-popover" role="dialog" aria-label="컬러 테마 및 화면 모드" class="c-surface hidden absolute left-3 top-[44px] z-30 w-[260px] rounded-lg border shadow-xl p-2.5 space-y-2.5 text-xs">
+        <div class="flex items-center justify-between">
+          <span class="c-muted font-medium">컬러 테마</span>
+          <span id="pop-cur-summary" class="font-mono"></span>
+        </div>
+        <div id="pop-theme-grid" class="grid grid-cols-2 gap-1.5"></div>
+        <div class="border-t pt-2 space-y-1.5" style="border-color:var(--c-border)">
+          <div class="c-muted font-medium">화면 모드</div>
+          <div id="pop-mode-seg" class="grid grid-cols-3 rounded-md border overflow-hidden" style="border-color:var(--c-border)"></div>
+        </div>
+      </div>
+
+      <!-- Console Strip Bay -->
+      <main id="strips-row" class="flex items-stretch px-3 py-2.5 gap-2 overflow-x-auto"></main>
+    </div>
+  </div>
+
+  <script>
+    const PALETTES = {
+      teal: {
+        label: "스튜디오 틸",
+        dark: { primary: "#00bdce", onPrimary: "#000000", accent: "#e69732", onAccent: "#000000", bg: "#091112", surface: "#131d1e", raised: "#1d292a", border: "#2d3b3c", text: "#e5edee", muted: "#98a4a6", states: { success: "#4fc678", warning: "#eda922", danger: "#f5605b", onDanger: "#000000" } },
+        light: { primary: "#00808f", onPrimary: "#ffffff", accent: "#a05c00", onAccent: "#ffffff", bg: "#eff5f5", surface: "#fafcfd", raised: "#e3ebec", border: "#c1cdcf", text: "#0e1819", muted: "#4e5b5c", states: { success: "#007f3b", warning: "#a96100", danger: "#bc272c", onDanger: "#ffffff" } }
+      },
+      amber: {
+        label: "콘솔 앰버",
+        dark: { primary: "#eb992e", onPrimary: "#000000", accent: "#00c4d6", onAccent: "#000000", bg: "#130e0a", surface: "#1f1914", raised: "#2c251e", border: "#3e362e", text: "#efeae6", muted: "#a8a098", states: { success: "#4fc678", warning: "#eda922", danger: "#f5605b", onDanger: "#000000" } },
+        light: { primary: "#d58200", onPrimary: "#000000", accent: "#007f8f", onAccent: "#ffffff", bg: "#f6f3ef", surface: "#fdfbfa", raised: "#eee8e3", border: "#d1c9c1", text: "#1b150f", muted: "#5e574f", states: { success: "#007f3b", warning: "#a96100", danger: "#bc272c", onDanger: "#ffffff" } }
+      },
+      cobalt: {
+        label: "프리시전 코발트",
+        dark: { primary: "#6591e1", onPrimary: "#000000", accent: "#00c6c7", onAccent: "#000000", bg: "#0d0f15", surface: "#171b21", raised: "#22272e", border: "#333842", text: "#e8ebf1", muted: "#9da2ab", states: { success: "#4fc678", warning: "#eda922", danger: "#f5605b", onDanger: "#000000" } },
+        light: { primary: "#3569cd", onPrimary: "#ffffff", accent: "#008183", onAccent: "#ffffff", bg: "#f1f3f8", surface: "#fbfcfe", raised: "#e6eaf0", border: "#c6cbd4", text: "#12161d", muted: "#535861", states: { success: "#007f3b", warning: "#a96100", danger: "#bc272c", onDanger: "#ffffff" } }
+      },
+      emerald: {
+        label: "브로드캐스트 에메랄드",
+        dark: { primary: "#49bf7b", onPrimary: "#000000", accent: "#e29a2c", onAccent: "#000000", bg: "#0b110d", surface: "#161d18", raised: "#202923", border: "#313b34", text: "#e7ede9", muted: "#9ba49e", states: { success: "#4fc678", warning: "#eda922", danger: "#f5605b", onDanger: "#000000" } },
+        light: { primary: "#00864b", onPrimary: "#ffffff", accent: "#9d5e00", onAccent: "#ffffff", bg: "#f0f5f2", surface: "#fafcfb", raised: "#e5ebe7", border: "#c4cdc7", text: "#111813", muted: "#515b54", states: { success: "#007f3b", warning: "#a96100", danger: "#bc272c", onDanger: "#ffffff" } }
+      }
+    };
+
+    const ICONS = {
+      play: `<svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor"><path d="M3 2.1a.6.6 0 0 1 .92-.5l6.2 3.9a.6.6 0 0 1 0 1l-6.2 3.9A.6.6 0 0 1 3 9.9V2.1z"/></svg>`,
+      pause: `<svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor"><rect x="2.5" y="2" width="2.4" height="8" rx="0.7"/><rect x="7.1" y="2" width="2.4" height="8" rx="0.7"/></svg>`,
+      pin: `<svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8.8 2.2l3 3-1.6.9-1.8 1.8.4 2.5-1.1 1.1-2.3-2.3-2.7 2.7"/><path d="M5.4 9.2L2.8 6.6l1.1-1.1 2.5.4 1.8-1.8.6-1.9z"/></svg>`,
+      jump: `<svg width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3h5v5"/><path d="M9 3L3.2 8.8"/></svg>`,
+      lock: `<svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="2.5" y="5.5" width="7" height="5" rx="1"/><path d="M4 5.5V3.8a2 2 0 0 1 4 0v1.7"/></svg>`,
+      speakerOff: `<svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 5.3H4.8L8 2.6v8.8L4.8 8.7H2.5z"/><path d="M10.2 5.2l3 3.6m0-3.6l-3 3.6"/></svg>`,
+      favicons: {
+        chzzk: `<svg width="12" height="12" viewBox="0 0 14 14" fill="currentColor"><path d="M8.3 1.5L3.2 7.6h3.4l-1 4.9 5.2-6.1H7.4z"/></svg>`,
+        yt: `<svg width="12" height="12" viewBox="0 0 14 14" fill="currentColor"><rect x="1.2" y="2.8" width="11.6" height="8.4" rx="2.4"/><path d="M5.6 5.1l3.6 1.9-3.6 1.9z" fill="var(--c-surface)"/></svg>`,
+        netflix: `<svg width="12" height="12" viewBox="0 0 14 14" fill="currentColor"><path d="M3.2 2h2.2l3.2 6.5V2h2.2v10H8.6L5.4 5.5V12H3.2z"/></svg>`,
+        sc: `<svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2.2 8.8v-2M4.6 9.5V4.8M7 9.5V3.5M9.4 9.5V5.2M11.8 9.5V6.6"/></svg>`
+      }
+    };
+
+    const MIN_DB = -60, MAX_DB = 12, MAX_DIM_DB = 40, LED_COUNT = 18;
+    const SCALE_TICKS = [12, 6, 0, -12, -24, -48];
+
+    const state = {
+      theme: "teal", modePref: "dark", popoverOpen: false, toastText: "", toastTimer: null,
+      alpha: 0.70, masterDb: 0.0, masterMuted: false,
+      domainDefaults: { "chzzk.naver.com": 0.0, "youtube.com": -6.0 },
+      channels: [
+        { id: 1, icon: "chzzk", title: "침착맨 라이브", domain: "chzzk.naver.com", shortHost: "chzzk", db: 0.0, playing: true, muted: false, solo: false, focus: true, corsCap: false, baseVu: 0.78, vuCur: 0.65, vuPeak: 0.74 },
+        { id: 2, icon: "yt", title: "Lo-Fi 작업 브금", domain: "youtube.com", shortHost: "youtube", db: -6.0, playing: true, muted: false, solo: false, focus: false, corsCap: false, baseVu: 0.58, vuCur: 0.42, vuPeak: 0.50 },
+        { id: 3, icon: "yt", title: "개발 컨퍼런스", domain: "youtube.com", shortHost: "youtube", db: 4.5, playing: true, muted: false, solo: false, focus: false, corsCap: false, baseVu: 0.70, vuCur: 0.52, vuPeak: 0.62 },
+        { id: 4, icon: "netflix", title: "넷플릭스 영화", domain: "netflix.com", shortHost: "netflix", db: 0.0, playing: true, muted: false, solo: false, focus: false, corsCap: true, baseVu: 0.62, vuCur: 0.45, vuPeak: 0.55 },
+        { id: 5, icon: "sc", title: "오후 플레이리스트", domain: "soundcloud.com", shortHost: "soundcloud", db: -3.0, playing: false, muted: false, solo: false, focus: false, corsCap: false, baseVu: 0.52, vuCur: 0, vuPeak: 0 }
+      ]
+    };
+
+    const domRefs = { strips: new Map(), master: null, pauseDivider: null, masterDivider: null };
+
+    function resolvedMode() {
+      if (state.modePref !== "system") return state.modePref;
+      if (document.documentElement.classList.contains("light")) return "light";
+      return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+    }
+    function curTokens() { return PALETTES[state.theme][resolvedMode()]; }
+    function dbToRatio(db) { return db <= MIN_DB ? 0 : db >= MAX_DB ? 1 : (db - MIN_DB) / (MAX_DB - MIN_DB); }
+    function ratioToDb(r) { return Math.round((MIN_DB + Math.max(0, Math.min(1, r)) * (MAX_DB - MIN_DB)) * 2) / 2; }
+    function getFocusDimDb() { return state.alpha <= 0 ? -Infinity : -Math.round(MAX_DIM_DB * (1 - state.alpha) * 10) / 10; }
+    function formatDb(db) { return (!isFinite(db) || db <= MIN_DB) ? "-∞" : (db > 0 ? "+" : "") + db.toFixed(1); }
+    function isChannelPinned(ch) {
+      return Object.prototype.hasOwnProperty.call(state.domainDefaults, ch.domain) && Math.abs(state.domainDefaults[ch.domain] - ch.db) < 0.01;
+    }
+
+    function flashToast(msg) {
+      state.toastText = msg;
+      if (state.toastTimer) clearTimeout(state.toastTimer);
+      state.toastTimer = setTimeout(() => { state.toastText = ""; syncAll(); }, 1600);
+      syncAll();
+    }
+
+    function getEffectiveDb(ch) {
+      if (!ch.playing || ch.muted || state.masterMuted || ch.db <= MIN_DB) return -Infinity;
+      const anySolo = state.channels.some(c => c.solo);
+      const anyFocus = state.channels.some(c => c.focus);
+      let delta = state.masterDb;
+      if (anySolo) { if (!ch.solo) return -Infinity; }
+      else if (anyFocus && !ch.focus) {
+        const dim = getFocusDimDb();
+        if (!isFinite(dim)) return -Infinity;
+        delta += dim;
+      }
+      const res = ch.db + delta;
+      return res <= MIN_DB ? -Infinity : res;
+    }
+
+    function attachPointerDrag(el, axis, onRatio, onReset) {
+      if (onReset) el.addEventListener("dblclick", (e) => { e.preventDefault(); onReset(); });
+      el.addEventListener("pointerdown", (e) => {
+        if (e.button !== 0 || e.detail >= 2) return;
+        e.preventDefault();
+        const apply = (ev) => {
+          const rect = el.getBoundingClientRect();
+          const raw = axis === "y" ? 1 - (ev.clientY - rect.top) / rect.height : (ev.clientX - rect.left) / rect.width;
+          onRatio(Math.max(0, Math.min(1, raw)));
+        };
+        apply(e);
+        const onMove = (ev) => apply(ev);
+        const onUp = () => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); };
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", onUp);
+      });
+    }
+
+    function createLedColumn() {
+      const col = document.createElement("div");
+      col.className = "w-[7px] h-full flex flex-col-reverse justify-between py-[2px]";
+      const segs = Array.from({ length: LED_COUNT }, () => {
+        const s = document.createElement("span");
+        s.className = "w-full h-[5px] rounded-[1px] block";
+        col.appendChild(s);
+        return s;
+      });
+      return { col, segs };
+    }
+
+    function paintLedColumn(segs, levelRatio, peakRatio, t) {
+      const litCount = Math.round(levelRatio * LED_COUNT);
+      const peakIdx = peakRatio > 0.04 ? Math.min(LED_COUNT - 1, Math.max(0, Math.round(peakRatio * LED_COUNT) - 1)) : -1;
+      const zeroSeg = Math.round(dbToRatio(0) * LED_COUNT);
+      const hotSeg = Math.round(dbToRatio(7.5) * LED_COUNT);
+      for (let i = 0; i < LED_COUNT; i++) {
+        const segColor = i >= hotSeg ? t.states.danger : i >= zeroSeg ? t.states.warning : t.states.success;
+        const isLit = i < litCount, isPeak = i === peakIdx && peakIdx >= litCount;
+        segs[i].style.backgroundColor = (isLit || isPeak) ? segColor : t.border;
+        segs[i].style.opacity = isLit ? "0.95" : isPeak ? "0.85" : "0.28";
+      }
+    }
+
+    function buildScaleDom() {
+      const wrap = document.createElement("div");
+      wrap.className = "relative w-[20px] h-full pointer-events-none select-none";
+      const items = SCALE_TICKS.map(db => {
+        const row = document.createElement("div");
+        row.className = "absolute inset-x-0 flex items-center justify-between font-mono text-[9px] leading-none tabular";
+        row.style.bottom = `calc(${dbToRatio(db) * 100}% - 4.5px)`;
+        row.innerHTML = `<span class="w-[3px] h-px bg-current opacity-60"></span><span>${db > 0 ? "+" + db : db}</span>`;
+        wrap.appendChild(row);
+        return { db, el: row };
+      });
+      return { wrap, items };
+    }
+
+    function toggleExclusiveGroup(ch, field, otherField, shiftKey) {
+      state.channels.forEach(c => { c[otherField] = false; });
+      if (shiftKey) {
+        ch[field] = !ch[field];
+      } else {
+        const wasOnly = ch[field] && state.channels.filter(c => c[field]).length === 1;
+        state.channels.forEach(c => { c[field] = false; });
+        ch[field] = !wasOnly;
+      }
+      syncAll();
+    }
+
+    function buildStripDom(ch) {
+      const zeroPct = dbToRatio(0) * 100;
+      const el = document.createElement("section");
+      el.className = "relative w-[88px] shrink-0 rounded-lg border flex flex-col p-1.5 gap-1.5 overflow-hidden transition-colors duration-100";
+      el.innerHTML = `
+        <div data-ref="topAccent" class="absolute inset-x-0 top-0 h-[2.5px]"></div>
+        <button data-ref="header" type="button" class="group w-full text-left pt-0.5 pb-1 border-b cursor-pointer" style="border-color:var(--c-border)">
+          <div class="flex items-center gap-1.5">
+            <span data-ref="favicon" class="c-surface w-[18px] h-[18px] rounded-[4px] border flex items-center justify-center shrink-0">${ICONS.favicons[ch.icon]}</span>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center justify-between gap-0.5">
+                <span data-ref="title" class="text-xs font-semibold truncate leading-tight"></span>
+                <span class="opacity-0 group-hover:opacity-90 transition-opacity shrink-0" style="color:var(--c-primary)">${ICONS.jump}</span>
+              </div>
+              <div class="c-muted text-[10px] truncate leading-tight">${ch.shortHost}</div>
+            </div>
+          </div>
+        </button>
+
+        <div class="fader-well relative h-[148px] rounded-md border px-2 py-2 flex items-center justify-between">
+          <div data-ref="track" class="relative w-[24px] h-full flex items-center justify-center cursor-ns-resize" title="드래그·휠 조절 (Shift+휠 미세) · 더블클릭 0.0dB 복귀">
+            <div class="fader-slot w-[5px] h-full rounded-full border relative overflow-hidden">
+              <div data-ref="fill" class="absolute inset-x-0 bottom-0 rounded-full"></div>
+              <div data-ref="corsZone" class="cors-zone absolute inset-x-0 top-0 border-b hidden" style="height:${100 - zeroPct}%"></div>
+            </div>
+            <div class="absolute inset-x-0.5 border-t pointer-events-none" style="bottom:${zeroPct}%;border-color:var(--c-muted)"></div>
+            <div data-ref="deltaBar" class="absolute w-[3px] rounded-full pointer-events-none hidden"></div>
+            <div data-ref="ghostCap" class="c-recessed absolute w-[18px] h-[5px] rounded-[2px] border pointer-events-none hidden"></div>
+            <div data-ref="knob" class="fader-cap absolute w-[22px] h-[14px] rounded-[3px] border flex flex-col items-center justify-center gap-[1.5px] pointer-events-none">
+              <span class="w-[10px] h-px bg-current opacity-30"></span>
+              <span data-ref="knobLine" class="w-[13px] h-[1.5px] rounded-full block"></span>
+              <span class="w-[10px] h-px bg-current opacity-30"></span>
+            </div>
+          </div>
+          <div data-ref="scaleSlot" class="h-full flex items-center"></div>
+          <div data-ref="vuSlot" class="h-full flex items-center"></div>
+        </div>
+
+        <button data-ref="readoutBtn" type="button" title="클릭 시 0.0 dB(원본 볼륨)로 초기화" class="c-recessed w-full rounded border px-1.5 py-1 text-center font-mono leading-tight cursor-pointer">
+          <div class="flex items-baseline justify-center gap-0.5">
+            <span data-ref="dbText" class="text-xs font-bold tabular"></span>
+            <span class="c-muted text-[10px]">dB</span>
+          </div>
+          <div data-ref="subText" class="text-[10px] truncate tabular mt-0.5 flex items-center justify-center gap-0.5"></div>
+        </button>
+
+        <div class="flex items-center gap-1">
+          <button data-ref="playBtn" type="button" class="console-btn flex-1 h-[24px] rounded border cursor-pointer" title="재생 / 일시정지"></button>
+          <button data-ref="pinBtn" type="button" class="console-btn relative w-[26px] h-[24px] rounded border cursor-pointer">
+            ${ICONS.pin}
+            <span data-ref="pinDot" class="absolute top-1 right-1 w-1 h-1 rounded-full"></span>
+          </button>
+        </div>
+
+        <div class="c-recessed grid grid-cols-3 gap-[3px] p-[2px] rounded-md border">
+          <button data-ref="muteBtn" type="button" class="console-btn flex flex-col items-center justify-center h-[24px] rounded-[4px] border text-[11px] font-mono cursor-pointer" title="음소거 (Mute)">
+            <span data-ref="mutePip" class="w-2.5 h-[2px] rounded-full mb-0.5"></span><span class="leading-none">M</span>
+          </button>
+          <button data-ref="soloBtn" type="button" class="console-btn flex flex-col items-center justify-center h-[24px] rounded-[4px] border text-[11px] font-mono cursor-pointer" title="Solo (클릭: 단독 전환/해제 · Shift+클릭: 다중 · Focus와 상호 배타)">
+            <span data-ref="soloPip" class="w-2.5 h-[2px] rounded-full mb-0.5"></span><span class="leading-none">S</span>
+          </button>
+          <button data-ref="focusBtn" type="button" class="console-btn flex flex-col items-center justify-center h-[24px] rounded-[4px] border text-[11px] font-mono cursor-pointer" title="Focus (클릭: 단독 전환/해제 · Shift+클릭: 다중 · Solo와 상호 배타)">
+            <span data-ref="focusPip" class="w-2.5 h-[2px] rounded-full mb-0.5"></span><span class="leading-none">F</span>
+          </button>
+        </div>
+      `;
+
+      const scale = buildScaleDom(), vu = createLedColumn();
+      el.querySelector('[data-ref="scaleSlot"]').appendChild(scale.wrap);
+      el.querySelector('[data-ref="vuSlot"]').appendChild(vu.col);
+      const q = (n) => el.querySelector(`[data-ref="${n}"]`);
+      const refs = {
+        el, topAccent: q("topAccent"), header: q("header"), favicon: q("favicon"), title: q("title"),
+        track: q("track"), fill: q("fill"), corsZone: q("corsZone"), deltaBar: q("deltaBar"), ghostCap: q("ghostCap"),
+        knob: q("knob"), knobLine: q("knobLine"), scale, vu, readoutBtn: q("readoutBtn"), dbText: q("dbText"), subText: q("subText"),
+        playBtn: q("playBtn"), pinBtn: q("pinBtn"), pinDot: q("pinDot"),
+        muteBtn: q("muteBtn"), mutePip: q("mutePip"), soloBtn: q("soloBtn"), soloPip: q("soloPip"), focusBtn: q("focusBtn"), focusPip: q("focusPip")
+      };
+
+      el.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        const step = e.shiftKey ? 0.5 : 1.5, cap = ch.corsCap ? 0 : MAX_DB;
+        ch.db = Math.max(MIN_DB, Math.min(cap, Math.round((ch.db + (e.deltaY < 0 ? step : -step)) * 2) / 2));
+        syncAll();
+      }, { passive: false });
+
+      attachPointerDrag(refs.track, "y", (r) => {
+        const raw = ratioToDb(r);
+        ch.db = ch.corsCap ? Math.min(0, raw) : raw;
+        syncAll();
+      }, () => { ch.db = 0; syncAll(); });
+
+      refs.readoutBtn.onclick = () => { ch.db = 0; syncAll(); };
+      refs.header.onclick = () => flashToast(`탭으로 이동: ${ch.title}`);
+      refs.playBtn.onclick = () => { ch.playing = !ch.playing; reorderStrips(); syncAll(); };
+      refs.pinBtn.onclick = () => {
+        if (isChannelPinned(ch)) { delete state.domainDefaults[ch.domain]; flashToast(`${ch.domain} 기본 볼륨 해제`); }
+        else { state.domainDefaults[ch.domain] = ch.db; flashToast(`${ch.domain} 기본 ${formatDb(ch.db)} dB 고정`); }
+        syncAll();
+      };
+      refs.muteBtn.onclick = () => { ch.muted = !ch.muted; syncAll(); };
+      refs.soloBtn.onclick = (e) => toggleExclusiveGroup(ch, "solo", "focus", e.shiftKey);
+      refs.focusBtn.onclick = (e) => toggleExclusiveGroup(ch, "focus", "solo", e.shiftKey);
+      return refs;
+    }
+
+    function buildMasterDom() {
+      const zeroPct = dbToRatio(0) * 100;
+      const el = document.createElement("section");
+      el.className = "c-surface relative w-[92px] shrink-0 rounded-lg border flex flex-col p-1.5 gap-1.5 overflow-hidden";
+      el.innerHTML = `
+        <div data-ref="topAccent" class="absolute inset-x-0 top-0 h-[2.5px]"></div>
+        <div class="pt-0.5 pb-1 border-b text-center" style="border-color:var(--c-border)">
+          <div class="text-[9px] font-mono tracking-[0.14em] uppercase leading-tight" style="color:var(--c-primary)">MASTER BUS</div>
+          <div class="text-xs font-semibold leading-tight">전체 출력</div>
+        </div>
+        <div class="fader-well relative h-[148px] rounded-md border px-2 py-2 flex items-center justify-between">
+          <div data-ref="vuLeftSlot" class="h-full flex items-center"></div>
+          <div data-ref="track" class="relative w-[28px] h-full flex items-center justify-center cursor-ns-resize" title="마스터 출력 조절 · 더블클릭 0.0dB 복귀">
+            <div class="fader-slot w-[6px] h-full rounded-full border relative overflow-hidden">
+              <div data-ref="fill" class="absolute inset-x-0 bottom-0 rounded-full"></div>
+            </div>
+            <div class="absolute inset-x-0 border-t pointer-events-none" style="bottom:${zeroPct}%;border-color:var(--c-muted)"></div>
+            <div data-ref="knob" class="fader-cap c-raised absolute w-[24px] h-[15px] rounded-[3px] border flex flex-col items-center justify-center gap-[1.5px] pointer-events-none">
+              <span class="w-[11px] h-px bg-current opacity-30"></span>
+              <span data-ref="knobLine" class="w-[14px] h-[1.5px] rounded-full block"></span>
+              <span class="w-[11px] h-px bg-current opacity-30"></span>
+            </div>
+          </div>
+          <div data-ref="vuRightSlot" class="h-full flex items-center"></div>
+        </div>
+        <button data-ref="readoutBtn" type="button" title="클릭 시 마스터 0.0 dB 초기화" class="c-recessed w-full rounded border px-1.5 py-1 text-center font-mono leading-tight cursor-pointer">
+          <div class="flex items-baseline justify-center gap-0.5">
+            <span data-ref="dbText" class="text-xs font-bold tabular"></span>
+            <span data-ref="dbUnit" class="c-muted text-[10px]">dB</span>
+          </div>
+          <div class="c-muted text-[10px] truncate mt-0.5">출력 게인</div>
+        </button>
+        <button data-ref="pauseAllBtn" type="button" class="console-btn c-raised w-full h-[24px] rounded border text-xs font-medium gap-1 cursor-pointer"></button>
+        <button data-ref="muteAllBtn" type="button" class="console-btn w-full h-[28px] rounded border text-xs font-medium gap-1 cursor-pointer"></button>
+      `;
+      const vuL = createLedColumn(), vuR = createLedColumn();
+      el.querySelector('[data-ref="vuLeftSlot"]').appendChild(vuL.col);
+      el.querySelector('[data-ref="vuRightSlot"]').appendChild(vuR.col);
+      const q = (n) => el.querySelector(`[data-ref="${n}"]`);
+      const refs = {
+        el, topAccent: q("topAccent"), track: q("track"), fill: q("fill"), knob: q("knob"), knobLine: q("knobLine"),
+        vuL, vuR, readoutBtn: q("readoutBtn"), dbText: q("dbText"), dbUnit: q("dbUnit"),
+        pauseAllBtn: q("pauseAllBtn"), muteAllBtn: q("muteAllBtn"),
+        vuCurL: 0.55, vuPeakL: 0.68, vuCurR: 0.52, vuPeakR: 0.65
+      };
+      el.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        const step = e.shiftKey ? 0.5 : 1.5;
+        state.masterDb = Math.max(MIN_DB, Math.min(MAX_DB, Math.round((state.masterDb + (e.deltaY < 0 ? step : -step)) * 2) / 2));
+        syncAll();
+      }, { passive: false });
+      attachPointerDrag(refs.track, "y", (r) => { state.masterDb = ratioToDb(r); syncAll(); }, () => { state.masterDb = 0; syncAll(); });
+      refs.readoutBtn.onclick = () => { state.masterDb = 0; syncAll(); };
+      refs.pauseAllBtn.onclick = () => {
+        const next = !state.channels.some(c => c.playing);
+        state.channels.forEach(c => { c.playing = next; });
+        reorderStrips();
+        syncAll();
+      };
+      refs.muteAllBtn.onclick = () => { state.masterMuted = !state.masterMuted; syncAll(); };
+      return refs;
+    }
+
+    function mountOnce() {
+      state.channels.forEach(ch => domRefs.strips.set(ch.id, buildStripDom(ch)));
+      domRefs.pauseDivider = Object.assign(document.createElement("div"), { className: "w-px my-2 shrink-0" });
+      domRefs.masterDivider = Object.assign(document.createElement("div"), { className: "w-[2px] my-1 rounded-full shrink-0" });
+      domRefs.master = buildMasterDom();
+      reorderStrips();
+
+      const alphaBox = document.getElementById("alpha-box");
+      alphaBox.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        state.alpha = Math.max(0, Math.min(1, Math.round((state.alpha + (e.deltaY < 0 ? 0.05 : -0.05)) * 20) / 20));
+        syncAll();
+      }, { passive: false });
+      attachPointerDrag(document.getElementById("alpha-track"), "x", (r) => { state.alpha = Math.round(r * 20) / 20; syncAll(); }, () => { state.alpha = 0.70; syncAll(); });
+    }
+
+    function reorderStrips() {
+      const row = document.getElementById("strips-row");
+      const playing = state.channels.filter(c => c.playing), paused = state.channels.filter(c => !c.playing);
+      playing.forEach(ch => row.appendChild(domRefs.strips.get(ch.id).el));
+      domRefs.pauseDivider.style.display = (playing.length && paused.length) ? "block" : "none";
+      if (playing.length && paused.length) row.appendChild(domRefs.pauseDivider);
+      paused.forEach(ch => row.appendChild(domRefs.strips.get(ch.id).el));
+      row.appendChild(domRefs.masterDivider);
+      row.appendChild(domRefs.master.el);
+    }
+
+    function syncSwitch(btn, pip, active, activeBg, activeFg, t) {
+      btn.style.backgroundColor = active ? activeBg : t.raised;
+      btn.style.color = active ? activeFg : t.muted;
+      btn.style.borderColor = active ? activeBg : t.border;
+      btn.style.fontWeight = active ? "700" : "600";
+      pip.style.backgroundColor = active ? activeFg : t.border;
+      pip.style.opacity = active ? "0.9" : "0.7";
+    }
+
+    function syncThemePopover(t, isDark) {
+      const pop = document.getElementById("theme-popover"), dotBtn = document.getElementById("theme-dot-btn");
+      dotBtn.setAttribute("aria-expanded", String(state.popoverOpen));
+      dotBtn.style.backgroundColor = state.popoverOpen ? t.raised : t.bg;
+      dotBtn.style.borderColor = state.popoverOpen ? t.primary : t.border;
+      document.getElementById("brand-dot").style.backgroundColor = t.primary;
+      pop.classList.toggle("hidden", !state.popoverOpen);
+      if (!state.popoverOpen) return;
+
+      const modeName = state.modePref === "system" ? `시스템(${isDark ? "다크" : "라이트"})` : (state.modePref === "dark" ? "다크" : "라이트");
+      const curSum = document.getElementById("pop-cur-summary");
+      curSum.textContent = `${PALETTES[state.theme].label} · ${modeName}`;
+      curSum.style.color = t.primary;
+
+      const effMode = isDark ? "dark" : "light", grid = document.getElementById("pop-theme-grid");
+      grid.innerHTML = "";
+      Object.entries(PALETTES).forEach(([key, p]) => {
+        const active = state.theme === key, sw = p[effMode], b = document.createElement("button");
+        b.type = "button";
+        b.className = "console-btn justify-start gap-1.5 px-2 py-1.5 rounded-md border text-left text-xs cursor-pointer";
+        b.style.cssText = `background:${active ? t.raised : t.bg};border-color:${active ? sw.primary : t.border};color:${t.text};font-weight:${active ? 700 : 500}`;
+        b.innerHTML = `<span class="relative w-3.5 h-3.5 rounded-full shrink-0 inline-block" style="background:${sw.primary}"><span class="absolute -right-0.5 -bottom-0.5 w-2 h-2 rounded-full border" style="background:${sw.accent};border-color:${active ? t.raised : t.bg}"></span></span><span class="truncate">${p.label}</span>`;
+        b.onclick = (ev) => { ev.stopPropagation(); state.theme = key; syncAll(); };
+        grid.appendChild(b);
+      });
+
+      const seg = document.getElementById("pop-mode-seg");
+      seg.innerHTML = "";
+      [["dark", "다크"], ["light", "라이트"], ["system", "시스템"]].forEach(([mKey, lbl]) => {
+        const active = state.modePref === mKey, b = document.createElement("button");
+        b.type = "button";
+        b.className = "py-1 text-xs cursor-pointer transition-colors";
+        b.style.cssText = `background:${active ? t.primary : t.bg};color:${active ? t.onPrimary : t.muted};font-weight:${active ? 700 : 500}`;
+        b.textContent = lbl;
+        b.onclick = (ev) => { ev.stopPropagation(); state.modePref = mKey; syncAll(); };
+        seg.appendChild(b);
+      });
+    }
+
+    function syncAll() {
+      const mode = resolvedMode(), isDark = mode === "dark", t = PALETTES[state.theme][mode];
+      const root = document.getElementById("console-root");
+      root.dataset.dark = String(isDark);
+      const vars = {
+        "--c-bg": t.bg, "--c-surface": t.surface, "--c-raised": t.raised, "--c-border": t.border,
+        "--c-text": t.text, "--c-muted": t.muted, "--c-primary": t.primary, "--c-accent": t.accent
+      };
+      Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
+
+      syncThemePopover(t, isDark);
+
+      const playingCount = state.channels.filter(c => c.playing).length, pausedCount = state.channels.length - playingCount;
+      const anySolo = state.channels.some(c => c.solo), anyFocus = state.channels.some(c => c.focus);
+
+      document.getElementById("status-pill").style.borderColor = state.toastText ? t.primary : t.border;
+      document.getElementById("status-dot").style.backgroundColor = state.toastText ? t.primary : anySolo ? t.accent : playingCount > 0 ? t.states.success : t.muted;
+      const sTxt = document.getElementById("status-text");
+      sTxt.textContent = state.toastText || `재생 ${playingCount} · 대기 ${pausedCount}`;
+      sTxt.style.color = state.toastText ? t.primary : t.muted;
+
+      document.getElementById("alpha-box").style.borderColor = anyFocus ? t.primary : t.border;
+      document.getElementById("alpha-label").style.color = anyFocus ? t.primary : t.muted;
+      const aFill = document.getElementById("alpha-fill"), aThumb = document.getElementById("alpha-thumb");
+      aFill.style.width = `${state.alpha * 100}%`;
+      aFill.style.backgroundColor = t.primary;
+      aThumb.style.left = `calc(${state.alpha * 100}% - 5px)`;
+      aThumb.style.borderColor = t.primary;
+      const dim = getFocusDimDb();
+      document.getElementById("alpha-readout").textContent = `${state.alpha.toFixed(2)} (${isFinite(dim) ? (dim === 0 ? "0dB" : dim.toFixed(0) + "dB") : "-∞"})`;
+      document.getElementById("reset-modes-btn").disabled = !(anySolo || anyFocus);
+
+      domRefs.pauseDivider.style.backgroundColor = t.border;
+      domRefs.masterDivider.style.backgroundColor = t.border;
+
+      state.channels.forEach(ch => {
+        const r = domRefs.strips.get(ch.id), effDb = getEffectiveDb(ch);
+        const userPct = dbToRatio(ch.db) * 100, effPct = isFinite(effDb) ? dbToRatio(Math.min(MAX_DB, effDb)) * 100 : 0;
+        const dimmed = isFinite(effDb) && Math.abs(effDb - (ch.db + state.masterDb)) > 0.1;
+        const silencedByMode = !isFinite(effDb) && ch.playing && !ch.muted && ch.db > MIN_DB;
+        const pinned = isChannelPinned(ch);
+
+        r.el.style.backgroundColor = ch.playing ? t.raised : t.surface;
+        r.el.style.borderColor = ch.focus ? t.primary : ch.solo ? t.accent : t.border;
+        r.el.style.opacity = ch.playing ? "1" : "0.74";
+        r.topAccent.style.backgroundColor = ch.focus ? t.primary : ch.solo ? t.accent : ch.muted ? t.states.danger : "transparent";
+
+        r.header.title = `${ch.title} (${ch.domain}) — 클릭 시 해당 탭/창으로 이동`;
+        r.favicon.style.borderColor = ch.focus ? t.primary : t.border;
+        r.favicon.style.color = ch.focus ? t.primary : ch.solo ? t.accent : t.text;
+        r.title.textContent = ch.title;
+
+        r.fill.style.height = `${userPct}%`;
+        r.fill.style.backgroundColor = ch.muted ? t.muted : ch.solo ? t.accent : (ch.focus || !(anyFocus || anySolo)) ? t.primary : t.muted;
+        r.fill.style.opacity = ch.muted ? "0.25" : (dimmed || silencedByMode) ? "0.45" : "0.85";
+        r.corsZone.classList.toggle("hidden", !ch.corsCap);
+
+        r.scale.items.forEach(({ db, el: sEl }) => {
+          sEl.style.color = db === 0 ? t.text : t.muted;
+          sEl.style.opacity = (ch.corsCap && db > 0) ? "0.32" : db === 0 ? "0.95" : "0.62";
+          sEl.style.fontWeight = db === 0 ? "700" : "400";
+        });
+
+        if (dimmed || silencedByMode) {
+          r.deltaBar.classList.remove("hidden");
+          r.deltaBar.style.cssText = `bottom:${Math.min(userPct, effPct)}%;height:${Math.abs(userPct - effPct)}%;background:${t.primary};opacity:0.45`;
+          r.ghostCap.classList.remove("hidden");
+          r.ghostCap.style.bottom = `calc(${effPct}% - 2.5px)`;
+          r.ghostCap.style.borderColor = t.primary;
+        } else {
+          r.deltaBar.classList.add("hidden");
+          r.ghostCap.classList.add("hidden");
+        }
+
+        r.knob.style.bottom = `calc(${userPct}% - 7px)`;
+        r.knob.style.backgroundColor = ch.focus ? t.primary : ch.solo ? t.accent : t.surface;
+        r.knob.style.borderColor = ch.focus ? t.primary : ch.solo ? t.accent : t.muted;
+        r.knob.style.color = ch.focus ? t.onPrimary : ch.solo ? t.onAccent : t.text;
+        r.knobLine.style.backgroundColor = ch.focus ? t.onPrimary : ch.solo ? t.onAccent : t.text;
+
+        paintLedColumn(r.vu.segs, ch.vuCur, ch.vuPeak, t);
+
+        r.dbText.textContent = formatDb(ch.db);
+        r.dbText.style.color = ch.muted ? t.states.danger : ch.db > 0 ? t.states.warning : t.text;
+
+        if (ch.corsCap) { r.subText.innerHTML = `${ICONS.lock}<span>0dB 상한</span>`; r.subText.style.color = t.muted; }
+        else if (!ch.playing) { r.subText.textContent = "일시정지됨"; r.subText.style.color = t.muted; }
+        else if (ch.muted) { r.subText.textContent = "음소거됨"; r.subText.style.color = t.states.danger; }
+        else if (dimmed || silencedByMode) { r.subText.textContent = `실효 ${formatDb(effDb)} dB`; r.subText.style.color = t.primary; }
+        else { r.subText.textContent = pinned ? "도메인 기본값" : "개별 탭 볼륨"; r.subText.style.color = pinned ? t.accent : t.muted; }
+
+        r.playBtn.innerHTML = ch.playing ? `${ICONS.pause}<span class="ml-1 text-[11px]">재생중</span>` : `${ICONS.play}<span class="ml-1 text-[11px]">대기</span>`;
+        r.playBtn.style.cssText = `background:${ch.playing ? t.surface : t.bg};border-color:${ch.playing ? t.primary : t.border};color:${ch.playing ? t.primary : t.muted}`;
+
+        const savedDomainDb = state.domainDefaults[ch.domain];
+        r.pinBtn.title = savedDomainDb !== undefined ? `${ch.domain} 기본값 (${formatDb(savedDomainDb)} dB) · 클릭하여 고정/해제` : `현재 볼륨(${formatDb(ch.db)} dB)을 ${ch.domain} 새 탭 기본값으로 고정`;
+        r.pinBtn.style.cssText = `background:${pinned ? t.accent : t.surface};border-color:${pinned ? t.accent : t.border};color:${pinned ? t.onAccent : t.muted}`;
+        r.pinDot.style.backgroundColor = savedDomainDb !== undefined ? (pinned ? t.onAccent : t.accent) : "transparent";
+
+        syncSwitch(r.muteBtn, r.mutePip, ch.muted, t.states.danger, t.states.onDanger, t);
+        syncSwitch(r.soloBtn, r.soloPip, ch.solo, t.accent, t.onAccent, t);
+        syncSwitch(r.focusBtn, r.focusPip, ch.focus, t.primary, t.onPrimary, t);
+      });
+
+      const m = domRefs.master, mPct = dbToRatio(state.masterDb) * 100;
+      m.topAccent.style.backgroundColor = state.masterMuted ? t.states.danger : t.primary;
+      m.fill.style.height = `${mPct}%`;
+      m.fill.style.backgroundColor = state.masterMuted ? t.muted : t.primary;
+      m.fill.style.opacity = state.masterMuted ? "0.25" : "0.75";
+      m.knob.style.bottom = `calc(${mPct}% - 7.5px)`;
+      m.knob.style.borderColor = state.masterMuted ? t.states.danger : t.text;
+      m.knobLine.style.backgroundColor = state.masterMuted ? t.states.danger : t.primary;
+      paintLedColumn(m.vuL.segs, m.vuCurL, m.vuPeakL, t);
+      paintLedColumn(m.vuR.segs, m.vuCurR, m.vuPeakR, t);
+
+      m.dbText.textContent = state.masterMuted ? "MUTE" : formatDb(state.masterDb);
+      m.dbText.style.color = state.masterMuted ? t.states.danger : state.masterDb > 0 ? t.states.warning : t.text;
+      m.dbUnit.style.display = state.masterMuted ? "none" : "inline";
+      m.pauseAllBtn.innerHTML = state.channels.some(c => c.playing) ? `${ICONS.pause}<span>전체 정지</span>` : `${ICONS.play}<span>전체 재생</span>`;
+      m.muteAllBtn.innerHTML = `${ICONS.speakerOff}<span>전체 음소거</span>`;
+      m.muteAllBtn.style.cssText = `background:${state.masterMuted ? t.states.danger : t.raised};border-color:${state.masterMuted ? t.states.danger : t.border};color:${state.masterMuted ? t.states.onDanger : t.text};font-weight:${state.masterMuted ? 700 : 500}`;
+    }
+
+    setInterval(() => {
+      const t = curTokens();
+      let busSum = 0, activeCnt = 0;
+      state.channels.forEach(ch => {
+        const effDb = getEffectiveDb(ch);
+        let target = 0;
+        if (isFinite(effDb)) {
+          target = Math.min(1, Math.max(0.05, dbToRatio(Math.min(MAX_DB, effDb)) * ch.baseVu * 1.12 * (0.82 + Math.random() * 0.30)));
+          busSum += target; activeCnt++;
+        }
+        ch.vuCur = target > ch.vuCur ? ch.vuCur + (target - ch.vuCur) * 0.62 : Math.max(0, ch.vuCur - 0.045);
+        ch.vuPeak = ch.vuCur >= ch.vuPeak ? ch.vuCur : Math.max(ch.vuCur, ch.vuPeak - 0.014);
+        const r = domRefs.strips.get(ch.id);
+        if (r) paintLedColumn(r.vu.segs, ch.vuCur, ch.vuPeak, t);
+      });
+      const m = domRefs.master;
+      if (m) {
+        const baseBus = (state.masterMuted || !activeCnt) ? 0 : Math.min(1, (busSum / Math.sqrt(activeCnt)) * 0.72);
+        const tgtL = baseBus * (0.93 + Math.random() * 0.14), tgtR = baseBus * (0.93 + Math.random() * 0.14);
+        m.vuCurL = tgtL > m.vuCurL ? m.vuCurL + (tgtL - m.vuCurL) * 0.6 : Math.max(0, m.vuCurL - 0.045);
+        m.vuCurR = tgtR > m.vuCurR ? m.vuCurR + (tgtR - m.vuCurR) * 0.6 : Math.max(0, m.vuCurR - 0.045);
+        m.vuPeakL = m.vuCurL >= m.vuPeakL ? m.vuCurL : Math.max(m.vuCurL, m.vuPeakL - 0.014);
+        m.vuPeakR = m.vuCurR >= m.vuPeakR ? m.vuCurR : Math.max(m.vuCurR, m.vuPeakR - 0.014);
+        paintLedColumn(m.vuL.segs, m.vuCurL, m.vuPeakL, t);
+        paintLedColumn(m.vuR.segs, m.vuCurR, m.vuPeakR, t);
+      }
+    }, 75);
+
+    document.getElementById("theme-dot-btn").onclick = (e) => { e.stopPropagation(); state.popoverOpen = !state.popoverOpen; syncAll(); };
+    document.getElementById("theme-popover").onclick = (e) => e.stopPropagation();
+    window.addEventListener("pointerdown", (e) => {
+      if (!state.popoverOpen) return;
+      if (!document.getElementById("theme-popover").contains(e.target) && !document.getElementById("theme-dot-btn").contains(e.target)) {
+        state.popoverOpen = false; syncAll();
+      }
+    });
+    window.addEventListener("keydown", (e) => { if (e.key === "Escape" && state.popoverOpen) { state.popoverOpen = false; syncAll(); } });
+    window.addEventListener("themechange", () => { if (state.modePref === "system") syncAll(); });
+    if (window.matchMedia) window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", () => { if (state.modePref === "system") syncAll(); });
+    document.getElementById("reset-modes-btn").onclick = () => { state.channels.forEach(c => { c.solo = false; c.focus = false; }); syncAll(); };
+
+    mountOnce();
+    syncAll();
+  </script>
+</body>
+</html>
