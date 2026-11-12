@@ -47,3 +47,17 @@ npm run build
 5. **비선택 채널 첫 클릭 유실 및 YouTube Music 재생 복귀 불능 (`0.5.1` 해결)**
    - 카드 `pointerdown` 선택 시 버튼 `innerHTML`을 재대입해 클릭 대상 자식 노드를 파괴하던 구조를 고정 자식 참조 + `.console-btn > * { pointer-events: none }`으로 고쳐 첫 클릭에 선택과 조작이 동시에 수행되게 함.
    - 프레임에 `<video>`/`<audio>`가 있을 때 상시 `"running"` 상태인 사이트 보조 `AudioContext`가 `playingCount`를 `1`로 오염시키던 문제를 분리하고, 명시적 재생 명령 전달·최근 활성 미디어 역순 `play()`·일시 중단된 `AudioContext` 동반 `resume()`을 적용함.
+
+---
+
+## 4. 보류 백로그 (`Known Issues`)
+
+1. **오디오 훅 핫스왑(`Hot-Swap`) 시 구버전 `dspChain` 고착 및 `보안 0dB 상한` 오탐 현상 (우선순위 낮음 · 보류)**
+   - **현상**: 개발 중 확장을 새로고침(`↻`)하거나 판올림한 뒤 이미 열려 있던 YouTube · YouTube Music 등 SPA 미디어 탭을 새로고침 없이 계속 쓰면, 실제 DRM이 없는 일반 스트림인데도 `보안 0dB 상한`(`교차 출처·DRM 보안으로 DSP 자동 우회`)으로 표시되며 노멀라이저가 우회되거나 새 판의 DSP 변경이 즉시 반영되지 않음. **해당 탭을 한 번 새로고침(`F5`)하면 즉시 정상 복귀됨**(일반 사용 환경에서는 확장 업데이트 빈도가 낮아 영향이 작음).
+   - **코드에서 확인된 원인**:
+     1. `src/content/audio-hook.ts`(`tryAttachWebAudioToElement`)와 `src/content/webaudio-patch.ts`(`state.pageContexts`)가 핫스왑 시 바깥 컨트롤러만 교체하고 `state.hookedEntries` 내부 `dspChain` 인스턴스는 구버전 그대로 유지함(판본 간 `DspChainInstance` 메서드 추가 시 곡 전환 이벤트에서 `TypeError` 발생 가능).
+     2. `buildSnapshot()`이 주 활성 플레이어가 정상 연결되어 있어도 같은 프레임의 멈춰 있는 부수 `<video>`·`<audio>`(미리보기·광고 등) 하나만 교차 출처 URL이면 프레임 전체를 `corsRestricted = true`로 합산함.
+     3. SPA에서 동일 `<video>` 요소를 재사용할 때 이전 스트림에서 기록된 `encryptedElements`·`failedWebAudioElements`(`WeakSet`)가 다음 비-DRM 스트림 전환(`emptied` / 새 `src`) 시 해제되지 않음.
+   - **추후 조치 방향**:
+     - 핫스왑 시 `sourceNode`(`MediaElementAudioSourceNode`)는 유지하되 기존 `dspChain` 연결만 `disconnect()`하고 새 판의 `createDspChain()`으로 무중단 재결선(Rewire)하도록 개선.
+     - 활성 재생 미디어 기준으로 `corsRestricted`를 판정하고, 소스 교체 시 `mediaKeys` 유무를 재확인해 이전 스트림의 보안 제한 기록을 갱신하도록 수정.
