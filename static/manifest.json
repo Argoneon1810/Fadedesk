@@ -1,0 +1,86 @@
+{
+  "manifest_version": 3,
+  "name": "Sound Manager",
+  "version": "0.1.0",
+  "description": "여러 창과 백그라운드 탭의 미디어를 한곳에서 재생·정지하고 dB 로그 볼륨과 Focus/Solo 모드로 제어하는 스튜디오 콘솔",
+  "minimum_chrome_version": "111",
+  "permissions": [
+    "tabs",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Sound Manager — 탭별 볼륨·Focus 콘솔",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*",
+        "file://*/*"
+      ],
+      "js": [
+        "audio-hook.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true,
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*",
+        "file://*/*"
+      ],
+      "js": [
+        "content-bridge.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true,
+      "world": "ISOLATED"
+    }
+  ],
+  "commands": {
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+Shift+M"
+      },
+      "description": "Sound Manager 콘솔 팝업 열기"
+    },
+    "toggle-master-mute": {
+      "suggested_key": {
+        "default": "Alt+Shift+0"
+      },
+      "description": "전체 출력 음소거(Master Mute) 토글"
+    },
+    "cycle-focus-channel": {
+      "suggested_key": {
+        "default": "Alt+Shift+F"
+      },
+      "description": "재생 중인 미디어 탭 순서대로 Focus 전환"
+    }
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'none'"
+  }
+}

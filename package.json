@@ -1,0 +1,20 @@
+{
+  "name": "sound-manager",
+  "private": true,
+  "type": "module",
+  "description": "다중 탭·창 미디어 중앙 재생 및 dB 로그 볼륨·Focus 모드 콘솔 Chrome 확장",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "node scripts/build.mjs",
+    "test:unit": "node --import tsx --test tests/*.test.ts",
+    "test:ui": "node tests/popup-layout-audit.mjs",
+    "test": "npm run typecheck && npm run test:unit && npm run build && npm run test:ui"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.287",
+    "@types/node": "^22.10.2",
+    "esbuild": "^0.24.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

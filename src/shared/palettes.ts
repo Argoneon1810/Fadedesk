@@ -1,0 +1,148 @@
+import type { PaletteEntry, PersistedSettings, ThemeKey } from "./types";
+
+/**
+ * color-preset.md에서 확정된 WCAG-AA 검증 완료 4종 스튜디오 콘솔 팔레트.
+ * 임의의 색상값을 추가하지 않고 이 프리셋 토큰만 참조한다.
+ */
+
+const STATES_DARK = {
+  success: "#4fc678",
+  warning: "#eda922",
+  danger: "#f5605b",
+  onDanger: "#000000",
+} as const;
+
+const STATES_LIGHT = {
+  success: "#007f3b",
+  warning: "#a96100",
+  danger: "#bc272c",
+  onDanger: "#ffffff",
+} as const;
+
+export const PALETTES: Record<ThemeKey, PaletteEntry> = {
+  teal: {
+    label: "스튜디오 틸",
+    dark: {
+      primary: "#00bdce",
+      onPrimary: "#000000",
+      accent: "#e69732",
+      onAccent: "#000000",
+      bg: "#091112",
+      surface: "#131d1e",
+      raised: "#1d292a",
+      border: "#2d3b3c",
+      text: "#e5edee",
+      muted: "#98a4a6",
+      states: STATES_DARK,
+    },
+    light: {
+      primary: "#00808f",
+      onPrimary: "#ffffff",
+      accent: "#a05c00",
+      onAccent: "#ffffff",
+      bg: "#eff5f5",
+      surface: "#fafcfd",
+      raised: "#e3ebec",
+      border: "#c1cdcf",
+      text: "#0e1819",
+      muted: "#4e5b5c",
+      states: STATES_LIGHT,
+    },
+  },
+  amber: {
+    label: "콘솔 앰버",
+    dark: {
+      primary: "#eb992e",
+      onPrimary: "#000000",
+      accent: "#00c4d6",
+      onAccent: "#000000",
+      bg: "#130e0a",
+      surface: "#1f1914",
+      raised: "#2c251e",
+      border: "#3e362e",
+      text: "#efeae6",
+      muted: "#a8a098",
+      states: STATES_DARK,
+    },
+    light: {
+      primary: "#d58200",
+      onPrimary: "#000000",
+      accent: "#007f8f",
+      onAccent: "#ffffff",
+      bg: "#f6f3ef",
+      surface: "#fdfbfa",
+      raised: "#eee8e3",
+      border: "#d1c9c1",
+      text: "#1b150f",
+      muted: "#5e574f",
+      states: STATES_LIGHT,
+    },
+  },
+  cobalt: {
+    label: "프리시전 코발트",
+    dark: {
+      primary: "#6591e1",
+      onPrimary: "#000000",
+      accent: "#00c6c7",
+      onAccent: "#000000",
+      bg: "#0d0f15",
+      surface: "#171b21",
+      raised: "#22272e",
+      border: "#333842",
+      text: "#e8ebf1",
+      muted: "#9da2ab",
+      states: STATES_DARK,
+    },
+    light: {
+      primary: "#3569cd",
+      onPrimary: "#ffffff",
+      accent: "#008183",
+      onAccent: "#ffffff",
+      bg: "#f1f3f8",
+      surface: "#fbfcfe",
+      raised: "#e6eaf0",
+      border: "#c6cbd4",
+      text: "#12161d",
+      muted: "#535861",
+      states: STATES_LIGHT,
+    },
+  },
+  emerald: {
+    label: "브로드캐스트 에메랄드",
+    dark: {
+      primary: "#49bf7b",
+      onPrimary: "#000000",
+      accent: "#e29a2c",
+      onAccent: "#000000",
+      bg: "#0b110d",
+      surface: "#161d18",
+      raised: "#202923",
+      border: "#313b34",
+      text: "#e7ede9",
+      muted: "#9ba49e",
+      states: STATES_DARK,
+    },
+    light: {
+      primary: "#00864b",
+      onPrimary: "#ffffff",
+      accent: "#9d5e00",
+      onAccent: "#ffffff",
+      bg: "#f0f5f2",
+      surface: "#fafcfb",
+      raised: "#e5ebe7",
+      border: "#c4cdc7",
+      text: "#111813",
+      muted: "#515b54",
+      states: STATES_LIGHT,
+    },
+  },
+};
+
+export const DEFAULT_SETTINGS: PersistedSettings = {
+  theme: "teal",
+  modePref: "dark",
+  alpha: 0.7,
+  masterDb: 0.0,
+  masterMuted: false,
+  domainDefaults: {},
+};

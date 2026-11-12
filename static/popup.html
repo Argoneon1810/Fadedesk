@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sound Manager</title>
+  <link rel="stylesheet" href="popup.css" />
+  <link rel="stylesheet" href="popup-strips.css" />
+</head>
+<body>
+  <div id="console-root" data-dark="true">
+    <!-- 상단 컨트롤 데크 -->
+    <header class="top-deck">
+      <div class="deck-left">
+        <button
+          id="theme-dot-btn"
+          type="button"
+          aria-haspopup="dialog"
+          aria-expanded="false"
+          title="컬러 테마 및 화면 모드 설정"
+          class="console-btn dot-trigger"
+        >
+          <span id="brand-dot" class="brand-dot"></span>
+        </button>
+        <span class="brand-title">SOUND MANAGER</span>
+        <div id="status-pill" class="status-pill c-recessed">
+          <span id="status-dot" class="status-dot"></span>
+          <span id="status-text" class="status-text truncate">탐색 중...</span>
+        </div>
+      </div>
+
+      <div class="deck-right">
+        <div
+          id="alpha-box"
+          class="alpha-box c-recessed"
+          title="Focus 스무딩(α): 드래그·휠 조절 · 더블클릭 시 0.70(-12dB) 복귀"
+        >
+          <span id="alpha-label" class="alpha-label">Focus <i class="alpha-sym">α</i></span>
+          <div id="alpha-track" class="alpha-track">
+            <div class="alpha-slot c-surface">
+              <div id="alpha-fill" class="alpha-fill"></div>
+            </div>
+            <div id="alpha-thumb" class="alpha-thumb c-raised"></div>
+          </div>
+          <span id="alpha-readout" class="alpha-readout tabular">0.70 · -12dB</span>
+        </div>
+        <button
+          id="reset-modes-btn"
+          type="button"
+          title="켜져 있는 Solo / Focus 모드를 모두 해제합니다"
+          class="console-btn reset-modes-btn c-raised"
+          disabled
+        >S·F 해제</button>
+      </div>
+    </header>
+
+    <!-- 좌측 상단 플로팅 미니 테마 팝오버 (368px 고정폭으로 4종 한글 테마명 전체 노출 보장) -->
+    <div id="theme-popover" role="dialog" aria-label="컬러 테마 및 화면 모드" class="theme-popover c-surface hidden">
+      <div class="pop-header">
+        <span class="c-muted pop-label">컬러 테마</span>
+        <span id="pop-cur-summary" class="pop-summary"></span>
+      </div>
+      <div id="pop-theme-grid" class="pop-theme-grid"></div>
+      <div class="pop-mode-section">
+        <div class="c-muted pop-label">화면 모드</div>
+        <div id="pop-mode-seg" class="pop-mode-seg"></div>
+      </div>
+    </div>
+
+    <!-- 콘솔 스트립 베이: 좌측 가변/가로 스크롤 채널 구역 + 우측 고정 MASTER BUS -->
+    <main class="console-bay">
+      <div id="channels-scroll" class="channels-scroll"></div>
+      <div id="master-dock" class="master-dock"></div>
+    </main>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,421 @@
+/*
+ * 채널 스트립·마스터 버스·음각 페이더·VU 미터·조작 스위치 전용 스타일시트.
+ * 쉘·상단 데크·테마 팝오버 스타일은 popup.css에 분리되어 있다.
+ */
+
+/* 단일 채널 및 마스터 스트립 */
+.channel-strip, .master-strip {
+  position: relative;
+  flex-shrink: 0;
+  border-radius: 8px;
+  border: 1px solid var(--c-border);
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  gap: 6px;
+  overflow: hidden;
+  transition: background-color 100ms ease, border-color 100ms ease, opacity 100ms ease;
+}
+
+.channel-strip {
+  width: 94px;
+}
+
+.channel-strip[data-selected="true"] {
+  box-shadow: inset 0 0 0 1px var(--c-primary);
+}
+
+.master-strip {
+  width: 98px;
+  background: var(--c-surface);
+}
+
+.strip-top-accent {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2.5px;
+}
+
+.strip-header {
+  width: 100%;
+  height: 40px;
+  padding: 1px 0 4px 0;
+  border: 0;
+  border-bottom: 1px solid var(--c-border);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.strip-header-row1 {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+
+.favicon-box {
+  width: 15px;
+  height: 15px;
+  border-radius: 3px;
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.favicon-box img {
+  width: 11px;
+  height: 11px;
+  object-fit: contain;
+  display: block;
+}
+
+.host-label {
+  font-size: 10px;
+  line-height: 14px;
+  flex: 1 1 auto;
+  color: var(--c-muted);
+}
+
+.jump-icon {
+  opacity: 0.42;
+  flex-shrink: 0;
+  color: var(--c-primary);
+  transition: opacity 120ms ease;
+}
+
+.strip-header:hover .jump-icon {
+  opacity: 1;
+}
+
+.strip-title {
+  width: 100%;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 18px;
+}
+
+.master-header {
+  height: 40px;
+  padding: 1px 0 4px 0;
+  border-bottom: 1px solid var(--c-border);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: center;
+}
+
+.master-kicker {
+  font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  line-height: 14px;
+  color: var(--c-primary);
+  white-space: nowrap;
+}
+
+/* 음각 페이더 우물 + 캡 + VU 미터 */
+.fader-well {
+  position: relative;
+  height: 150px;
+  border-radius: 6px;
+  border: 1px solid var(--c-border);
+  padding: 9px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--c-bg);
+}
+
+.master-strip .fader-well {
+  padding: 9px 10px;
+}
+
+#console-root[data-dark="true"] .fader-well {
+  box-shadow: inset 0 1.5px 3.5px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+#console-root[data-dark="false"] .fader-well {
+  box-shadow: inset 0 1px 2.5px rgba(0, 0, 0, 0.11), 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.fader-track {
+  position: relative;
+  width: 24px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: ns-resize;
+}
+
+.master-strip .fader-track {
+  width: 28px;
+}
+
+.unity-wing-l, .unity-wing-r {
+  position: absolute;
+  width: 3px;
+  border-top: 1px solid var(--c-muted);
+  pointer-events: none;
+}
+
+.unity-wing-l { left: 2px; }
+.unity-wing-r { right: 2px; }
+
+.fader-slot {
+  width: 5px;
+  height: 100%;
+  border-radius: 9999px;
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.55);
+  position: relative;
+  overflow: hidden;
+}
+
+.master-strip .fader-slot {
+  width: 6px;
+}
+
+.fader-fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 9999px;
+}
+
+.cors-zone {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  border-bottom: 1px solid var(--c-border);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(128, 128, 128, 0.24),
+    rgba(128, 128, 128, 0.24) 2px,
+    transparent 2px,
+    transparent 5px
+  );
+}
+
+.delta-bar {
+  position: absolute;
+  width: 3px;
+  border-radius: 9999px;
+  pointer-events: none;
+}
+
+.ghost-cap {
+  position: absolute;
+  width: 18px;
+  height: 5px;
+  border-radius: 2px;
+  border: 1px solid var(--c-primary);
+  background: var(--c-bg);
+  pointer-events: none;
+}
+
+.fader-cap {
+  position: absolute;
+  width: 22px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid var(--c-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5px;
+  pointer-events: none;
+}
+
+.master-strip .fader-cap {
+  width: 24px;
+  height: 15px;
+}
+
+#console-root[data-dark="true"] .fader-cap {
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.68), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+#console-root[data-dark="false"] .fader-cap {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+.cap-groove-sub {
+  width: 10px;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.3;
+}
+
+.cap-groove-main {
+  width: 13px;
+  height: 1.5px;
+  border-radius: 9999px;
+  display: block;
+}
+
+.scale-wrap {
+  position: relative;
+  width: 20px;
+  height: 100%;
+  pointer-events: none;
+}
+
+.scale-tick {
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: right;
+  font-size: 9.5px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.vu-col {
+  width: 7px;
+  height: 100%;
+  display: flex;
+  flex-direction: column-reverse;
+  justify-content: space-between;
+}
+
+.vu-seg {
+  width: 100%;
+  height: 5px;
+  border-radius: 1px;
+  display: block;
+}
+
+/* 디지털 dB 표시창 */
+.readout-btn {
+  width: 100%;
+  border-radius: 4px;
+  border: 1px solid var(--c-border);
+  padding: 4px;
+  text-align: center;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.readout-row1 {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 2px;
+  white-space: nowrap;
+  line-height: 15px;
+  font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+}
+
+.readout-db {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.readout-unit {
+  font-size: 10px;
+  color: var(--c-muted);
+}
+
+.readout-sub {
+  display: block;
+  width: 100%;
+  font-size: 10px;
+  line-height: 14px;
+  margin-top: 2px;
+  text-align: center;
+}
+
+/* 하단 조작 버튼군 */
+.transport-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.play-btn {
+  flex: 1 1 auto;
+  height: 25px;
+  border-radius: 4px;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.pin-btn {
+  position: relative;
+  width: 26px;
+  height: 25px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.pin-dot {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+}
+
+.switch-bank {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3px;
+  padding: 2px;
+  border-radius: 6px;
+  border: 1px solid var(--c-border);
+}
+
+.switch-btn {
+  flex-direction: column;
+  height: 24px;
+  border-radius: 4px;
+  font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+  font-size: 11px;
+}
+
+.switch-pip {
+  width: 10px;
+  height: 2px;
+  border-radius: 9999px;
+  margin-bottom: 2px;
+}
+
+.switch-lbl {
+  line-height: 1;
+}
+
+.master-action-btn {
+  width: 100%;
+  height: 25px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  gap: 4px;
+}
+
+.master-mute-btn {
+  width: 100%;
+  height: 28px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  gap: 4px;
+}
