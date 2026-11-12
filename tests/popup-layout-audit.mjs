@@ -17,9 +17,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 const UNPACKED_DIR = path.join(ROOT, "dist", "unpacked");
 const CHROME_CANDIDATES = [
+  process.env.CHROME_BIN,
+  process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "Google", "Chrome", "Application", "chrome.exe") : "",
   "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
   "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
-];
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "/usr/bin/google-chrome",
+  "/usr/bin/chromium",
+  "/usr/bin/chromium-browser",
+].filter(Boolean);
 
 const CHROME_BIN = CHROME_CANDIDATES.find((p) => fs.existsSync(p));
 if (!CHROME_BIN) {

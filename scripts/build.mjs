@@ -1,8 +1,8 @@
 import * as esbuild from "esbuild";
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import zlib from "node:zlib";
 
 /**
  * 화이트리스트 기반 Chrome MV3 확장 빌드·패키징 파이프라인 (app-build-architect 준수).
@@ -85,24 +85,7 @@ async function buildExtension() {
     logLevel: "warning",
   });
 
-  // 4. 스토어/배포용 ZIP 아카이브 생성
-  const zipName = `sound-manager-${manifest.version}.zip`;
-  const zipPath = path.join(DIST_DIR, zipName);
-  if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
-
-  const pyZipScript = `
-import pathlib, zipfile, sys
-unpacked = pathlib.Path(sys.argv[1])
-zip_out = pathlib.Path(sys.argv[2])
-with zipfile.ZipFile(zip_out, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-    for p in sorted(unpacked.rglob("*")):
-        if p.is_file():
-            zf.write(p, p.relative_to(unpacked).as_posix())
-`;
-  execFileSync("python", ["-X", "utf8", "-c", pyZipScript, UNPACKED_DIR, zipPath], {
-    stdio: "inherit",
-  });
-
+  // 4. 스토어/배포용 ZIP 아카이브 생성 (외부 Python 의존성 없이 Node 내장 zlib 단독 생성)
   const builtFiles = [];
   function walk(dir) {
     for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -112,10 +95,82 @@ with zipfile.ZipFile(zip_out, "w", compression=zipfile.ZIP_DEFLATED) as zf:
     }
   }
   walk(UNPACKED_DIR);
+  builtFiles.sort();
+
+  const zipName = `sound-manager-${manifest.version}.zip`;
+  const zipPath = path.join(DIST_DIR, zipName);
+  if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
+  writeZipArchive(UNPACKED_DIR, builtFiles, zipPath);
 
   console.log(`[PASS] Built Sound Manager v${manifest.version} (${builtFiles.length} runtime files):`);
   console.log(`  - Unpacked: ${UNPACKED_DIR}`);
   console.log(`  - Archive : ${zipPath}`);
+}
+
+const CRC_TABLE = (() => {
+  const tbl = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+    tbl[i] = c >>> 0;
+  }
+  return tbl;
+})();
+
+function calcCrc32(buf) {
+  if (typeof zlib.crc32 === "function") return zlib.crc32(buf) >>> 0;
+  let crc = 0xffffffff;
+  for (let i = 0; i < buf.length; i++) crc = CRC_TABLE[(crc ^ buf[i]) & 0xff] ^ (crc >>> 8);
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function writeZipArchive(baseDir, relFiles, outPath) {
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+
+  for (const rel of relFiles) {
+    const nameBuf = Buffer.from(rel, "utf8");
+    const raw = fs.readFileSync(path.join(baseDir, rel));
+    const comp = zlib.deflateRawSync(raw);
+    const crc = calcCrc32(raw);
+
+    const lh = Buffer.alloc(30);
+    lh.writeUInt32LE(0x04034b50, 0);
+    lh.writeUInt16LE(20, 4);
+    lh.writeUInt16LE(0x0800, 6);
+    lh.writeUInt16LE(8, 8);
+    lh.writeUInt32LE(crc, 14);
+    lh.writeUInt32LE(comp.length, 18);
+    lh.writeUInt32LE(raw.length, 22);
+    lh.writeUInt16LE(nameBuf.length, 26);
+    localParts.push(lh, nameBuf, comp);
+
+    const ch = Buffer.alloc(46);
+    ch.writeUInt32LE(0x02014b50, 0);
+    ch.writeUInt16LE(20, 4);
+    ch.writeUInt16LE(20, 6);
+    ch.writeUInt16LE(0x0800, 8);
+    ch.writeUInt16LE(8, 10);
+    ch.writeUInt32LE(crc, 16);
+    ch.writeUInt32LE(comp.length, 20);
+    ch.writeUInt32LE(raw.length, 24);
+    ch.writeUInt16LE(nameBuf.length, 28);
+    ch.writeUInt32LE(offset, 42);
+    centralParts.push(ch, nameBuf);
+
+    offset += lh.length + nameBuf.length + comp.length;
+  }
+
+  const centralBuf = Buffer.concat(centralParts);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(relFiles.length, 8);
+  eocd.writeUInt16LE(relFiles.length, 10);
+  eocd.writeUInt32LE(centralBuf.length, 12);
+  eocd.writeUInt32LE(offset, 16);
+
+  fs.writeFileSync(outPath, Buffer.concat([...localParts, centralBuf, eocd]));
 }
 
 buildExtension().catch((err) => {
