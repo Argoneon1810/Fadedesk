@@ -297,6 +297,7 @@ export function createDspChain(
       return Math.round(normTrimDb * 10) / 10;
     }
 
+    const isMusicMode = dsp.normSpeed === "music";
     const approxLufs = rmsDb - 0.7;
     if (!hasVoicedHistory) {
       shortLufs = approxLufs;
@@ -304,27 +305,52 @@ export function createDspChain(
       hasVoicedHistory = true;
     } else {
       shortLufs += (approxLufs - shortLufs) * 0.38;
-      const longAlpha = relockTicks > 0 ? 0.28 : 0.08;
+      const longAlpha =
+        relockTicks > 0
+          ? isMusicMode
+            ? 0.18
+            : 0.28
+          : isMusicMode
+            ? 0.008
+            : dsp.normSpeed === "fast"
+              ? 0.12
+              : 0.08;
       longLufs += (approxLufs - longLufs) * longAlpha;
     }
     if (relockTicks > 0) relockTicks--;
 
     const ceilingSafeTrim = -1.0 - peakDb;
     const rawTargetTrim = Math.min(dsp.normTargetLufs - longLufs, ceilingSafeTrim);
+    const maxBoostDb = isMusicMode ? 5.0 : MAX_NORM_TRIM_DB;
     const clampedTargetTrim = Math.max(
       MIN_NORM_TRIM_DB,
-      Math.min(MAX_NORM_TRIM_DB, rawTargetTrim),
+      Math.min(maxBoostDb, rawTargetTrim),
     );
 
     const predictedPeakDb = peakDb + normTrimDb;
-    const suddenJump = shortLufs - longLufs > 5.5 && clampedTargetTrim < normTrimDb;
-    const baseAlpha = dsp.normSpeed === "fast" ? 0.28 : dsp.normSpeed === "slow" ? 0.06 : 0.14;
-    const stepAlpha =
-      predictedPeakDb > -1.0 || suddenJump
-        ? 0.52
-        : relockTicks > 0
-          ? Math.max(baseAlpha, 0.26)
-          : baseAlpha;
+    const suddenJump = isMusicMode
+      ? false
+      : dsp.normSpeed === "fast"
+        ? shortLufs - longLufs > 4.5 && clampedTargetTrim < normTrimDb
+        : shortLufs - longLufs > 5.5 && clampedTargetTrim < normTrimDb;
+    const baseAlpha = isMusicMode
+      ? 0.018
+      : dsp.normSpeed === "fast"
+        ? 0.28
+        : dsp.normSpeed === "slow"
+          ? 0.06
+          : 0.14;
+    const stepAlpha = (
+      isMusicMode
+        ? predictedPeakDb > -0.5
+        : predictedPeakDb > -1.0 || suddenJump
+    )
+      ? isMusicMode
+        ? 0.42
+        : 0.52
+      : relockTicks > 0
+        ? Math.max(baseAlpha, isMusicMode ? 0.14 : 0.26)
+        : baseAlpha;
 
     normTrimDb += (clampedTargetTrim - normTrimDb) * stepAlpha;
     normTrimDb = Math.max(MIN_NORM_TRIM_DB, Math.min(MAX_NORM_TRIM_DB, normTrimDb));

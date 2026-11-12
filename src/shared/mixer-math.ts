@@ -1,4 +1,5 @@
 import type {
+  AutoNormPreset,
   ChannelFxState,
   ChannelNormMode,
   CompRatioPreset,
@@ -27,6 +28,43 @@ export const DEFAULT_CHANNEL_FX: Readonly<ChannelFxState> = {
   gateThresholdDb: -48,
   compEnabled: false,
   compRatio: 4,
+};
+
+export const AUTO_NORM_PRESET_META: Record<
+  AutoNormPreset,
+  {
+    label: string;
+    shortLabel: string;
+    badge: string;
+    targetLufs: number;
+    speed: NormSpeedPreset;
+    summary: string;
+  }
+> = {
+  music: {
+    label: "음악 (강약 보존)",
+    shortLabel: "음악",
+    badge: "-16 LUFS · 강약 보존",
+    targetLufs: -16,
+    speed: "music",
+    summary: "곡 안의 조용한 도입부~강렬한 후렴 대비는 살리고 곡·탭 간 평균 음량만 천천히 맞춥니다.",
+  },
+  standard: {
+    label: "표준 (영상·방송)",
+    shortLabel: "표준",
+    badge: "-16 LUFS · 균형",
+    targetLufs: -16,
+    speed: "std",
+    summary: "유튜브·스트리밍·강의 등 탭 간 볼륨 편차를 자연스럽게 균일화합니다.",
+  },
+  night: {
+    label: "야간 (강한 균일)",
+    shortLabel: "야간",
+    badge: "-18 LUFS · 야간 보호",
+    targetLufs: -18,
+    speed: "fast",
+    summary: "작은 말소리는 또렷하게, 갑작스러운 효과음·폭음은 즉시 눌러 밤 시간 청취를 돕습니다.",
+  },
 };
 
 export interface GainChannelInput {
@@ -192,7 +230,7 @@ export function sanitizeChannelFx(
 ): ChannelFxState {
   const merged = { ...DEFAULT_CHANNEL_FX, ...(base ?? {}), ...(patch ?? {}) };
   const validModes: ChannelNormMode[] = ["follow", "on", "off"];
-  const validSpeeds: NormSpeedPreset[] = ["slow", "std", "fast"];
+  const validSpeeds: NormSpeedPreset[] = ["music", "slow", "std", "fast"];
   const validRatios: CompRatioPreset[] = [2, 4, 8];
 
   const normMode = validModes.includes(merged.normMode) ? merged.normMode : "follow";
@@ -226,12 +264,13 @@ export function sanitizeChannelFx(
  * 전역 `autoNormEnabled`(`균일 N`) 스위치와 채널별 고급 `ChannelFxState`를 비파괴로 합성한다.
  * - `normMode === "on"`: 전역 스위치와 무관하게 사용자의 개별 목표 음압·속도로 동작
  * - `normMode === "off"`: 전역 스위치가 켜져도 우회하며 사용자의 세부 수치는 그대로 보존
- * - `normMode === "follow"`: 전역 스위치를 따르며 Easy 표준 프리셋(-16 LUFS, "std")을 사용
+ * - `normMode === "follow"`: 전역 스위치를 따르며 전역 프리셋(음악 / 표준 / 야간)을 사용
  */
 export function resolveEffectiveNormalizer(
   autoNormEnabled: boolean,
   fx: ChannelFxState,
   corsCap: boolean,
+  autoNormPreset: AutoNormPreset = "standard",
 ): ResolvedNormalizerConfig {
   if (corsCap) {
     return { active: false, targetLufs: -16, speed: "std", source: "off" };
@@ -252,10 +291,11 @@ export function resolveEffectiveNormalizer(
       source: "custom-off",
     };
   }
+  const meta = AUTO_NORM_PRESET_META[autoNormPreset] ?? AUTO_NORM_PRESET_META.standard;
   return {
     active: autoNormEnabled,
-    targetLufs: -16,
-    speed: "std",
+    targetLufs: meta.targetLufs,
+    speed: meta.speed,
     source: autoNormEnabled ? "auto" : "off",
   };
 }
@@ -265,8 +305,9 @@ export function buildDspConfigPayload(
   autoNormEnabled: boolean,
   fx: ChannelFxState,
   corsCap: boolean,
+  autoNormPreset: AutoNormPreset = "standard",
 ): DspConfigPayload {
-  const norm = resolveEffectiveNormalizer(autoNormEnabled, fx, corsCap);
+  const norm = resolveEffectiveNormalizer(autoNormEnabled, fx, corsCap, autoNormPreset);
   if (corsCap) {
     return {
       normActive: false,

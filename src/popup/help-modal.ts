@@ -1,39 +1,30 @@
 import type { ThemeTokens } from "../shared/types";
+import {
+  renderSchematicSvg,
+  TERM_CHIP_MAP,
+  TERM_INFO,
+  type HelpTermKey,
+} from "./help-schematic";
 
 /**
- * Sound Manager 0.4.0 튜토리얼 안내 모달 & 중첩 시각 용어 카드 뷰 모듈.
- * 실물 부품 용어 8종에 대해 인라인 SVG 스키매틱 하이라이트 및 호버/클릭 고정 상태 머신 제공 (< 420 lines).
+ * Sound Manager 0.7.0 튜토리얼 안내 모달 & 중첩 시각 용어 카드 뷰 모듈.
+ * 3개 탭(빠른 투어 · 콘솔 사용법 · 노멀라이저·고급 FX) 및 실화면 스포트라이트 투어 연동.
  */
 
-export type HelpTermKey = "fader" | "knob" | "meter" | "readout" | "grip" | "switchBank" | "pin" | "masterBus";
+export type HelpTabMode = "tour" | "easy" | "adv";
 
 export interface HelpModalRefs {
   backdrop: HTMLElement;
   isNestedPinned: () => boolean;
   clearNestedPin: () => void;
+  setTab: (tab: HelpTabMode) => void;
+  getTab: () => HelpTabMode;
 }
 
-interface TermInfo {
-  name: string;
-  subtitle: string;
-  description: string;
+export interface HelpModalOptions {
+  onRequestClose: () => void;
+  onStartTour: () => void;
 }
-
-const TERM_INFO: Record<HelpTermKey, TermInfo> = {
-  fader: { name: "페이더 (Fader)", subtitle: "채널 중앙 세로 볼륨 레일 · 조작부", description: "채널 중앙의 볼륨 조절 레일과 슬롯 전체입니다. 위아래로 드래그하거나 휠을 굴려 증폭(+12dB) 및 감쇠(-60dB)를 조절합니다." },
-  knob: { name: "노브 (Knob)", subtitle: "볼륨 조절 사각 캡 · 조작부", description: "페이더 및 상단 Focus 슬라이더 위에서 마우스로 잡고 움직이는 사각 캡입니다. 더블클릭하면 기본값(0.0dB)으로 즉시 복귀합니다." },
-  meter: { name: "레벨 미터 (Level Meter)", subtitle: "실시간 출력 음량 20단 컬러 막대 · 표시부", description: "실제 출력 음량에 맞춰 실시간으로 점등되는 우측 20단 컬러 막대입니다. 소리가 너무 커서 찌그러지지 않는지 한눈에 확인합니다." },
-  readout: { name: "수치 표시창 (Readout)", subtitle: "볼륨 숫자 직접 입력창 · 표시창", description: "페이더 아래 현재 볼륨 숫자를 보여주는 창입니다. 클릭하면 원하는 dB 숫자를 키보드로 직접 입력할 수 있습니다." },
-  grip: { name: "드래그 핸들 (Grip Handle)", subtitle: "채널 맨 위 6점(⠿) 이동 손잡이 · 조작부", description: "채널 맨 위 점 6개 모양의 순서·구역 이동 손잡이입니다. 좌우로 끌어 순서를 바꾸거나, 우측 대기 구역에 놓아 즉시 일시정지합니다." },
-  switchBank: { name: "스위치 뱅크 (Switch Bank)", subtitle: "M · S · F 3버튼 묶음 · 조작부", description: "채널 맨 아래 3개 버튼입니다. M(음소거), S(단독 청취), F(선택 탭 외 자동 감쇠)로 여러 탭 간의 청취 집중도를 빠르게 제어합니다." },
-  pin: { name: "도메인 핀 (Domain Pin)", subtitle: "사이트 기본 볼륨 고정 스위치 · 조작부", description: "재생 버튼 옆 압정 모양 스위치입니다. 켜 두면 이후 같은 사이트를 새 탭으로 열 때 현재 볼륨이 시작 기본값으로 자동 적용됩니다." },
-  masterBus: { name: "마스터 버스 (Master Bus)", subtitle: "우측 전체 출력 전용 스트립 · 조작부", description: "콘솔 오른쪽에 고정된 전체 출력 전용 스트립입니다. 모든 탭의 출력 음량을 한 번에 조절하고 전체 일괄 정지·음소거를 제어합니다." },
-};
-
-const TERM_CHIP_MAP: Record<string, HelpTermKey> = {
-  "페이더": "fader", "노브": "knob", "레벨 미터": "meter", "수치 표시창": "readout",
-  "드래그 핸들": "grip", "스위치 뱅크": "switchBank", "도메인 핀": "pin", "마스터 버스": "masterBus",
-};
 
 interface HelpStep {
   title: string;
@@ -42,147 +33,148 @@ interface HelpStep {
 
 const EASY_STEPS: HelpStep[] = [
   {
-    title: "탭별 볼륨 조절과 직접 입력",
+    title: "탭 바로 이동 · 독립 창 분리 · 테마 전환",
     bullets: [
-      "모든 창의 재생 탭을 한곳에서 제어하며, 상단 창 분리 버튼으로 독립 창에 띄워 원하는 크기로 늘릴 수 있습니다.",
-      "채널 중앙 [페이더]의 사각 [노브]를 잡고 위아래로 드래그하거나 마우스 휠을 굴려 볼륨을 조절합니다(0 눈금 위로 올리면 원본 최대치 이상으로 증폭되며 우측 [레벨 미터]로 현재 출력 크기를 확인).",
-      "아래 [수치 표시창]을 클릭하면 숫자를 직접 입력할 수 있고, [노브]를 더블클릭하면 기본값(0.0)으로 복귀합니다.",
+      "채널 상단 [탭 이동 헤더](파비콘 · 사이트명 · ↗)를 클릭하거나 채널 선택 후 Enter를 누르면 해당 미디어가 재생 중인 브라우저 탭·창으로 즉시 포커스가 이동합니다.",
+      "상단 [독립 창 분리](↗) 버튼으로 팝업을 별도 창으로 떼어내 상시 띄워 둘 수 있으며(최소 520×420 자동 유지), 좌측 색상 점(●)에서 4종 컬러 테마와 다크·라이트 모드를 전환합니다.",
+      "전역 단축키(Alt+Shift+M 전체 음소거, Alt+Shift+F Focus 탭 순환)와 콘솔 내 방향키·0·M/S/F/P 단축 조작을 지원합니다.",
     ],
   },
   {
-    title: "자동 볼륨 균일화 (균일 N)",
+    title: "탭별 볼륨 증폭 · 노브 조작 · 수치 직접 입력",
     bullets: [
-      "영상·음원마다 제각각인 볼륨 편차를 자동으로 맞춥니다.",
-      "상단 균일 N을 켜 두면 탭마다 기준 볼륨이 다르거나 다음 곡·쇼츠로 넘어갈 때, 지나치게 큰 소리는 낮추고 작은 소리는 끌어올려 [노브]를 매번 다시 만지지 않아도 일정한 청취 볼륨을 유지합니다.",
+      "실수로 트랙을 건드려 볼륨이 튀는 것을 막기 위해 드래그는 [페이더] 위의 사각 [노브]를 직접 잡고 움직이며, 레일 위에서는 마우스 휠(Shift+휠 미세 조절)과 더블클릭(0.0dB 복귀)이 동작합니다.",
+      "0 눈금 위로 올리면 최대 +12dB(약 4배)까지 증폭되며 우측 [레벨 미터]로 실시간 출력 레벨을 확인합니다.",
+      "아래 [수치 표시창]을 클릭하면 -8.5처럼 원하는 데시벨 숫자를 키보드로 직접 입력합니다.",
     ],
   },
   {
-    title: "집중 청취와 전체 제어 (M · S · F & 마스터)",
+    title: "집중 청취(M·S·F) · 드래그 정렬 · 도메인 핀",
     bullets: [
-      "주목할 탭만 또렷하게 남기고 배경 탭 볼륨을 정리합니다.",
-      "하단 [스위치 뱅크]에서 F를 누르면 선택 탭은 유지하고 나머지 탭만 일정 비율로 낮추며, S는 단독 청취, M은 개별 음소거로 동작합니다.",
-      "콘솔 우측 [마스터 버스]에서는 모든 탭의 전체 출력 볼륨과 일괄 정지·음소거를 한 번에 제어합니다.",
+      "하단 [스위치 뱅크]에서 F(Focus)를 켜면 선택 탭은 그대로 두고 나머지 탭만 상단 Focus α 비율만큼 부드럽게 줄입니다(S 단독 청취, M 음소거, Shift+클릭 다중 선택).",
+      "맨 위 좌측 [드래그 핸들]을 끌어 순서를 바꾸거나, 구분선 너머 우측 대기 구역에 놓아 즉시 일시정지·좌측으로 옮겨 즉시 재생합니다.",
+      "재생 버튼 오른쪽 [도메인 핀]을 켜면 같은 사이트를 새 탭으로 열 때 현재 볼륨이 초기값으로 자동 적용됩니다.",
     ],
   },
   {
-    title: "채널 정렬 · 빠른 일시정지 · 기본값 고정",
+    title: "자동 볼륨 균일화(균일 N ▾)와 전체 마스터 제어",
     bullets: [
-      "자주 쓰는 배치와 사이트별 시작 볼륨을 유지합니다.",
-      "상단 [드래그 핸들]을 좌우로 끌어 채널 순서를 바꾸며, 중앙 구분선 너머 우측(대기 구역)에 놓으면 즉시 일시정지되고 좌측으로 옮기면 즉시 재생됩니다.",
-      "[도메인 핀]을 켜 두면 이후 같은 사이트를 새 탭으로 열 때 현재 볼륨이 초기값으로 자동 적용됩니다.",
+      "상단 [균일 N ▾] 본체를 누르면 자동 볼륨 보정을 즉시 켜거나 끄며, 우측 ▾를 눌러 음악(강약 보존) · 표준(영상/방송) · 야간(강한 균일) 프리셋을 전환합니다.",
+      "우측 고정 [마스터 버스]에서는 스테레오 출력 레벨을 보며 전체 마스터 볼륨과 전체 정지·전체 음소거를 한 번에 제어합니다.",
     ],
   },
 ];
 
 const ADV_STEPS: HelpStep[] = [
   {
-    title: "사이드 FX 랙 및 노멀라이저 설정",
+    title: "한 곡 안의 음압차 반응 원리와 음악 프리셋",
     bullets: [
-      "상단 고급 FX ▸ 버튼을 누르면 우측에 채널별 정밀 신호 처리 사이드 랙이 펼쳐집니다.",
-      "노멀라이저는 전역 스위치 추종(follow), 항상 켜짐(on), 꺼짐(off)을 개별 지정할 수 있습니다.",
-      "목표 기준 음압(-20 ~ -12 LUFS)과 반응 속도(느림 · 표준 · 빠름)를 채널 성격에 맞게 최적화합니다.",
+      "실시간 노멀라이저는 흐르는 소리의 음압을 계속 재어 목표치에 맞추므로, 한 곡 안에서 잔잔한 도입부 뒤 폭발적인 후렴구가 나오는 의도된 강약 연출에도 반응해 후렴 볼륨을 누르거나 조용한 구간을 키울 수 있습니다.",
+      "이는 버그가 아닌 실시간 평준화의 원리이며, 음악의 역동성이 줄어드는 것을 막으려면 상단 [균일 N ▾]에서 음악 (강약 보존) 프리셋을 고르세요(약 10초 장기 평균만 완만히 맞춰 곡 내부 강약은 살리고 곡·탭 간 평균 볼륨만 맞춤).",
+      "특정 음악 탭만 완전히 원본 그대로 듣고 싶다면 우측 고급 FX ▸에서 해당 채널을 개별 OFF로 두면 됩니다.",
     ],
   },
   {
-    title: "스테레오 패닝 (Pan)",
+    title: "채널별 2계층 노멀라이저 (전역 따름 · 개별 ON/OFF)",
     bullets: [
-      "각 탭의 소리를 좌우 스테레오 공간(-100 L ~ +100 R)에 자유롭게 배치합니다.",
-      "여러 탭의 방송이나 음악을 동시에 들을 때 위치를 분리해 청취 명료도를 높일 수 있습니다.",
-      "패닝 슬라이더를 더블클릭하면 즉시 중앙(C, 0)으로 복귀합니다.",
+      "상단 고급 FX ▸를 열면 선택 채널을 전역 따름, 개별 ON, 개별 OFF 중 하나로 지정할 수 있으며, 전역 스위치를 껐다 켜도 개별 설정값은 지워지지 않습니다.",
+      "개별 ON을 고르면 채널마다 목표 음압(-20 ~ -12 LUFS)과 반응 속도(완만 · 표준 · 민감)를 직접 지정합니다.",
     ],
   },
   {
-    title: "노이즈 게이트 (Noise Gate)",
+    title: "스테레오 패닝(Pan) & 노이즈 게이트",
     bullets: [
-      "음성이 나오지 않는 구간의 바닥 잡음(화이트노이즈·마이크 잡음)을 차단합니다.",
-      "차단 임계값(-65 ~ -30 dB)을 설정하여 배경 소음을 지우고 유효한 음성만 통과시킵니다.",
+      "패닝 (L100 ~ C ~ R100): 각 탭의 소리를 좌우 공간에 배치해 여러 방송·음악을 동시에 들을 때 명료도를 높입니다(더블클릭 또는 C 버튼으로 중앙 복귀).",
+      "노이즈 게이트 (-65 ~ -30 dB): 대사 사이 무음 구간의 마이크 화이트노이즈·바닥 잡음을 차단합니다.",
     ],
   },
   {
-    title: "다이내믹 컴프레서 (Compressor)",
+    title: "다이내믹 컴프레서 & 교차 출처 보안 0dB 상한",
     bullets: [
-      "갑작스럽게 튀는 폭음이나 자극적인 음량을 부드럽게 눌러 귀를 보호합니다.",
-      "압축 비율(2:1, 4:1, 8:1)을 원클릭 프리셋으로 선택해 균일한 다이내믹 레인지를 확보합니다.",
+      "컴프레서 (약 2:1 · 중 4:1 · 강 8:1): 갑작스럽게 튀는 비명이나 폭발음 피크를 매끄럽게 눌러 귀를 보호합니다.",
+      "보안 0dB 상한: 외부 출처(CORS)·DRM 보안이 걸린 일부 미디어는 브라우저 정책상 무음 사고를 막기 위해 기본 볼륨 제어(0dB 이하 감쇠)로 자동 전환되며 [페이더] 상단에 빗금이 표시됩니다.",
     ],
   },
 ];
 
-function formatBulletText(text: string, isEasy: boolean): string {
-  if (!isEasy) return text;
-  return text.replace(/\[(페이더|노브|레벨 미터|수치 표시창|드래그 핸들|스위치 뱅크|도메인 핀|마스터 버스)\]/g, (_, term) => {
+const CHIP_REGEX = /\[(탭 이동 헤더|독립 창 분리|균일 N ▾|페이더|노브|레벨 미터|수치 표시창|드래그 핸들|도메인 핀|스위치 뱅크|마스터 버스)\]/g;
+
+function formatBulletText(text: string): string {
+  return text.replace(CHIP_REGEX, (_, term: string) => {
     const key = TERM_CHIP_MAP[term];
+    if (!key) return term;
     return `<button type="button" class="term-chip" data-term="${key}">${term}</button>`;
   });
 }
 
-function renderSchematicSvg(active: HelpTermKey | null): string {
-  const is = (k: HelpTermKey) => (active === k ? "highlighted" : "");
-  return `<svg class="nested-schematic-svg" viewBox="0 0 84 118" width="76" height="106" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-  <rect x="4" y="4" width="48" height="110" rx="4" class="svg-strip-box" />
-  <g class="svg-part svg-grip ${is("grip")}" data-schematic="grip">
-    <rect x="14" y="8" width="28" height="7" rx="2" class="svg-part-box" />
-    <circle cx="21" cy="11.5" r="1" /><circle cx="25" cy="11.5" r="1" /><circle cx="28" cy="11.5" r="1" /><circle cx="31" cy="11.5" r="1" /><circle cx="35" cy="11.5" r="1" />
-  </g>
-  <g class="svg-part svg-pin ${is("pin")}" data-schematic="pin">
-    <rect x="8" y="19" width="11" height="10" rx="2" class="svg-part-box" />
-    <path d="M13.5 21 v3 M11.5 22.5 h4 M12 25.5 l1.5 2 l1.5 -2" stroke-width="1" stroke="currentColor" fill="none" />
-  </g>
-  <rect x="22" y="21" width="26" height="6" rx="1.5" class="svg-dim-placeholder" />
-  <g class="svg-part svg-fader ${is("fader")}" data-schematic="fader">
-    <rect x="15" y="33" width="6" height="48" rx="3" class="svg-part-box" />
-    <line x1="10" y1="36" x2="13" y2="36" stroke="currentColor" stroke-width="0.8" /><line x1="9" y1="50" x2="13" y2="50" stroke="currentColor" stroke-width="1.2" />
-    <line x1="10" y1="65" x2="13" y2="65" stroke="currentColor" stroke-width="0.8" /><line x1="9" y1="78" x2="13" y2="78" stroke="currentColor" stroke-width="0.8" />
-  </g>
-  <g class="svg-part svg-knob ${is("knob")}" data-schematic="knob">
-    <rect x="11" y="47" width="14" height="8" rx="2" class="svg-part-box" /><line x1="13" y1="51" x2="23" y2="51" stroke="currentColor" stroke-width="1" />
-  </g>
-  <g class="svg-part svg-meter ${is("meter")}" data-schematic="meter">
-    <rect x="25" y="33" width="7" height="48" rx="2" class="svg-part-box" />
-    <rect x="26.5" y="35" width="4" height="4" rx="0.5" /><rect x="26.5" y="41" width="4" height="4" rx="0.5" /><rect x="26.5" y="47" width="4" height="4" rx="0.5" />
-    <rect x="26.5" y="53" width="4" height="4" rx="0.5" /><rect x="26.5" y="59" width="4" height="4" rx="0.5" /><rect x="26.5" y="65" width="4" height="4" rx="0.5" /><rect x="26.5" y="71" width="4" height="4" rx="0.5" />
-  </g>
-  <g class="svg-part svg-readout ${is("readout")}" data-schematic="readout">
-    <rect x="11" y="84" width="22" height="9" rx="2" class="svg-part-box" /><text x="22" y="91" font-size="5.5" font-family="monospace" text-anchor="middle" font-weight="bold">0.0</text>
-  </g>
-  <g class="svg-part svg-switchBank ${is("switchBank")}" data-schematic="switchBank">
-    <rect x="8" y="97" width="40" height="13" rx="2" class="svg-part-box" />
-    <rect x="10" y="99" width="10" height="9" rx="1.5" /><text x="15" y="106" font-size="5" font-weight="bold" text-anchor="middle">M</text>
-    <rect x="23" y="99" width="10" height="9" rx="1.5" /><text x="28" y="106" font-size="5" font-weight="bold" text-anchor="middle">S</text>
-    <rect x="36" y="99" width="10" height="9" rx="1.5" /><text x="41" y="106" font-size="5" font-weight="bold" text-anchor="middle">F</text>
-  </g>
-  <g class="svg-part svg-masterBus ${is("masterBus")}" data-schematic="masterBus">
-    <rect x="56" y="4" width="24" height="110" rx="4" class="svg-part-box svg-master-frame" /><text x="68" y="14" font-size="5" font-weight="800" text-anchor="middle" letter-spacing="0.5">MST</text>
-    <rect x="60" y="20" width="4" height="61" rx="2" /><rect x="58" y="44" width="8" height="7" rx="1.5" /><rect x="68" y="20" width="4" height="61" rx="1" />
-    <rect x="59" y="85" width="18" height="8" rx="2" /><text x="68" y="91" font-size="4.5" font-weight="bold" text-anchor="middle">0.0</text>
-    <rect x="59" y="97" width="18" height="13" rx="2" /><text x="68" y="106" font-size="5" font-weight="bold" text-anchor="middle">ALL</text>
-  </g>
-</svg>`.trim();
-}
+export function buildHelpModalDom(
+  backdrop: HTMLElement,
+  options: HelpModalOptions | (() => void),
+): HelpModalRefs {
+  const opts: HelpModalOptions =
+    typeof options === "function"
+      ? { onRequestClose: options, onStartTour: () => {} }
+      : options;
 
-export function buildHelpModalDom(backdrop: HTMLElement, onRequestClose: () => void): HelpModalRefs {
-  let currentTab: "easy" | "adv" = "easy";
+  let currentTab: HelpTabMode = "tour";
   let currentStep = 0;
   let hoveredTerm: HelpTermKey | null = null;
   let pinnedTerm: HelpTermKey | null = null;
   let blurTimer: number | null = null;
 
   backdrop.className = "help-backdrop hidden";
-  backdrop.innerHTML = `<div class="help-modal c-surface" role="dialog" aria-modal="true" aria-label="Sound Manager 사용법 안내">
+  backdrop.innerHTML = `
+<div class="help-modal c-surface" role="dialog" aria-modal="true" aria-label="Sound Manager 사용법 안내">
   <div class="help-header">
     <div class="help-tab-group" role="tablist">
-      <button type="button" class="help-tab-btn" data-help-tab="easy" role="tab" aria-selected="true" data-active="true">기본 사용법</button>
-      <button type="button" class="help-tab-btn" data-help-tab="adv" role="tab" aria-selected="false" data-active="false">고급 제어</button>
+      <button type="button" class="help-tab-btn" data-help-tab="tour" role="tab" aria-selected="true" data-active="true">빠른 투어</button>
+      <button type="button" class="help-tab-btn" data-help-tab="easy" role="tab" aria-selected="false" data-active="false">콘솔 사용법</button>
+      <button type="button" class="help-tab-btn" data-help-tab="adv" role="tab" aria-selected="false" data-active="false">노멀라이저 · 고급 FX</button>
     </div>
     <button type="button" class="help-close-btn" data-help-close aria-label="도움말 닫기">✕</button>
   </div>
+
   <div class="help-body">
-    <div class="help-step-head">
-      <span class="help-step-badge tabular" data-ref="stepBadge">1 / 4</span>
-      <h3 class="help-step-title" data-ref="stepTitle"></h3>
+    <!-- 탭 1: 빠른 투어 런처 -->
+    <div class="tour-intro-pane" data-ref="tourIntroPane">
+      <div class="tour-intro-head">
+        <span class="tour-intro-badge">GUIDED TOUR</span>
+        <h3 class="tour-intro-title allow-wrap">실제 콘솔 화면 위에서 주요 기능을 바로 익혀 보세요</h3>
+      </div>
+      <ul class="tour-intro-list">
+        <li class="tour-intro-item allow-wrap">
+          <strong>앱 전환 & 창 분리</strong>: 채널 헤더(↗)를 눌러 재생 중인 탭으로 바로 이동하거나, 상단 창 분리(↗)로 콘솔을 독립 창에 띄워 둡니다.
+        </li>
+        <li class="tour-intro-item allow-wrap">
+          <strong>정밀 볼륨 & 집중 청취</strong>: 탭별 -60 ~ +12dB 증폭, 직접 숫자 입력, 배경 탭만 부드럽게 줄이는 Focus(F)를 제공합니다.
+        </li>
+        <li class="tour-intro-item allow-wrap">
+          <strong>음악·영상·야간 맞춤 노멀라이저</strong>: 곡 내부 강약을 보존하는 음악 모드부터 표준·야간까지 원클릭 프리셋을 지원합니다.
+        </li>
+      </ul>
+      <p class="tour-intro-note allow-wrap">
+        열린 미디어 탭이 없어도 투어 동안 예시 채널 2개가 임시로 표시되며, 끝나거나 건너뛰면 즉시 원래 화면으로 돌아갑니다.
+      </p>
+      <div class="tour-intro-actions">
+        <button type="button" class="help-tour-start-btn" data-tour-start>실화면 투어 시작 ▸</button>
+        <button type="button" class="help-tour-skip-btn" data-tour-skip>바로 쓰기 (건너뛰기)</button>
+      </div>
+      <div class="tour-intro-sub allow-wrap">
+        상단 ? 버튼에서 언제든 다시 열 수 있습니다 · Esc 또는 바깥 클릭으로 닫기
+      </div>
     </div>
-    <div class="help-hint-line" data-ref="hintLine">밑줄 친 부품 이름에 커서를 올리면 위치를 미리 보고, 클릭하면 고정됩니다.</div>
-    <ul class="help-bullet-list" data-ref="bulletList"></ul>
+
+    <!-- 탭 2/3: 콘솔 사용법 & 노멀라이저 FX 뷰 -->
+    <div class="help-step-pane hidden" data-ref="stepPane">
+      <div class="help-step-head">
+        <span class="help-step-badge tabular" data-ref="stepBadge">1 / 4</span>
+        <h3 class="help-step-title" data-ref="stepTitle"></h3>
+      </div>
+      <div class="help-hint-line" data-ref="hintLine">밑줄 친 부품 이름에 커서를 올리면 위치를 미리 보고, 클릭하면 고정됩니다.</div>
+      <ul class="help-bullet-list" data-ref="bulletList"></ul>
+    </div>
   </div>
+
   <div data-ref="nestedCard" class="nested-term-card c-raised hidden" aria-live="polite">
     <div class="nested-card-svg-wrap" data-ref="cardSvgWrap"></div>
     <div class="nested-card-info">
@@ -190,11 +182,12 @@ export function buildHelpModalDom(backdrop: HTMLElement, onRequestClose: () => v
         <span class="nested-card-title" data-ref="cardTitle"></span>
         <span class="nested-card-sub c-muted" data-ref="cardSub"></span>
       </div>
-      <p class="nested-card-desc" data-ref="cardDesc"></p>
+      <p class="nested-card-desc allow-wrap" data-ref="cardDesc"></p>
       <div class="nested-card-tip c-muted" data-ref="cardTip"></div>
     </div>
   </div>
-  <div class="help-footer">
+
+  <div class="help-footer hidden" data-ref="helpFooter">
     <div class="help-step-dots" role="tablist">
       <button type="button" class="help-step-dot" data-help-step="0" aria-label="1단계" data-active="true"></button>
       <button type="button" class="help-step-dot" data-help-step="1" aria-label="2단계" data-active="false"></button>
@@ -206,11 +199,14 @@ export function buildHelpModalDom(backdrop: HTMLElement, onRequestClose: () => v
       <button type="button" class="help-nav-btn help-next-btn" data-help-next>다음</button>
     </div>
   </div>
-</div>`.trim();
+</div>
+  `.trim();
 
   const modalEl = backdrop.querySelector<HTMLElement>(".help-modal")!;
   const tabBtns = modalEl.querySelectorAll<HTMLButtonElement>("[data-help-tab]");
   const closeBtn = modalEl.querySelector<HTMLButtonElement>("[data-help-close]")!;
+  const tourIntroPane = modalEl.querySelector<HTMLElement>('[data-ref="tourIntroPane"]')!;
+  const stepPane = modalEl.querySelector<HTMLElement>('[data-ref="stepPane"]')!;
   const stepBadge = modalEl.querySelector<HTMLElement>('[data-ref="stepBadge"]')!;
   const stepTitle = modalEl.querySelector<HTMLElement>('[data-ref="stepTitle"]')!;
   const hintLine = modalEl.querySelector<HTMLElement>('[data-ref="hintLine"]')!;
@@ -221,9 +217,12 @@ export function buildHelpModalDom(backdrop: HTMLElement, onRequestClose: () => v
   const cardSub = modalEl.querySelector<HTMLElement>('[data-ref="cardSub"]')!;
   const cardDesc = modalEl.querySelector<HTMLElement>('[data-ref="cardDesc"]')!;
   const cardTip = modalEl.querySelector<HTMLElement>('[data-ref="cardTip"]')!;
+  const helpFooter = modalEl.querySelector<HTMLElement>('[data-ref="helpFooter"]')!;
   const dots = modalEl.querySelectorAll<HTMLButtonElement>("[data-help-step]");
   const prevBtn = modalEl.querySelector<HTMLButtonElement>("[data-help-prev]")!;
   const nextBtn = modalEl.querySelector<HTMLButtonElement>("[data-help-next]")!;
+  const tourStartBtn = modalEl.querySelector<HTMLButtonElement>("[data-tour-start]")!;
+  const tourSkipBtn = modalEl.querySelector<HTMLButtonElement>("[data-tour-skip]")!;
 
   function updateNestedCard(): void {
     const activeKey = pinnedTerm ?? hoveredTerm;
@@ -234,7 +233,7 @@ export function buildHelpModalDom(backdrop: HTMLElement, onRequestClose: () => v
       else c.removeAttribute("data-pinned");
     });
 
-    if (!activeKey) {
+    if (!activeKey || currentTab === "tour") {
       nestedCard.classList.add("hidden");
       nestedCard.dataset.pinned = "false";
       return;
@@ -245,32 +244,49 @@ export function buildHelpModalDom(backdrop: HTMLElement, onRequestClose: () => v
     nestedCard.dataset.pinned = String(isPinnedCard);
     const info = TERM_INFO[activeKey];
     cardSvgWrap.innerHTML = renderSchematicSvg(activeKey);
-    cardTitle.textContent = info.name;
-    cardSub.textContent = info.subtitle;
-    cardDesc.textContent = info.description;
+    cardTitle.textContent = info ? info.name : activeKey;
+    cardSub.textContent = info ? info.subtitle : "";
+    cardDesc.textContent = info ? info.description : "";
     cardTip.textContent = isPinnedCard
       ? "✓ 클릭으로 고정됨 · 칩 다시 클릭 또는 바깥 클릭 시 닫힘"
       : "💡 칩을 클릭하면 화면에 고정됩니다";
   }
 
-  function renderStepContent(): void {
+  function renderTab(): void {
+    tabBtns.forEach((b) => {
+      const act = b.dataset.helpTab === currentTab;
+      b.setAttribute("data-active", String(act));
+      b.setAttribute("aria-selected", String(act));
+    });
+
+    if (currentTab === "tour") {
+      tourIntroPane.classList.remove("hidden");
+      stepPane.classList.add("hidden");
+      helpFooter.classList.add("hidden");
+      nestedCard.classList.add("hidden");
+      return;
+    }
+
+    tourIntroPane.classList.add("hidden");
+    stepPane.classList.remove("hidden");
+    helpFooter.classList.remove("hidden");
+
     const steps = currentTab === "easy" ? EASY_STEPS : ADV_STEPS;
     const step = steps[currentStep] ?? steps[0]!;
 
     stepBadge.textContent = `${currentStep + 1} / 4`;
     stepTitle.textContent = step.title;
 
-    if (currentTab === "easy") {
-      hintLine.classList.remove("hidden");
-      hintLine.textContent = "밑줄 친 부품 이름에 커서를 올리면 위치를 미리 보고, 클릭하면 고정됩니다.";
-    } else {
-      hintLine.classList.add("hidden");
-    }
+    hintLine.textContent =
+      currentTab === "easy"
+        ? "밑줄 친 부품 이름에 커서를 올리면 위치를 미리 보고, 클릭하면 고정됩니다."
+        : "밑줄 친 프리셋·부품 이름에 커서를 올려 도면 위치를 확인할 수 있습니다.";
 
     bulletList.innerHTML = "";
     step.bullets.forEach((bText) => {
       const li = document.createElement("li");
-      li.innerHTML = formatBulletText(bText, currentTab === "easy");
+      li.className = "allow-wrap";
+      li.innerHTML = formatBulletText(bText);
       bulletList.appendChild(li);
     });
 
@@ -280,16 +296,21 @@ export function buildHelpModalDom(backdrop: HTMLElement, onRequestClose: () => v
       if (!key) return;
 
       chip.addEventListener("pointerenter", () => {
-        hoveredTerm = key; updateNestedCard();
+        hoveredTerm = key;
+        updateNestedCard();
       });
 
       chip.addEventListener("pointerleave", () => {
-        hoveredTerm = null; updateNestedCard();
+        hoveredTerm = null;
+        updateNestedCard();
       });
 
       chip.addEventListener("click", (ev) => {
         ev.stopPropagation();
-        if (blurTimer) { clearTimeout(blurTimer); blurTimer = null; }
+        if (blurTimer) {
+          clearTimeout(blurTimer);
+          blurTimer = null;
+        }
         pinnedTerm = pinnedTerm === key ? null : key;
         if (pinnedTerm) chip.focus();
         updateNestedCard();
@@ -301,7 +322,8 @@ export function buildHelpModalDom(backdrop: HTMLElement, onRequestClose: () => v
           const act = document.activeElement;
           if (act && (act.closest(".term-chip") || act.closest(".nested-term-card"))) return;
           if (pinnedTerm === key) {
-            pinnedTerm = null; updateNestedCard();
+            pinnedTerm = null;
+            updateNestedCard();
           }
         }, 120);
       });
@@ -318,16 +340,19 @@ export function buildHelpModalDom(backdrop: HTMLElement, onRequestClose: () => v
     updateNestedCard();
   }
 
+  function setTab(tab: HelpTabMode): void {
+    if (tab === currentTab) return;
+    currentTab = tab;
+    currentStep = 0;
+    hoveredTerm = null;
+    pinnedTerm = null;
+    renderTab();
+  }
+
   tabBtns.forEach((btn) => {
     btn.addEventListener("click", () => {
-      const mode = btn.dataset.helpTab as "easy" | "adv";
-      if (mode === currentTab) return;
-      currentTab = mode; currentStep = 0; hoveredTerm = null; pinnedTerm = null;
-      tabBtns.forEach((b) => {
-        const act = b.dataset.helpTab === currentTab;
-        b.setAttribute("data-active", String(act)); b.setAttribute("aria-selected", String(act));
-      });
-      renderStepContent();
+      const mode = btn.dataset.helpTab as HelpTabMode;
+      if (mode) setTab(mode);
     });
   });
 
@@ -335,25 +360,54 @@ export function buildHelpModalDom(backdrop: HTMLElement, onRequestClose: () => v
     dot.addEventListener("click", () => {
       const idx = Number(dot.dataset.helpStep);
       if (isNaN(idx) || idx === currentStep) return;
-      currentStep = idx; hoveredTerm = null; pinnedTerm = null; renderStepContent();
+      currentStep = idx;
+      hoveredTerm = null;
+      pinnedTerm = null;
+      renderTab();
     });
   });
 
   prevBtn.addEventListener("click", () => {
-    if (currentStep > 0) { currentStep--; hoveredTerm = null; pinnedTerm = null; renderStepContent(); }
+    if (currentStep > 0) {
+      currentStep--;
+      hoveredTerm = null;
+      pinnedTerm = null;
+      renderTab();
+    }
   });
 
   nextBtn.addEventListener("click", () => {
-    if (currentStep < 3) { currentStep++; hoveredTerm = null; pinnedTerm = null; renderStepContent(); }
+    if (currentStep < 3) {
+      currentStep++;
+      hoveredTerm = null;
+      pinnedTerm = null;
+      renderTab();
+    }
   });
 
   closeBtn.addEventListener("click", () => {
-    hoveredTerm = null; pinnedTerm = null; onRequestClose();
+    hoveredTerm = null;
+    pinnedTerm = null;
+    opts.onRequestClose();
+  });
+
+  tourStartBtn.addEventListener("click", () => {
+    hoveredTerm = null;
+    pinnedTerm = null;
+    opts.onStartTour();
+  });
+
+  tourSkipBtn.addEventListener("click", () => {
+    hoveredTerm = null;
+    pinnedTerm = null;
+    opts.onRequestClose();
   });
 
   backdrop.addEventListener("click", (ev) => {
     if (ev.target === backdrop) {
-      hoveredTerm = null; pinnedTerm = null; onRequestClose();
+      hoveredTerm = null;
+      pinnedTerm = null;
+      opts.onRequestClose();
     }
   });
 
@@ -362,22 +416,32 @@ export function buildHelpModalDom(backdrop: HTMLElement, onRequestClose: () => v
     if (!target) return;
     if (target.closest(".term-chip") || target.closest(".nested-term-card")) return;
     if (pinnedTerm !== null) {
-      pinnedTerm = null; hoveredTerm = null; updateNestedCard();
+      pinnedTerm = null;
+      hoveredTerm = null;
+      updateNestedCard();
     }
   });
 
-  renderStepContent();
+  renderTab();
 
   return {
     backdrop,
     isNestedPinned: () => pinnedTerm !== null,
     clearNestedPin: () => {
-      pinnedTerm = null; hoveredTerm = null; updateNestedCard();
+      pinnedTerm = null;
+      hoveredTerm = null;
+      updateNestedCard();
     },
+    setTab,
+    getTab: () => currentTab,
   };
 }
 
-export function syncHelpModalDom(refs: HelpModalRefs, open: boolean, _t: ThemeTokens): void {
+export function syncHelpModalDom(
+  refs: HelpModalRefs,
+  open: boolean,
+  _t?: ThemeTokens,
+): void {
   refs.backdrop.classList.toggle("hidden", !open);
   if (!open) {
     refs.clearNestedPin();

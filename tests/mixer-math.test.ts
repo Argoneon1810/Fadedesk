@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { MixerStateStore } from "../src/background/state-store";
+import { clampStandaloneWindowBounds } from "../src/popup/popout-window";
 import {
+  buildDspConfigPayload,
   clampDb,
   computeAppliedChannelDb,
   computeDisplayedEffectiveDb,
   computeMasterStereoVu,
   dbToLinear,
   dbToRatio,
+  DEFAULT_CHANNEL_FX,
   extractDomainInfo,
   getFocusDimDb,
   linearToDb,
@@ -488,24 +491,71 @@ test("명시적 탭 재생 상태 동기화(setTabPlaying · toggleTabPlayingOpt
   assert.equal(store.toggleTabPlayingOptimistic(999), false);
 });
 
-test("독립 콘솔 창 크기(setPopoutBounds · hydrateSettings) 클램핑 및 중복 저장 방지 검증", () => {
+test("독립 콘솔 창 크기(setPopoutBounds · clampStandaloneWindowBounds) 520×420 최소 크기 보장 검증", () => {
   const store = new MixerStateStore();
   assert.equal(store.getSettings().popoutWidth, 780);
   assert.equal(store.getSettings().popoutHeight, 480);
 
-  // 하한/상한 클램핑 (520..2560, 380..1600)
+  // 하한/상한 클램핑 (520..2560, 420..1600)
   assert.equal(store.setPopoutBounds(300, 200), true);
   assert.equal(store.getSettings().popoutWidth, 520);
-  assert.equal(store.getSettings().popoutHeight, 380);
+  assert.equal(store.getSettings().popoutHeight, 420);
 
   // 동일 치수 재요청 시 불필요한 스토리지 쓰기 방지를 위해 false 반환
-  assert.equal(store.setPopoutBounds(520, 380), false);
+  assert.equal(store.setPopoutBounds(520, 420), false);
 
-  // 비정상 수치(NaN, Infinity) 방어
+  // 비정상 수치(NaN, Infinity, 0 이하) 방어
   assert.equal(store.setPopoutBounds(Number.NaN, 600), false);
   assert.equal(store.setPopoutBounds(800, Number.POSITIVE_INFINITY), false);
+  assert.equal(store.setPopoutBounds(0, 480), false);
 
   store.hydrateSettings({ popoutWidth: 4000, popoutHeight: 2400 });
   assert.equal(store.getSettings().popoutWidth, 2560);
   assert.equal(store.getSettings().popoutHeight, 1600);
+
+  assert.deepEqual(clampStandaloneWindowBounds(340, 260), { clamped: true, width: 520, height: 420 });
+  assert.deepEqual(clampStandaloneWindowBounds(680, 480), { clamped: false, width: 680, height: 480 });
+});
+
+test("0.7.0 이지 노멀라이저 3종 프리셋(음악·표준·야간) 합성 및 온보딩 완료 플래그 검증", () => {
+  const store = new MixerStateStore();
+  assert.equal(store.getSettings().autoNormPreset, "standard");
+  assert.equal(store.getSettings().onboardingDone, false);
+
+  // 온보딩 완료는 최초 1회만 true 반환 (이후 중복 호출은 false)
+  assert.equal(store.completeOnboarding(), true);
+  assert.equal(store.getSettings().onboardingDone, true);
+  assert.equal(store.completeOnboarding(), false);
+
+  // 전역 따름("follow") 채널에 대한 프리셋별 목표 음압·반응 속도 해석
+  assert.deepEqual(resolveEffectiveNormalizer(true, DEFAULT_CHANNEL_FX, false, "music"), {
+    active: true,
+    targetLufs: -16,
+    speed: "music",
+    source: "auto",
+  });
+  assert.deepEqual(resolveEffectiveNormalizer(true, DEFAULT_CHANNEL_FX, false, "standard"), {
+    active: true,
+    targetLufs: -16,
+    speed: "std",
+    source: "auto",
+  });
+  assert.deepEqual(resolveEffectiveNormalizer(true, DEFAULT_CHANNEL_FX, false, "night"), {
+    active: true,
+    targetLufs: -18,
+    speed: "fast",
+    source: "auto",
+  });
+
+  // 프리셋 선택과 동시에 전역 노멀라이저 활성화 및 탭 DSP 페이로드 반영 검증
+  store.setAutoNormPreset("music", true);
+  assert.equal(store.getSettings().autoNormPreset, "music");
+  assert.equal(store.getSettings().autoNormEnabled, true);
+  assert.equal(store.computeDspForTab(999).normSpeed, "music");
+
+  // 개별 고정("on") 채널은 전역 프리셋을 바꿔도 자신의 설정(-14 LUFS, "slow")을 보존
+  const customOnFx = { ...DEFAULT_CHANNEL_FX, normMode: "on" as const, normTargetLufs: -14, normSpeed: "slow" as const };
+  const dspCustom = buildDspConfigPayload(true, customOnFx, false, "night");
+  assert.equal(dspCustom.normTargetLufs, -14);
+  assert.equal(dspCustom.normSpeed, "slow");
 });

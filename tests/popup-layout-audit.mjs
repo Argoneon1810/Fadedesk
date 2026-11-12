@@ -172,9 +172,58 @@ function buildAuditHtml(sc) {
         }
 
         const masterCount = document.querySelectorAll(".master-strip").length;
-        const channelCount = document.querySelectorAll(".channel-strip").length;
-        const expectedChannels = ${sc.snap.channels.length};
         if (masterCount !== 1) issues.push("MISSING_MASTER_STRIP: count=" + masterCount);
+
+        // 0.7.0 첫 실행 온보딩 자동 표시 & 빈 화면 예시 채널 7단계 실화면 스포트라이트 투어 검증
+        if (${JSON.stringify(Boolean(sc.testOnboardingTour))}) {
+          const backdrop = document.getElementById("help-backdrop");
+          const tourTab = document.querySelector('[data-help-tab="tour"]');
+          if (!backdrop || backdrop.classList.contains("hidden")) issues.push("ONBOARDING_HELP_NOT_AUTO_OPENED");
+          if (tourTab?.getAttribute("data-active") !== "true") issues.push("ONBOARDING_NOT_ON_TOUR_TAB");
+          document.querySelector("[data-tour-start]")?.click();
+          if (!window.__SENT_ACTIONS__.some((m) => m.type === "COMPLETE_ONBOARDING")) {
+            issues.push("COMPLETE_ONBOARDING_NOT_SENT");
+          }
+          if (backdrop && !backdrop.classList.contains("hidden")) issues.push("HELP_NOT_CLOSED_ON_TOUR_START");
+          const overlay = document.getElementById("tour-overlay");
+          if (!overlay || overlay.classList.contains("hidden")) issues.push("TOUR_OVERLAY_NOT_OPENED");
+          if (!document.querySelector('.channel-strip[data-tab-id="-901"]') || !document.querySelector('.channel-strip[data-tab-id="-902"]')) {
+            issues.push("DEMO_TOUR_CHANNELS_MISSING");
+          }
+          const hole = overlay?.querySelector('[data-ref="hole"]');
+          const card = overlay?.querySelector('[data-ref="card"]');
+          const nextBtn = overlay?.querySelector("[data-tour-next]");
+          for (let step = 0; step < 7; step++) {
+            const hr = hole?.getBoundingClientRect();
+            const cr = card?.getBoundingClientRect();
+            if (!hr || hr.width < 16 || hr.height < 16) issues.push("TOUR_HOLE_INVALID_STEP_" + step);
+            if (!cr || cr.width < 200 || cr.height < 80) issues.push("TOUR_CARD_INVALID_STEP_" + step);
+            if (cr && (cr.left < rr.left - 1 || cr.right > rr.right + 1 || cr.top < rr.top - 1 || cr.bottom > rr.bottom + 1)) {
+              issues.push("TOUR_CARD_OUT_OF_BOUNDS_STEP_" + step);
+            }
+            if (step < 6) nextBtn?.click();
+          }
+        }
+
+        // 0.7.0 상단 균일 N ▾ 스플릿 프리셋 팝오버 열기 검증
+        if (${JSON.stringify(Boolean(sc.testNormPopover))}) {
+          document.getElementById("auto-norm-preset-btn")?.click();
+          const normPop = document.getElementById("norm-popover");
+          if (!normPop || normPop.classList.contains("hidden")) {
+            issues.push("NORM_POPOVER_NOT_OPEN");
+          } else {
+            const npr = normPop.getBoundingClientRect();
+            if (npr.left < rr.left - 1 || npr.right > rr.right + 1 || npr.bottom > rr.bottom + 1) {
+              issues.push("NORM_POPOVER_OUT_OF_BOUNDS");
+            }
+            if (normPop.querySelectorAll("[data-norm-preset]").length !== 3) {
+              issues.push("NORM_PRESET_COUNT_MISMATCH");
+            }
+          }
+        }
+
+        const channelCount = document.querySelectorAll(".channel-strip").length;
+        const expectedChannels = ${sc.testOnboardingTour ? 2 : sc.snap.channels.length};
         if (channelCount !== expectedChannels) issues.push("CHANNEL_COUNT_MISMATCH: " + channelCount + " !== " + expectedChannels);
         if (${JSON.stringify(Boolean(sc.openPop))}) {
           const pop = document.getElementById("theme-popover");
@@ -182,6 +231,9 @@ function buildAuditHtml(sc) {
         }
         if (document.documentElement.scrollWidth > window.innerWidth + 1) {
           issues.push("OUTER_OVERFLOW: " + document.documentElement.scrollWidth + " > " + window.innerWidth);
+        }
+        if (isWin && document.documentElement.scrollHeight > window.innerHeight + 1) {
+          issues.push("OUTER_OVERFLOW_Y: " + document.documentElement.scrollHeight + " > " + window.innerHeight);
         }
 
         // 0.5.1 핵심 인터랙션 회귀 감사: 폭 불변성 · 비선택 채널 원클릭 조작 · 블럭 슬롯 & 드래그 중 SNAPSHOT 잠금
@@ -334,7 +386,7 @@ function buildAuditHtml(sc) {
           }
         }
 
-        // 4) 0.4.0~0.5.0 튜토리얼 도움말 모달 & 중첩 시각 용어 카드 인터랙션 검증
+        // 4) 0.7.0 3탭 도움말 모달(빠른 투어 · 콘솔 사용법 · 노멀라이저·고급 FX) & 1:1 도면 중첩 카드 검증
         if (${JSON.stringify(Boolean(sc.testHelpModal))}) {
           const helpBtn = document.getElementById("help-btn");
           helpBtn?.click();
@@ -351,10 +403,30 @@ function buildAuditHtml(sc) {
             if (mr.left < rr.left - 1 || mr.right > rr.right + 1 || mr.top < rr.top - 1 || mr.bottom > rr.bottom + 1) {
               issues.push("HELP_MODAL_OUT_OF_BOUNDS: [" + mr.left + "," + mr.top + "," + mr.right + "," + mr.bottom + "]");
             }
+            if (modal.querySelector('[data-help-tab="tour"]')?.getAttribute("data-active") !== "true") {
+              issues.push("HELP_DEFAULT_TAB_NOT_TOUR");
+            }
+            if (!modal.querySelector("[data-tour-start]") || !modal.querySelector("[data-tour-skip]")) {
+              issues.push("MISSING_TOUR_LAUNCHER_BUTTONS");
+            }
           }
 
-          const faderChip = modal?.querySelector('[data-term="fader"]');
+          modal?.querySelector('[data-help-tab="easy"]')?.click();
+          if (!modal?.querySelector('[data-term="tabJump"]') || !modal?.querySelector('[data-term="popout"]')) {
+            issues.push("MISSING_STEP0_GENERAL_CHIPS");
+          }
           const nestedCard = document.querySelector('[data-ref="nestedCard"]');
+          modal?.querySelector('[data-help-step="2"]')?.click();
+          const pinChip = modal?.querySelector('[data-term="pin"]');
+          if (!pinChip || !modal?.querySelector('[data-term="grip"]')) issues.push("MISSING_STEP2_PIN_GRIP_CHIPS");
+          if (pinChip && nestedCard) {
+            pinChip.dispatchEvent(new PointerEvent("pointerenter", { bubbles: true }));
+            if (!nestedCard.querySelector('[data-schematic="pin"].highlighted')) issues.push("PIN_SCHEMATIC_NOT_HIGHLIGHTED");
+            pinChip.dispatchEvent(new PointerEvent("pointerleave", { bubbles: true }));
+          }
+
+          modal?.querySelector('[data-help-step="1"]')?.click();
+          const faderChip = modal?.querySelector('[data-term="fader"]');
           if (!faderChip) issues.push("MISSING_FADER_CHIP");
           if (!nestedCard) issues.push("MISSING_NESTED_CARD");
           if (faderChip && nestedCard) {
@@ -377,8 +449,8 @@ function buildAuditHtml(sc) {
           }
         }
 
-        // 레이아웃 감사: 버튼, 텍스트 배지, 용어 칩, 중첩 시각 카드의 CLIP_X, WRAP, BLEED_Y 감사
-        document.querySelectorAll("button, .alpha-readout, .status-text, .readout-sub, .strip-title, .pop-theme-btn, .fx-card-title, .term-chip, .nested-term-card").forEach((el) => {
+        // 레이아웃 감사: 버튼, 텍스트 배지, 용어 칩, 중첩 시각 카드, 투어 카드의 CLIP_X, WRAP, BLEED_Y 감사
+        document.querySelectorAll("button, .alpha-readout, .status-text, .readout-sub, .strip-title, .pop-theme-btn, .fx-card-title, .term-chip, .nested-term-card, .tour-card").forEach((el) => {
           const rect = el.getBoundingClientRect();
           if (rect.width === 0 && rect.height === 0) return;
           const cls = el.getAttribute("class") || "";
@@ -416,6 +488,29 @@ function buildAuditHtml(sc) {
           }
         });
 
+        if (${JSON.stringify(Boolean(sc.testNormPopover))}) {
+          document.querySelector('[data-norm-preset="music"]')?.click();
+          if (!document.getElementById("norm-popover")?.classList.contains("hidden")) {
+            issues.push("NORM_POPOVER_NOT_CLOSED_ON_SELECT");
+          }
+          if (!window.__SENT_ACTIONS__.some((m) => m.type === "SET_AUTO_NORM_PRESET" && m.preset === "music" && m.enable === true)) {
+            issues.push("SET_AUTO_NORM_PRESET_NOT_SENT");
+          }
+        }
+
+        if (${JSON.stringify(Boolean(sc.testOnboardingTour))}) {
+          document.querySelector("#tour-overlay [data-tour-next]")?.click();
+          if (!document.getElementById("tour-overlay")?.classList.contains("hidden")) {
+            issues.push("TOUR_OVERLAY_NOT_CLOSED_ON_FINISH");
+          }
+          if (document.querySelectorAll(".channel-strip").length !== 0 || !document.querySelector(".empty-bay")) {
+            issues.push("DEMO_CHANNELS_NOT_CLEANED_AFTER_TOUR");
+          }
+          if (window.__SENT_ACTIONS__.some((m) => typeof m.tabId === "number" && m.tabId < 0)) {
+            issues.push("NEGATIVE_DEMO_TAB_ACTION_LEAKED");
+          }
+        }
+
         // 5) Escape 2계층 해제(1차: 중첩 카드 -> 2차: 모달 전체) 검증
         if (${JSON.stringify(Boolean(sc.testHelpModal))}) {
           const backdrop = document.getElementById("help-backdrop");
@@ -451,13 +546,22 @@ function buildAuditHtml(sc) {
 
 const BASE_SETTINGS = {
   theme: "teal", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false,
-  autoNormEnabled: false, advRackOpen: false, popoutWidth: 780, popoutHeight: 480, domainDefaults: {},
+  autoNormEnabled: false, autoNormPreset: "standard", advRackOpen: false, onboardingDone: true,
+  popoutWidth: 780, popoutHeight: 480, domainDefaults: {},
 };
 
 const scenarios = [
   {
     name: "empty_popup", w: 800, h: 600, isWindow: false, openPop: false,
     snap: { settings: { ...BASE_SETTINGS }, channels: [] },
+  },
+  {
+    name: "onboarding_and_spotlight_tour", w: 800, h: 600, isWindow: false, openPop: false, testOnboardingTour: true,
+    snap: { settings: { ...BASE_SETTINGS, onboardingDone: false }, channels: [] },
+  },
+  {
+    name: "popup_norm_popover", w: 800, h: 600, isWindow: false, openPop: false, testNormPopover: true,
+    snap: { settings: { ...BASE_SETTINGS, autoNormEnabled: true }, channels: SAMPLE_CHANNELS },
   },
   {
     name: "active_popup_051", w: 800, h: 600, isWindow: false, openPop: false, test051Ux: true,
@@ -481,7 +585,7 @@ const scenarios = [
     },
   },
   {
-    name: "window_narrow_520", w: 520, h: 440, isWindow: true, openPop: false,
+    name: "window_narrow_520", w: 520, h: 420, isWindow: true, openPop: false,
     snap: {
       settings: { ...BASE_SETTINGS, domainDefaults: { "chzzk.naver.com": 0 } },
       channels: SAMPLE_CHANNELS,

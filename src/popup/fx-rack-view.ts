@@ -1,4 +1,5 @@
 import {
+  AUTO_NORM_PRESET_META,
   DEFAULT_CHANNEL_FX,
   formatPan,
   resolveEffectiveNormalizer,
@@ -250,7 +251,12 @@ export function syncFxRackTrimBadge(
     r.trimBadge.style.color = t.muted;
     return;
   }
-  const resolved = resolveEffectiveNormalizer(settings.autoNormEnabled, ch.fx, ch.corsCap);
+  const resolved = resolveEffectiveNormalizer(
+    settings.autoNormEnabled,
+    ch.fx,
+    ch.corsCap,
+    settings.autoNormPreset,
+  );
   if (ch.corsCap) {
     r.trimBadge.textContent = "보안 0dB · 우회";
     r.trimBadge.style.color = t.states.warning;
@@ -284,6 +290,9 @@ export function syncFxRackDom(
   const disabled = !ch || ch.corsCap;
   r.cardsWrap.classList.toggle("fx-cards-disabled", disabled);
 
+  const presetMeta =
+    AUTO_NORM_PRESET_META[settings.autoNormPreset] ?? AUTO_NORM_PRESET_META.standard;
+
   if (!ch) {
     r.titleEl.textContent = "활성 채널 없음";
     r.subDescEl.textContent = "미디어 재생 시 채널별 고급 FX가 활성화됩니다";
@@ -291,14 +300,19 @@ export function syncFxRackDom(
     r.titleEl.textContent = ch.title;
     r.subDescEl.textContent = "교차 출처·DRM 보안으로 DSP 자동 우회";
   } else {
-    const resolved = resolveEffectiveNormalizer(settings.autoNormEnabled, fx, false);
+    const resolved = resolveEffectiveNormalizer(
+      settings.autoNormEnabled,
+      fx,
+      false,
+      settings.autoNormPreset,
+    );
     const modeNote =
       resolved.source === "custom-on"
         ? "개별 고정 ON"
         : resolved.source === "custom-off"
           ? "전역 제외 OFF"
           : settings.autoNormEnabled
-            ? "전역 균일 적용"
+            ? `전역 균일(${presetMeta.shortLabel})`
             : "전역 대기";
     r.titleEl.textContent = ch.title;
     r.subDescEl.textContent = `${ch.shortHost} · ${modeNote}`;
@@ -307,7 +321,9 @@ export function syncFxRackDom(
   syncFxRackTrimBadge(r, ch, settings, t);
 
   r.normHintEl.textContent =
-    fx.normMode === "follow" ? "표준 -16" : `개별 ${fx.normTargetLufs}`;
+    fx.normMode === "follow"
+      ? `${presetMeta.shortLabel} ${presetMeta.targetLufs}`
+      : `개별 ${fx.normTargetLufs}`;
   for (const { mode, btn } of r.normModeBtns) {
     const active = fx.normMode === mode;
     const isCustomOn = mode === "on";

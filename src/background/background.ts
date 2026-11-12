@@ -335,6 +335,20 @@ async function handlePopupAction(msg: PopupActionMessage): Promise<void> {
       broadcastSnapshotAndBadge();
       break;
 
+    case "SET_AUTO_NORM_PRESET":
+      store.setAutoNormPreset(msg.preset, msg.enable);
+      pushDspToAllTabs();
+      await persistSettings();
+      broadcastSnapshotAndBadge();
+      break;
+
+    case "COMPLETE_ONBOARDING":
+      if (store.completeOnboarding()) {
+        await persistSettings();
+        broadcastSnapshotAndBadge();
+      }
+      break;
+
     case "SET_ADV_RACK_OPEN":
       store.setAdvRackOpen(msg.open);
       await persistSettings();

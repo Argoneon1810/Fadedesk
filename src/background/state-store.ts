@@ -13,6 +13,7 @@ import {
 } from "../shared/mixer-math";
 import { DEFAULT_SETTINGS } from "../shared/palettes";
 import type {
+  AutoNormPreset,
   ChannelFxState,
   ConsoleSnapshot,
   DspConfigPayload,
@@ -101,9 +102,14 @@ export class MixerStateStore {
     if (!raw) return;
     const validThemes: ThemeKey[] = ["teal", "amber", "cobalt", "emerald"];
     const validModes: ModePref[] = ["dark", "light", "system"];
+    const validNormPresets: AutoNormPreset[] = ["music", "standard", "night"];
 
     if (raw.theme && validThemes.includes(raw.theme)) this.settings.theme = raw.theme;
     if (raw.modePref && validModes.includes(raw.modePref)) this.settings.modePref = raw.modePref;
+    if (raw.autoNormPreset && validNormPresets.includes(raw.autoNormPreset)) {
+      this.settings.autoNormPreset = raw.autoNormPreset;
+    }
+    if (typeof raw.onboardingDone === "boolean") this.settings.onboardingDone = raw.onboardingDone;
     if (typeof raw.alpha === "number") this.settings.alpha = clampAlpha(raw.alpha);
     if (typeof raw.masterDb === "number") this.settings.masterDb = clampDb(raw.masterDb, false);
     if (typeof raw.masterMuted === "boolean") this.settings.masterMuted = raw.masterMuted;
@@ -113,7 +119,7 @@ export class MixerStateStore {
       this.settings.popoutWidth = Math.round(Math.max(520, Math.min(2560, raw.popoutWidth)));
     }
     if (typeof raw.popoutHeight === "number" && Number.isFinite(raw.popoutHeight)) {
-      this.settings.popoutHeight = Math.round(Math.max(380, Math.min(1600, raw.popoutHeight)));
+      this.settings.popoutHeight = Math.round(Math.max(420, Math.min(1600, raw.popoutHeight)));
     }
     if (raw.domainDefaults && typeof raw.domainDefaults === "object") {
       const cleaned: Record<string, number> = {};
@@ -347,14 +353,27 @@ export class MixerStateStore {
     return this.settings.autoNormEnabled;
   }
 
+  setAutoNormPreset(preset: AutoNormPreset, enable?: boolean): void {
+    const valid: AutoNormPreset[] = ["music", "standard", "night"];
+    if (!valid.includes(preset)) return;
+    this.settings.autoNormPreset = preset;
+    if (typeof enable === "boolean") this.settings.autoNormEnabled = enable;
+  }
+
+  completeOnboarding(): boolean {
+    if (this.settings.onboardingDone) return false;
+    this.settings.onboardingDone = true;
+    return true;
+  }
+
   setAdvRackOpen(open: boolean): void {
     this.settings.advRackOpen = Boolean(open);
   }
 
   setPopoutBounds(width: number, height: number): boolean {
-    if (!Number.isFinite(width) || !Number.isFinite(height)) return false;
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return false;
     const nextW = Math.round(Math.max(520, Math.min(2560, width)));
-    const nextH = Math.round(Math.max(380, Math.min(1600, height)));
+    const nextH = Math.round(Math.max(420, Math.min(1600, height)));
     if (this.settings.popoutWidth === nextW && this.settings.popoutHeight === nextH) return false;
     this.settings.popoutWidth = nextW;
     this.settings.popoutHeight = nextH;
@@ -513,17 +532,28 @@ export class MixerStateStore {
   computeDspForTab(tabId: number): DspConfigPayload {
     const rec = this.tabs.get(tabId);
     if (!rec) {
-      return buildDspConfigPayload(this.settings.autoNormEnabled, DEFAULT_CHANNEL_FX, false);
+      return buildDspConfigPayload(
+        this.settings.autoNormEnabled,
+        DEFAULT_CHANNEL_FX,
+        false,
+        this.settings.autoNormPreset,
+      );
     }
     return buildDspConfigPayload(
       this.settings.autoNormEnabled,
       rec.fx,
       this.isRecordCorsCapped(rec),
+      this.settings.autoNormPreset,
     );
   }
 
   private readRecordNormTrimDb(rec: InternalTabRecord, corsCap: boolean): number {
-    const norm = resolveEffectiveNormalizer(this.settings.autoNormEnabled, rec.fx, corsCap);
+    const norm = resolveEffectiveNormalizer(
+      this.settings.autoNormEnabled,
+      rec.fx,
+      corsCap,
+      this.settings.autoNormPreset,
+    );
     if (!norm.active) return 0;
     for (const v of rec.frameVu.values()) {
       if (v.normTrimDb !== 0) return v.normTrimDb;

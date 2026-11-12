@@ -454,3 +454,50 @@ test("SET_PLAYING(true): 분리된 더미 오디오 요소를 건너뛰고 최�
 
   controller.dispose();
 });
+
+test("0.7.0 음악(강약 보존, normSpeed='music') 모드는 곡 내부 후렴구 음압 상승 시 급감쇠하지 않고 다이내믹 대비를 보존한다", async () => {
+  const runScenario = async (normSpeed: "music" | "fast"): Promise<{ introTrim: number; chorusTrim: number }> => {
+    const env = createMockAudioEnvironment();
+    const controller = installAudioHook(env.win);
+    const audio = new env.FakeMediaElement();
+    audio.currentSrc = "blob:https://music.youtube.com/dynamic-song";
+    await audio.play();
+
+    controller.dispatchCommand({
+      type: "APPLY_DSP",
+      dsp: {
+        normActive: true,
+        normTargetLufs: -16,
+        normSpeed,
+        pan: 0,
+        gateEnabled: false,
+        gateThresholdDb: -48,
+        compEnabled: false,
+        compRatio: 4,
+      },
+    });
+
+    // 조용한 도입부(-24 dBFS 수준, 진폭 ~0.063) 20틱 진행
+    env.setSampleAmplitude(0.063);
+    for (let i = 0; i < 20; i++) controller.stepTick();
+    const introTrim = controller.getSnapshot().normTrimDb;
+
+    // 의도된 후렴구 폭발(-11 dBFS 수준, 진폭 ~0.28 — 클리핑 임계치 -0.5dBFS 미만) 4틱 직후 비교
+    env.setSampleAmplitude(0.28);
+    for (let i = 0; i < 4; i++) controller.stepTick();
+    const chorusTrim = controller.getSnapshot().normTrimDb;
+
+    controller.dispose();
+    return { introTrim, chorusTrim };
+  };
+
+  const musicRes = await runScenario("music");
+  const nightFastRes = await runScenario("fast");
+
+  // 음악 모드는 도입부 과증폭을 +5dB 이하로 억제하고, 후렴 진입 직후 급격히 볼륨을 깎지 않아(변화폭 1.2dB 미만) 원곡의 후렴 쾌감을 보존
+  assert.ok(musicRes.introTrim <= 5.0);
+  assert.ok(Math.abs(musicRes.introTrim - musicRes.chorusTrim) < 1.2);
+
+  // 반면 야간(fast) 모드는 갑작스러운 음압 상승을 즉시 감지해 큰 폭(> 3.5dB)으로 눌러 청각을 보호
+  assert.ok(nightFastRes.introTrim - nightFastRes.chorusTrim > 3.5);
+});

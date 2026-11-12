@@ -6,7 +6,8 @@ export type ThemeKey = "teal" | "amber" | "cobalt" | "emerald";
 export type ModePref = "dark" | "light" | "system";
 export type ExclusiveMode = "solo" | "focus";
 export type ChannelNormMode = "follow" | "on" | "off";
-export type NormSpeedPreset = "slow" | "std" | "fast";
+export type AutoNormPreset = "music" | "standard" | "night";
+export type NormSpeedPreset = "music" | "slow" | "std" | "fast";
 export type CompRatioPreset = 2 | 4 | 8;
 export type EffectiveNormSource = "off" | "auto" | "custom-on" | "custom-off";
 
@@ -45,7 +46,7 @@ export interface ChannelFxState {
   normMode: ChannelNormMode;
   /** 개별 모드("on")에서 사용할 목표 기준 음압 (-20 .. -12 LUFS, 기본 -16) */
   normTargetLufs: number;
-  /** 개별 모드("on")에서 사용할 추종 반응 속도 ("slow" | "std" | "fast") */
+  /** 개별 모드("on")에서 사용할 추종 반응 속도 ("music" | "slow" | "std" | "fast") */
   normSpeed: NormSpeedPreset;
   /** 스테레오 패닝 (-100 좌측 끝 .. 0 중앙 .. +100 우측 끝) */
   pan: number;
@@ -90,6 +91,10 @@ export interface PersistedSettings {
   masterMuted: boolean;
   /** 전역 Easy 다이나믹 노멀라이저(`균일 N`) 스위치 — `normMode === "follow"` 채널에만 적용 */
   autoNormEnabled: boolean;
+  /** 전역 Easy 노멀라이저 프리셋 ("music" | "standard" | "night", 기본 "standard") */
+  autoNormPreset: AutoNormPreset;
+  /** 최초 실행 온보딩(빠른 투어 안내) 확인/생략 완료 여부 */
+  onboardingDone: boolean;
   /** 우측 고급 FX 사이드 랙 열림 여부 */
   advRackOpen: boolean;
   /** 분리된 독립 콘솔 창(Popout)의 마지막 가로 폭 (px, 기본 780) */
@@ -187,6 +192,8 @@ export type PopupActionMessage =
   | { source: "popup"; type: "SET_MASTER_DB"; masterDb: number }
   | { source: "popup"; type: "TOGGLE_MASTER_MUTE" }
   | { source: "popup"; type: "TOGGLE_AUTO_NORM" }
+  | { source: "popup"; type: "SET_AUTO_NORM_PRESET"; preset: AutoNormPreset; enable?: boolean }
+  | { source: "popup"; type: "COMPLETE_ONBOARDING" }
   | { source: "popup"; type: "SET_ADV_RACK_OPEN"; open: boolean }
   | { source: "popup"; type: "UPDATE_TAB_FX"; tabId: number; patch: Partial<ChannelFxState> }
   | {

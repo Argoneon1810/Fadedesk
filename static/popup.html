@@ -55,12 +55,23 @@
           class="console-btn reset-modes-btn c-raised"
           disabled
         >S·F 해제</button>
-        <button
-          id="auto-norm-btn"
-          type="button"
-          title="전역 자동 노멀라이저(균일 N): '전역 따름' 채널에만 표준 프리셋을 적용하며 고급 개별 설정을 덮어쓰지 않습니다"
-          class="console-btn top-toggle-btn c-raised"
-        >균일 N</button>
+        <div id="norm-split-group" class="norm-split-group">
+          <button
+            id="auto-norm-btn"
+            type="button"
+            title="전역 자동 노멀라이저(균일 N): '전역 따름' 채널에만 적용하며 고급 개별 설정을 덮어쓰지 않습니다"
+            class="console-btn top-toggle-btn norm-main-btn c-raised"
+          >균일 N</button>
+          <button
+            id="auto-norm-preset-btn"
+            type="button"
+            title="자동 노멀라이저 프리셋 선택 (음악 · 표준 · 야간)"
+            aria-label="자동 노멀라이저 프리셋 선택"
+            aria-haspopup="dialog"
+            aria-expanded="false"
+            class="console-btn norm-preset-trigger c-raised"
+          >▾</button>
+        </div>
         <button
           id="adv-rack-btn"
           type="button"
@@ -83,7 +94,11 @@
       </div>
     </div>
 
+    <!-- 우측 상단 이지 노멀라이저 3종 프리셋 팝오버 -->
+    <div id="norm-popover" role="dialog" aria-label="이지 노멀라이저 프리셋" class="norm-popover c-surface hidden"></div>
+
     <div id="help-backdrop" class="help-backdrop hidden"></div>
+    <div id="tour-overlay" class="tour-overlay hidden"></div>
     <main class="console-bay">
       <div id="channels-scroll" class="channels-scroll"></div>
       <div id="master-dock" class="master-dock"></div>

@@ -1,4 +1,5 @@
 import {
+  AUTO_NORM_PRESET_META,
   clampDb,
   computeDisplayedEffectiveDb,
   dbToRatio,
@@ -395,7 +396,12 @@ export function syncChannelReadoutSub(
   const effPct = Number.isFinite(effDb) ? dbToRatio(Math.min(MAX_DB, effDb)) * 100 : 0;
   const attenuated = (ctx.anyFocus || ctx.anySolo) && ch.playing && !ch.muted && userPct - effPct > 0.5;
   const pinned = isChannelPinned(settings.domainDefaults, ch.domain, ch.db);
-  const norm = resolveEffectiveNormalizer(settings.autoNormEnabled, ch.fx, ch.corsCap);
+  const norm = resolveEffectiveNormalizer(
+    settings.autoNormEnabled,
+    ch.fx,
+    ch.corsCap,
+    settings.autoNormPreset,
+  );
 
   if (ch.corsCap) {
     r.subText.textContent = "보안 0dB 상한";
@@ -432,7 +438,12 @@ export function syncChannelStripDom(
   const effPct = Number.isFinite(effDb) ? dbToRatio(Math.min(MAX_DB, effDb)) * 100 : 0;
   const attenuated = (ctx.anyFocus || ctx.anySolo) && ch.playing && !ch.muted && userPct - effPct > 0.5;
   const pinned = isChannelPinned(settings.domainDefaults, ch.domain, ch.db);
-  const norm = resolveEffectiveNormalizer(settings.autoNormEnabled, ch.fx, ch.corsCap);
+  const norm = resolveEffectiveNormalizer(
+    settings.autoNormEnabled,
+    ch.fx,
+    ch.corsCap,
+    settings.autoNormPreset,
+  );
 
   r.el.dataset.selected = String(selected);
   r.el.dataset.zone = ch.playing ? "playing" : "paused";
@@ -460,10 +471,11 @@ export function syncChannelStripDom(
     r.normBadge.style.color = t.muted;
     r.normBadge.title = "전역 균일 N 개별 제외됨";
   } else {
+    const presetShort = (AUTO_NORM_PRESET_META[settings.autoNormPreset] ?? AUTO_NORM_PRESET_META.standard).shortLabel;
     r.normBadge.textContent = "N";
     r.normBadge.style.backgroundColor = t.primary;
     r.normBadge.style.color = t.onPrimary;
-    r.normBadge.title = "전역 균일 N 적용 중";
+    r.normBadge.title = `전역 균일 N 적용 중 (${presetShort})`;
   }
 
   r.header.title = `${ch.title}${ch.domain ? ` (${ch.domain})` : ""} — 클릭 시 해당 탭·창으로 이동`;

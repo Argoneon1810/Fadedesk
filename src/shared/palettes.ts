@@ -145,6 +145,8 @@ export const DEFAULT_SETTINGS: PersistedSettings = {
   masterDb: 0.0,
   masterMuted: false,
   autoNormEnabled: false,
+  autoNormPreset: "standard",
+  onboardingDone: false,
   advRackOpen: false,
   popoutWidth: 780,
   popoutHeight: 480,
