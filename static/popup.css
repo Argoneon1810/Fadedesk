@@ -41,18 +41,48 @@ button {
   white-space: nowrap;
 }
 
-/* 최상위 콘솔 프레임 */
+/* 최상위 콘솔 프레임 (기본: Chrome 확장 팝업 1줄 콘솔형 고유 폭 자동 산정) */
 #console-root {
   position: relative;
-  display: inline-flex;
+  display: flex;
   flex-direction: column;
-  min-width: 400px;
-  max-width: min(792px, 100vw);
+  width: max-content;
+  min-width: 716px;
+  max-width: 780px;
   background: var(--c-bg);
   color: var(--c-text);
   border: 1px solid var(--c-border);
-  overflow: hidden;
+  overflow: clip;
   transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+#console-root[data-help-open="true"] {
+  min-height: 416px;
+}
+
+/* 분리된 독립 콘솔 창(?view=window) 전용 가변 풀사이즈 레이아웃 */
+html[data-view="window"],
+html[data-view="window"] body {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+}
+
+html[data-view="window"] #console-root {
+  width: 100%;
+  min-width: 460px;
+  max-width: none;
+  height: 100dvh;
+  min-height: 400px;
+}
+
+html[data-view="window"] .top-deck {
+  flex-wrap: wrap;
+}
+
+html[data-view="window"] .console-bay {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 #console-root[data-dark="true"] {
@@ -115,10 +145,10 @@ button {
 /* 상단 컨트롤 데크 */
 .top-deck {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
-  column-gap: 10px;
+  column-gap: 8px;
   row-gap: 6px;
   padding: 6px 12px;
   min-height: 42px;
@@ -178,6 +208,15 @@ button {
   flex-shrink: 0;
 }
 
+.popout-trigger {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  color: var(--c-primary);
+  border: 1px solid var(--c-border);
+  flex-shrink: 0;
+}
+
 .status-pill {
   display: flex;
   align-items: center;
@@ -188,7 +227,7 @@ button {
   font-size: 12px;
   white-space: nowrap;
   min-width: 0;
-  max-width: 152px;
+  max-width: 136px;
 }
 
 .status-dot {

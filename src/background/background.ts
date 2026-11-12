@@ -218,6 +218,36 @@ async function probeExistingOpenTabs(): Promise<void> {
   }
 }
 
+async function openOrFocusStandaloneWindow(): Promise<void> {
+  const targetUrl = chrome.runtime.getURL("popup.html?view=window");
+  try {
+    const wins = await chrome.windows.getAll({ populate: true });
+    const existing = wins.find((w) => w.tabs?.some((t) => t.url === targetUrl));
+    if (existing && typeof existing.id === "number") {
+      await chrome.windows.update(existing.id, {
+        focused: true,
+        ...(existing.state === "minimized" ? { state: "normal" } : {}),
+      });
+      return;
+    }
+  } catch {
+    // 창 목록 조회 실패 시 신규 창 생성으로 폴백
+  }
+
+  const { popoutWidth, popoutHeight } = store.getSettings();
+  try {
+    await chrome.windows.create({
+      url: targetUrl,
+      type: "popup",
+      width: popoutWidth,
+      height: popoutHeight,
+      focused: true,
+    });
+  } catch {
+    // 창 생성 실패 무시
+  }
+}
+
 async function handlePopupAction(msg: PopupActionMessage): Promise<void> {
   switch (msg.type) {
     case "GET_SNAPSHOT":
@@ -340,6 +370,16 @@ async function handlePopupAction(msg: PopupActionMessage): Promise<void> {
       store.setTheme(msg.theme, msg.modePref);
       await persistSettings();
       broadcastSnapshotAndBadge();
+      break;
+
+    case "OPEN_STANDALONE_WINDOW":
+      await openOrFocusStandaloneWindow();
+      break;
+
+    case "SAVE_POPOUT_BOUNDS":
+      if (store.setPopoutBounds(msg.width, msg.height)) {
+        await persistSettings();
+      }
       break;
   }
 }

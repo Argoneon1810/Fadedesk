@@ -13,6 +13,7 @@ import { buildFxRackDom, syncFxRackDom, syncFxRackTrimBadge, type FxRackRefs } f
 import { buildHelpModalDom, syncHelpModalDom, type HelpModalRefs } from "./help-modal";
 import { ICONS } from "./icons";
 import { buildMasterStripDom, syncMasterStripDom, updateMasterBusVu, type MasterStripRefs } from "./master-view";
+import { initViewModeAndPopout } from "./popout-window";
 import {
   attachKnobDrag, buildChannelStripDom, paintLedColumn,
   syncChannelReadoutSub, syncChannelStripDom,
@@ -121,6 +122,7 @@ function renderAll(): void {
   const t = PALETTES[snapshot.settings.theme][mode];
   const root = document.getElementById("console-root")!;
   root.dataset.dark = String(isDark);
+  root.dataset.helpOpen = String(helpOpen);
 
   const vars: Record<string, string> = {
     "--c-bg": t.bg, "--c-surface": t.surface, "--c-raised": t.raised,
@@ -182,6 +184,13 @@ function renderAll(): void {
     helpBtn.style.backgroundColor = helpOpen ? t.primary : t.raised;
     helpBtn.style.color = helpOpen ? t.onPrimary : t.primary;
     helpBtn.style.borderColor = helpOpen ? t.primary : t.border;
+  }
+
+  const popoutBtn = document.getElementById("popout-btn") as HTMLButtonElement | null;
+  if (popoutBtn && !popoutBtn.classList.contains("hidden")) {
+    popoutBtn.style.backgroundColor = t.raised;
+    popoutBtn.style.color = t.primary;
+    popoutBtn.style.borderColor = t.border;
   }
 
   reconcileChannelStrips(stripCallbacks);
@@ -468,6 +477,7 @@ function connectBackgroundPort(): void {
 }
 
 function bootstrapPopup(): void {
+  initViewModeAndPopout(sendAction);
   helpRefs = buildHelpModalDom(document.getElementById("help-backdrop")!, () => {
     helpOpen = false;
     renderAll();

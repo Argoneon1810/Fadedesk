@@ -146,5 +146,7 @@ export const DEFAULT_SETTINGS: PersistedSettings = {
   masterMuted: false,
   autoNormEnabled: false,
   advRackOpen: false,
+  popoutWidth: 780,
+  popoutHeight: 480,
   domainDefaults: {},
 };

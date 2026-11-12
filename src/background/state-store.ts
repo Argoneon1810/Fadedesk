@@ -109,6 +109,12 @@ export class MixerStateStore {
     if (typeof raw.masterMuted === "boolean") this.settings.masterMuted = raw.masterMuted;
     if (typeof raw.autoNormEnabled === "boolean") this.settings.autoNormEnabled = raw.autoNormEnabled;
     if (typeof raw.advRackOpen === "boolean") this.settings.advRackOpen = raw.advRackOpen;
+    if (typeof raw.popoutWidth === "number" && Number.isFinite(raw.popoutWidth)) {
+      this.settings.popoutWidth = Math.round(Math.max(520, Math.min(2560, raw.popoutWidth)));
+    }
+    if (typeof raw.popoutHeight === "number" && Number.isFinite(raw.popoutHeight)) {
+      this.settings.popoutHeight = Math.round(Math.max(380, Math.min(1600, raw.popoutHeight)));
+    }
     if (raw.domainDefaults && typeof raw.domainDefaults === "object") {
       const cleaned: Record<string, number> = {};
       for (const [domain, val] of Object.entries(raw.domainDefaults)) {
@@ -343,6 +349,16 @@ export class MixerStateStore {
 
   setAdvRackOpen(open: boolean): void {
     this.settings.advRackOpen = Boolean(open);
+  }
+
+  setPopoutBounds(width: number, height: number): boolean {
+    if (!Number.isFinite(width) || !Number.isFinite(height)) return false;
+    const nextW = Math.round(Math.max(520, Math.min(2560, width)));
+    const nextH = Math.round(Math.max(380, Math.min(1600, height)));
+    if (this.settings.popoutWidth === nextW && this.settings.popoutHeight === nextH) return false;
+    this.settings.popoutWidth = nextW;
+    this.settings.popoutHeight = nextH;
+    return true;
   }
 
   updateTabFx(tabId: number, patch: Partial<ChannelFxState>): boolean {

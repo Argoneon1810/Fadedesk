@@ -92,6 +92,10 @@ export interface PersistedSettings {
   autoNormEnabled: boolean;
   /** 우측 고급 FX 사이드 랙 열림 여부 */
   advRackOpen: boolean;
+  /** 분리된 독립 콘솔 창(Popout)의 마지막 가로 폭 (px, 기본 780) */
+  popoutWidth: number;
+  /** 분리된 독립 콘솔 창(Popout)의 마지막 세로 높이 (px, 기본 480) */
+  popoutHeight: number;
   /** 도메인별 새 탭 기본 볼륨 dB (명시적 핀 고정 시에만 갱신·삭제) */
   domainDefaults: Record<string, number>;
 }
@@ -194,7 +198,9 @@ export type PopupActionMessage =
       orderedPausedIds: number[];
     }
   | { source: "popup"; type: "SET_ALL_PLAYING"; shouldPlay: boolean }
-  | { source: "popup"; type: "SET_THEME"; theme: ThemeKey; modePref: ModePref };
+  | { source: "popup"; type: "SET_THEME"; theme: ThemeKey; modePref: ModePref }
+  | { source: "popup"; type: "OPEN_STANDALONE_WINDOW" }
+  | { source: "popup"; type: "SAVE_POPOUT_BOUNDS"; width: number; height: number };
 
 /** 백그라운드 -> 팝업 포트 실시간 푸시 메시지 */
 export type BgToPopupPortMessage =

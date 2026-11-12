@@ -44,7 +44,7 @@ const EASY_STEPS: HelpStep[] = [
   {
     title: "탭별 볼륨 조절과 직접 입력",
     bullets: [
-      "모든 창의 재생 탭을 한곳에서 개별 제어합니다.",
+      "모든 창의 재생 탭을 한곳에서 제어하며, 상단 창 분리 버튼으로 독립 창에 띄워 원하는 크기로 늘릴 수 있습니다.",
       "채널 중앙 [페이더]의 사각 [노브]를 잡고 위아래로 드래그하거나 마우스 휠을 굴려 볼륨을 조절합니다(0 눈금 위로 올리면 원본 최대치 이상으로 증폭되며 우측 [레벨 미터]로 현재 출력 크기를 확인).",
       "아래 [수치 표시창]을 클릭하면 숫자를 직접 입력할 수 있고, [노브]를 더블클릭하면 기본값(0.0)으로 복귀합니다.",
     ],
@@ -117,7 +117,7 @@ function formatBulletText(text: string, isEasy: boolean): string {
 
 function renderSchematicSvg(active: HelpTermKey | null): string {
   const is = (k: HelpTermKey) => (active === k ? "highlighted" : "");
-  return `<svg class="nested-schematic-svg" viewBox="0 0 84 118" width="84" height="118" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  return `<svg class="nested-schematic-svg" viewBox="0 0 84 118" width="76" height="106" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
   <rect x="4" y="4" width="48" height="110" rx="4" class="svg-strip-box" />
   <g class="svg-part svg-grip ${is("grip")}" data-schematic="grip">
     <rect x="14" y="8" width="28" height="7" rx="2" class="svg-part-box" />
@@ -236,16 +236,19 @@ export function buildHelpModalDom(backdrop: HTMLElement, onRequestClose: () => v
 
     if (!activeKey) {
       nestedCard.classList.add("hidden");
+      nestedCard.dataset.pinned = "false";
       return;
     }
 
+    const isPinnedCard = pinnedTerm === activeKey;
     nestedCard.classList.remove("hidden");
+    nestedCard.dataset.pinned = String(isPinnedCard);
     const info = TERM_INFO[activeKey];
     cardSvgWrap.innerHTML = renderSchematicSvg(activeKey);
     cardTitle.textContent = info.name;
     cardSub.textContent = info.subtitle;
     cardDesc.textContent = info.description;
-    cardTip.textContent = pinnedTerm === activeKey
+    cardTip.textContent = isPinnedCard
       ? "✓ 클릭으로 고정됨 · 칩 다시 클릭 또는 바깥 클릭 시 닫힘"
       : "💡 칩을 클릭하면 화면에 고정됩니다";
   }
