@@ -1,9 +1,15 @@
-import { clampDb, dbToRatio, formatDb, ratioToDb } from "../shared/mixer-math";
+import {
+  clampDb,
+  computeMasterStereoVu,
+  dbToRatio,
+  formatDb,
+  ratioToDb,
+} from "../shared/mixer-math";
 import type { PersistedSettings, TabChannelState, ThemeTokens } from "../shared/types";
 import { attachDbInlineEditor } from "./db-inline-editor";
 import { ICONS } from "./icons";
 import {
-  attachPointerDrag,
+  attachKnobDrag,
   createLedColumn,
   paintLedColumn,
   type LedColumnRef,
@@ -11,7 +17,7 @@ import {
 } from "./strip-view";
 
 /**
- * 우측 고정 MASTER BUS 스트립의 DOM 생성, 스테레오 VU 미터, 마스터 제어 동기화 모듈.
+ * 우측 고정 MASTER BUS 스트립의 DOM 생성, 선형 진폭 RSS 스테레오 VU 미터, 마스터 제어 동기화 모듈.
  */
 
 export interface MasterStripRefs {
@@ -48,21 +54,19 @@ export function buildMasterStripDom(
       <div class="master-kicker">MASTER BUS</div>
       <div class="strip-title" style="white-space:nowrap">전체 출력</div>
     </div>
-    <div class="fader-well">
-      <div data-ref="vuLeftSlot" style="height:100%;display:flex;align-items:center"></div>
-      <div data-ref="track" class="fader-track" title="마스터 출력 조절 · 더블클릭 0.0dB 복귀">
+    <div data-ref="faderWell" class="fader-well">
+      <div data-ref="track" class="fader-track" title="노브 드래그 · 휠 조절 · 더블클릭 0.0dB 복귀">
         <span class="unity-wing-l" style="bottom:${zeroPct}%"></span>
         <span class="unity-wing-r" style="bottom:${zeroPct}%"></span>
         <div class="fader-slot">
           <div data-ref="fill" class="fader-fill"></div>
         </div>
-        <div data-ref="knob" class="fader-cap c-raised">
+        <div data-ref="knob" class="fader-cap c-raised" title="노브를 잡아 위아래로 드래그 · 더블클릭 시 0.0dB 복귀">
           <span class="cap-groove-sub" style="width:11px"></span>
           <span data-ref="knobLine" class="cap-groove-main" style="width:14px"></span>
           <span class="cap-groove-sub" style="width:11px"></span>
         </div>
       </div>
-      <div data-ref="vuRightSlot" style="height:100%;display:flex;align-items:center"></div>
     </div>
     <div data-ref="readoutBtn" role="button" tabindex="0" title="클릭하여 마스터 dB 직접 입력 (Enter 적용 · Esc 취소)" class="readout-btn c-recessed">
       <div data-ref="displayRow" class="readout-row1">
@@ -81,8 +85,10 @@ export function buildMasterStripDom(
 
   const vuL = createLedColumn();
   const vuR = createLedColumn();
-  el.querySelector('[data-ref="vuLeftSlot"]')!.appendChild(vuL.col);
-  el.querySelector('[data-ref="vuRightSlot"]')!.appendChild(vuR.col);
+  const well = el.querySelector('[data-ref="faderWell"]')!;
+  const track = el.querySelector('[data-ref="track"]')!;
+  well.insertBefore(vuL.col, track);
+  well.appendChild(vuR.col);
 
   const q = <T extends HTMLElement>(name: string): T => el.querySelector(`[data-ref="${name}"]`) as T;
   const refs: MasterStripRefs = {
@@ -116,7 +122,8 @@ export function buildMasterStripDom(
     { passive: false },
   );
 
-  attachPointerDrag(
+  attachKnobDrag(
+    refs.knob,
     refs.track,
     "y",
     (ratio) => cb.onSetMasterDb(ratioToDb(ratio, false)),
@@ -151,7 +158,7 @@ export function syncMasterStripDom(
   m.topAccent.style.backgroundColor = settings.masterMuted ? t.states.danger : t.primary;
   m.fill.style.height = `${mPct}%`;
   m.fill.style.backgroundColor = settings.masterMuted ? t.muted : t.primary;
-  m.fill.style.opacity = settings.masterMuted ? "0.25" : "0.75";
+  m.fill.style.opacity = settings.masterMuted ? "0.25" : "0.78";
   m.knob.style.bottom = `calc(${mPct}% - 7.5px)`;
   m.knob.style.borderColor = settings.masterMuted ? t.states.danger : t.text;
   m.knobLine.style.backgroundColor = settings.masterMuted ? t.states.danger : t.primary;
@@ -193,20 +200,7 @@ export function updateMasterBusVu(
   channels: TabChannelState[],
   t: ThemeTokens,
 ): void {
-  let sum = 0;
-  let activeCnt = 0;
-  for (const ch of channels) {
-    if (ch.playing && !ch.muted && !settings.masterMuted && ch.vuLevel > 0) {
-      sum += ch.vuLevel;
-      activeCnt++;
-    }
-  }
-  const base =
-    settings.masterMuted || activeCnt === 0
-      ? 0
-      : Math.min(1, (sum / Math.sqrt(activeCnt)) * 0.85);
-  const tgtL = base * 0.98;
-  const tgtR = base * 0.94;
+  const { left: tgtL, right: tgtR } = computeMasterStereoVu(channels, settings.masterMuted);
   m.vuCurL = tgtL > m.vuCurL ? m.vuCurL + (tgtL - m.vuCurL) * 0.65 : Math.max(0, m.vuCurL - 0.05);
   m.vuCurR = tgtR > m.vuCurR ? m.vuCurR + (tgtR - m.vuCurR) * 0.65 : Math.max(0, m.vuCurR - 0.05);
   m.vuPeakL = m.vuCurL >= m.vuPeakL ? m.vuCurL : Math.max(m.vuCurL, m.vuPeakL - 0.016);

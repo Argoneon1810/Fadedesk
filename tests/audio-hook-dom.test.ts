@@ -3,12 +3,15 @@ import test from "node:test";
 import { installAudioHook } from "../src/content/audio-hook";
 
 /**
- * 모의 브라우저 환경에서 audio-hook의 CORS/DRM 무음 방지 폴백과 WebAudio 증폭(+12dB) 동작을 검증한다.
+ * 모의 브라우저 환경에서 audio-hook의 CORS/DRM 무음 방지 폴백, WebAudio 증폭(+12dB),
+ * 실시간 DSP 체인(다이나믹 노멀라이저 · 무음 동결 Silence Freeze · 스테레오 패닝) 동작을 검증한다.
  */
 
 function createMockAudioEnvironment() {
   let mediaElementSourceCalls = 0;
+  let sampleAmplitude = 0.25;
   const createdGains: Array<{ value: number }> = [];
+  const createdPanners: Array<{ value: number }> = [];
 
   class FakeMediaElement {
     private _rawVolume = 1.0;
@@ -97,7 +100,47 @@ function createMockAudioEnvironment() {
   class FakeAnalyserNode extends FakeAudioNode {
     fftSize = 256;
     getFloatTimeDomainData(buf: Float32Array): void {
-      buf.fill(0.25);
+      buf.fill(sampleAmplitude);
+    }
+  }
+
+  class FakeBiquadFilterNode extends FakeAudioNode {
+    type = "highpass";
+    frequency = { value: 60 };
+    Q = { value: 0.5 };
+    gain = { value: 0 };
+  }
+
+  class FakeDynamicsCompressorNode extends FakeAudioNode {
+    threshold = { value: -24 };
+    knee = { value: 30 };
+    ratio = { value: 12 };
+    attack = { value: 0.003 };
+    release = { value: 0.25 };
+  }
+
+  class FakeStereoPannerNode extends FakeAudioNode {
+    pan: {
+      value: number;
+      cancelScheduledValues: () => void;
+      setTargetAtTime: (target: number) => void;
+    };
+    constructor(ctx: FakeAudioContext) {
+      super(ctx);
+      const state = { value: 0 };
+      createdPanners.push(state);
+      this.pan = {
+        get value() {
+          return state.value;
+        },
+        set value(v: number) {
+          state.value = v;
+        },
+        cancelScheduledValues: () => {},
+        setTargetAtTime: (target: number) => {
+          state.value = target;
+        },
+      };
     }
   }
 
@@ -121,6 +164,15 @@ function createMockAudioEnvironment() {
     }
     createAnalyser(): FakeAnalyserNode {
       return new FakeAnalyserNode(this);
+    }
+    createBiquadFilter(): FakeBiquadFilterNode {
+      return new FakeBiquadFilterNode(this);
+    }
+    createDynamicsCompressor(): FakeDynamicsCompressorNode {
+      return new FakeDynamicsCompressorNode(this);
+    }
+    createStereoPanner(): FakeStereoPannerNode {
+      return new FakeStereoPannerNode(this);
     }
   }
 
@@ -169,6 +221,10 @@ function createMockAudioEnvironment() {
     FakeAudioNode,
     getMediaElementSourceCalls: () => mediaElementSourceCalls,
     createdGains,
+    createdPanners,
+    setSampleAmplitude: (val: number) => {
+      sampleAmplitude = val;
+    },
   };
 }
 
@@ -238,6 +294,107 @@ test("페이지 자체 AudioContext.destination 직결 노드는 버스 GainNode
   assert.equal(snap.hasMedia, true);
   assert.equal(snap.playingCount, 1);
   assert.equal(env.createdGains[0]?.value, 0.5);
+
+  controller.dispose();
+});
+
+test("APPLY_DSP: normActive 활성화 시 저음량 신호 자동 증폭(normTrimDb > 0) 및 무음 동결(Silence Freeze) 검증", async () => {
+  const env = createMockAudioEnvironment();
+  const controller = installAudioHook(env.win);
+
+  const video = new env.FakeMediaElement();
+  video.currentSrc = "blob:https://www.youtube.com/quiet-voice";
+  video.volume = 1.0;
+  await video.play();
+
+  // 1) 0.05 저음량 신호(약 -26dBFS): normActive 활성화 후 tick 수행 시 목표 음압(-16 LUFS)을 향해 이득 상향 보정 (normTrimDb > 0)
+  env.setSampleAmplitude(0.05);
+  controller.dispatchCommand({
+    type: "APPLY_DSP",
+    dsp: {
+      normActive: true,
+      normTargetLufs: -16,
+      normSpeed: "std",
+      pan: 0,
+      gateEnabled: false,
+      gateThresholdDb: -48,
+      compEnabled: false,
+      compRatio: 4,
+    },
+  });
+
+  controller.stepTick();
+  const snapAfterTick = controller.getSnapshot();
+  assert.ok(
+    snapAfterTick.normTrimDb > 0,
+    `Active quiet signal should boost trim > 0 dB, got ${snapAfterTick.normTrimDb}`,
+  );
+  const activeTrim = snapAfterTick.normTrimDb;
+
+  // 2) 거의 무음인 배경 신호(0.0005 진폭, 약 -66dBFS < -45dBFS Silence Freeze)
+  // 대사 휴지기나 곡 사이 무음에서 배경 히스 잡음이 펌핑 증폭되지 않도록 normTrimDb가 동결 유지됨
+  env.setSampleAmplitude(0.0005);
+  controller.stepTick();
+  controller.stepTick();
+  const snapAfterSilence = controller.getSnapshot();
+  assert.equal(
+    snapAfterSilence.normTrimDb,
+    activeTrim,
+    "Silence Freeze should preserve trim without boosting hiss",
+  );
+
+  controller.dispose();
+});
+
+test("APPLY_DSP: 스테레오 패닝(pan: -50 -> -0.5) 설정 및 normActive 해제 시 normTrimDb 0dB 즉시 리셋 검증", async () => {
+  const env = createMockAudioEnvironment();
+  const controller = installAudioHook(env.win);
+
+  const video = new env.FakeMediaElement();
+  video.currentSrc = "blob:https://www.youtube.com/stereo-track";
+  video.volume = 1.0;
+  await video.play();
+
+  env.setSampleAmplitude(0.05);
+
+  // 1) pan: -50, normActive: true 적용
+  controller.dispatchCommand({
+    type: "APPLY_DSP",
+    dsp: {
+      normActive: true,
+      normTargetLufs: -16,
+      normSpeed: "std",
+      pan: -50,
+      gateEnabled: false,
+      gateThresholdDb: -48,
+      compEnabled: false,
+      compRatio: 4,
+    },
+  });
+  controller.stepTick();
+
+  assert.ok(env.createdPanners.length > 0);
+  assert.equal(env.createdPanners[0]?.value, -0.5);
+  assert.ok(controller.getSnapshot().normTrimDb > 0);
+
+  // 2) normActive: false 해제 시 패닝(-0.5)은 유지되고 normTrimDb는 0.0dB로 즉시 리셋
+  controller.dispatchCommand({
+    type: "APPLY_DSP",
+    dsp: {
+      normActive: false,
+      normTargetLufs: -16,
+      normSpeed: "std",
+      pan: -50,
+      gateEnabled: false,
+      gateThresholdDb: -48,
+      compEnabled: false,
+      compRatio: 4,
+    },
+  });
+  controller.stepTick();
+
+  assert.equal(env.createdPanners[0]?.value, -0.5);
+  assert.equal(controller.getSnapshot().normTrimDb, 0);
 
   controller.dispose();
 });

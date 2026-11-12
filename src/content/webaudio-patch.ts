@@ -1,51 +1,29 @@
-import { dbToRatio, linearToDb } from "../shared/mixer-math";
+import type { DspConfigPayload } from "../shared/types";
+import {
+  computePeakRatioFromAnalyser,
+  createDspChain,
+  setAudioParamSmooth,
+  type DspChainInstance,
+} from "./dsp-chain";
 
 /**
- * 페이지 자체 WebAudio(AudioContext.destination 직결) 출력을 가로채 버스 GainNode와 AnalyserNode를 삽입하고,
- * Gain 스무딩 및 파형 피크 측정(AnalyserNode) 보조 연산을 제공한다.
- * 확장 내부 전용 AudioContext(internalContexts)는 우회하여 이중 증폭을 원천 차단한다.
+ * 페이지 자체 WebAudio(AudioContext.destination 직결) 출력을 가로채 채널 DSP 체인(노멀라이저·패닝·게이트·컴프레서·페이더)을 삽입한다.
+ * 확장 내부 전용 AudioContext(internalContexts)와 종단 노드(internalBypassNodes)는 우회하여 재귀·이중 증폭을 원천 차단한다.
  */
 
-const RAMP_TIME_CONSTANT_SEC = 0.025; // 약 75ms(3*tau) 스무딩으로 클릭 노이즈 방지
+export { computePeakRatioFromAnalyser };
 
 export function applyGainParamSmooth(
   param: AudioParam,
   ctx: BaseAudioContext,
   gain: number,
 ): void {
-  const safeGain = Math.max(0, Number.isFinite(gain) ? gain : 1);
-  try {
-    const now = ctx.currentTime;
-    param.cancelScheduledValues(now);
-    param.setTargetAtTime(safeGain, now, RAMP_TIME_CONSTANT_SEC);
-  } catch {
-    param.value = safeGain;
-  }
-}
-
-export function computePeakRatioFromAnalyser(
-  analyser: AnalyserNode,
-  buf: Float32Array<ArrayBuffer>,
-): number {
-  try {
-    analyser.getFloatTimeDomainData(buf);
-    let peak = 0;
-    for (let i = 0; i < buf.length; i++) {
-      const abs = Math.abs(buf[i] ?? 0);
-      if (abs > peak) peak = abs;
-    }
-    if (peak <= 0.0005) return 0;
-    return dbToRatio(Math.min(12, linearToDb(peak)));
-  } catch {
-    return 0;
-  }
+  setAudioParamSmooth(param, ctx, Math.max(0, Number.isFinite(gain) ? gain : 1));
 }
 
 export interface WrappedContextEntry {
   ctx: AudioContext;
-  busGain: GainNode;
-  analyser: AnalyserNode;
-  buffer: Float32Array<ArrayBuffer>;
+  dspChain: DspChainInstance;
   hasConnectedNodes: boolean;
 }
 
@@ -56,6 +34,7 @@ export interface PageWebAudioPatchOptions {
   internalBypassNodes: WeakSet<AudioNode>;
   pageContexts: Set<WrappedContextEntry>;
   getTargetGain: () => number;
+  getDspConfig: () => DspConfigPayload;
   onActivityChange: () => void;
 }
 
@@ -74,6 +53,7 @@ export function installPageWebAudioPatch(opts: PageWebAudioPatchOptions): void {
     internalBypassNodes,
     pageContexts,
     getTargetGain,
+    getDspConfig,
     onActivityChange,
   } = opts;
 
@@ -98,7 +78,7 @@ export function installPageWebAudioPatch(opts: PageWebAudioPatchOptions): void {
       const entry = destToEntry.get(destination as AudioDestinationNode)!;
       entry.hasConnectedNodes = true;
       onActivityChange();
-      return connectNode.call(this, entry.busGain, output, 0);
+      return connectNode.call(this, entry.dspChain.inputNode, output, 0);
     }
     return (origConnect as unknown as (...args: unknown[]) => AudioNode | void).call(
       this,
@@ -112,19 +92,16 @@ export function installPageWebAudioPatch(opts: PageWebAudioPatchOptions): void {
     constructor(options?: AudioContextOptions) {
       super(options);
       try {
-        const busGain = this.createGain();
-        const analyser = this.createAnalyser();
-        analyser.fftSize = 256;
-        busGain.gain.value = Math.max(0, getTargetGain());
-        internalBypassNodes.add(analyser);
-        connectNode.call(busGain, analyser);
-        connectNode.call(analyser, this.destination);
-
+        const dspChain = createDspChain(
+          this,
+          getTargetGain(),
+          getDspConfig(),
+          internalBypassNodes,
+          connectNode,
+        );
         const entry: WrappedContextEntry = {
           ctx: this,
-          busGain,
-          analyser,
-          buffer: new Float32Array(new ArrayBuffer(analyser.fftSize * 4)),
+          dspChain,
           hasConnectedNodes: false,
         };
         destToEntry.set(this.destination, entry);

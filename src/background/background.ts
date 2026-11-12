@@ -12,8 +12,8 @@ import { MixerStateStore, type SerializedTabSession } from "./state-store";
 
 /**
  * MV3 백그라운드 서비스 워커.
- * - 모든 창·탭의 미디어 프레임 보고를 집계하고 목표 선형 게인을 실시간 배포
- * - 팝업이 열려 있을 때만 VU 미터링 타이머를 구동하여 대기 시 CPU 점유율 0% 유지
+ * - 모든 창·탭의 미디어 프레임 보고를 집계하고 목표 선형 게인 및 채널 DSP 파라미터를 실시간 배포
+ * - 팝업이 열려 있을 때만 VU 미터링 IPC를 구동하여 대기 시 확장 IPC 부하 0% 유지
  * - 툴바 아이콘 배지와 전역 단축키(Master 음소거 · Focus 순환) 처리
  */
 
@@ -48,7 +48,6 @@ async function ensureHydrated(): Promise<void> {
         // 세션 초기 상태 유지
       }
 
-      // 닫힌 탭 정리 및 현재 열려 있는 소리 출력 탭 동기화
       try {
         const openTabs = await chrome.tabs.query({});
         const openIds = new Set<number>();
@@ -118,9 +117,20 @@ function pushGainToTab(tabId: number, frameId?: number): void {
   sendCommandToTab(tabId, { type: "APPLY_GAIN", targetGain }, frameId);
 }
 
+function pushDspToTab(tabId: number, frameId?: number): void {
+  const dsp = store.computeDspForTab(tabId);
+  sendCommandToTab(tabId, { type: "APPLY_DSP", dsp }, frameId);
+}
+
 function pushGainsToAllTabs(): void {
   for (const tabId of store.getTrackedTabIds()) {
     pushGainToTab(tabId);
+  }
+}
+
+function pushDspToAllTabs(): void {
+  for (const tabId of store.getTrackedTabIds()) {
+    pushDspToTab(tabId);
   }
 }
 
@@ -182,10 +192,6 @@ function syncVuBroadcastLoop(): void {
   }
 }
 
-/**
- * 확장을 새로 설치·리로드한 직후 이미 열려 있던 탭에서도 새로고침 없이 미디어가 잡히도록 훅을 주입한다.
- * audio-hook과 content-bridge 모두 내부 멱등성 가드가 있어 이미 주입된 탭에서는 상태 보고만 갱신된다.
- */
 async function probeExistingOpenTabs(): Promise<void> {
   try {
     const tabs = await chrome.tabs.query({});
@@ -205,9 +211,7 @@ async function probeExistingOpenTabs(): Promise<void> {
             world: "ISOLATED",
           }),
         )
-        .catch(() => {
-          // 브라우저 보호 페이지(웹 스토어 등)는 조용히 건너뜀
-        });
+        .catch(() => {});
     }
   } catch {
     // 탭 조회 실패 무시
@@ -289,6 +293,41 @@ async function handlePopupAction(msg: PopupActionMessage): Promise<void> {
       broadcastSnapshotAndBadge();
       break;
 
+    case "TOGGLE_AUTO_NORM":
+      store.toggleAutoNorm();
+      pushDspToAllTabs();
+      await persistSettings();
+      broadcastSnapshotAndBadge();
+      break;
+
+    case "SET_ADV_RACK_OPEN":
+      store.setAdvRackOpen(msg.open);
+      await persistSettings();
+      broadcastSnapshotAndBadge();
+      break;
+
+    case "UPDATE_TAB_FX":
+      if (store.updateTabFx(msg.tabId, msg.patch)) {
+        pushDspToTab(msg.tabId);
+        broadcastSnapshotAndBadge();
+      }
+      break;
+
+    case "REORDER_CHANNELS": {
+      const res = store.reorderChannels(
+        msg.movedTabId,
+        msg.targetZone,
+        msg.orderedPlayingIds,
+        msg.orderedPausedIds,
+      );
+      if (res.shouldTogglePlay) {
+        sendCommandToTab(msg.movedTabId, { type: "SET_PLAYING", shouldPlay: res.nextPlaying });
+        pushGainsToAllTabs();
+      }
+      broadcastSnapshotAndBadge();
+      break;
+    }
+
     case "SET_ALL_PLAYING": {
       const snap = store.buildSnapshot();
       for (const ch of snap.channels) {
@@ -365,12 +404,13 @@ chrome.runtime.onMessage.addListener((rawMsg: unknown, sender, sendResponse) => 
           bridgeMsg.payload,
         );
         pushGainToTab(tabId, frameId);
+        pushDspToTab(tabId, frameId);
         if (popupPorts.size > 0) {
           sendCommandToTab(tabId, { type: "SET_METERING", active: true }, frameId);
         }
         broadcastSnapshotAndBadge();
       } else if (bridgeMsg.type === "FRAME_VU") {
-        store.updateFrameVu(tabId, frameId, bridgeMsg.vuLevel, bridgeMsg.vuPeak);
+        store.updateFrameVu(tabId, frameId, bridgeMsg.vuLevel, bridgeMsg.vuPeak, bridgeMsg.normTrimDb);
       } else if (bridgeMsg.type === "FRAME_UNLOAD") {
         store.removeFrame(tabId, frameId);
         broadcastSnapshotAndBadge();
@@ -412,6 +452,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     });
     if (changeInfo.url !== undefined) {
       pushGainToTab(tabId);
+      pushDspToTab(tabId);
     }
     broadcastSnapshotAndBadge();
   });

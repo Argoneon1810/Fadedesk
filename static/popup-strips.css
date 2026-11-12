@@ -19,10 +19,50 @@
 
 .channel-strip {
   width: 94px;
+  padding-top: 4px;
 }
 
 .channel-strip[data-selected="true"] {
   box-shadow: inset 0 0 0 1px var(--c-primary);
+}
+
+.channel-strip[data-dragging="true"] {
+  opacity: 0.52;
+}
+
+.grip-bar {
+  height: 14px;
+  padding: 0 2px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: grab;
+  opacity: 0.82;
+  touch-action: none;
+  flex-shrink: 0;
+}
+
+.grip-bar:hover {
+  opacity: 1;
+}
+
+.grip-bar:active {
+  cursor: grabbing;
+}
+
+.grip-dots {
+  color: var(--c-muted);
+  display: inline-flex;
+  align-items: center;
+}
+
+.norm-badge {
+  font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+  font-size: 9px;
+  line-height: 12px;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-weight: 700;
 }
 
 .master-strip {
@@ -50,6 +90,7 @@
   text-align: left;
   cursor: pointer;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .strip-header-row1 {
@@ -113,6 +154,7 @@
   flex-direction: column;
   justify-content: space-between;
   text-align: center;
+  flex-shrink: 0;
 }
 
 .master-kicker {
@@ -128,12 +170,13 @@
 /* 음각 페이더 우물 + 캡 + VU 미터 */
 .fader-well {
   position: relative;
-  height: 150px;
+  flex: 1 1 auto;
+  min-height: 148px;
   border-radius: 6px;
   border: 1px solid var(--c-border);
   padding: 9px 8px;
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
   background: var(--c-bg);
 }
@@ -157,7 +200,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: ns-resize;
+  cursor: default;
 }
 
 .master-strip .fader-track {
@@ -197,6 +240,21 @@
   border-radius: 9999px;
 }
 
+.attenuated-band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  opacity: 0.52;
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--c-primary),
+    var(--c-primary) 1.5px,
+    transparent 1.5px,
+    transparent 4px
+  );
+}
+
 .cors-zone {
   position: absolute;
   left: 0;
@@ -212,23 +270,6 @@
   );
 }
 
-.delta-bar {
-  position: absolute;
-  width: 3px;
-  border-radius: 9999px;
-  pointer-events: none;
-}
-
-.ghost-cap {
-  position: absolute;
-  width: 18px;
-  height: 5px;
-  border-radius: 2px;
-  border: 1px solid var(--c-primary);
-  background: var(--c-bg);
-  pointer-events: none;
-}
-
 .fader-cap {
   position: absolute;
   width: 22px;
@@ -240,7 +281,13 @@
   align-items: center;
   justify-content: center;
   gap: 1.5px;
-  pointer-events: none;
+  cursor: grab;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.fader-cap:active {
+  cursor: grabbing;
 }
 
 .master-strip .fader-cap {
@@ -292,12 +339,13 @@
   height: 100%;
   display: flex;
   flex-direction: column-reverse;
-  justify-content: space-between;
+  gap: 2px;
 }
 
 .vu-seg {
   width: 100%;
-  height: 5px;
+  flex: 1 1 0;
+  min-height: 3.5px;
   border-radius: 1px;
   display: block;
 }
@@ -311,6 +359,7 @@
   text-align: center;
   cursor: text;
   overflow: hidden;
+  flex-shrink: 0;
   transition: border-color 100ms ease, box-shadow 100ms ease;
 }
 
@@ -382,6 +431,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .play-btn {
@@ -416,6 +466,7 @@
   padding: 2px;
   border-radius: 6px;
   border: 1px solid var(--c-border);
+  flex-shrink: 0;
 }
 
 .switch-btn {
@@ -444,6 +495,7 @@
   font-size: 11px;
   font-weight: 500;
   gap: 4px;
+  flex-shrink: 0;
 }
 
 .master-mute-btn {
@@ -453,4 +505,29 @@
   font-size: 11px;
   font-weight: 500;
   gap: 4px;
+  flex-shrink: 0;
+}
+
+/* 드래그 앤 드롭 표시기 */
+.drop-marker {
+  width: 3px;
+  border-radius: 9999px;
+  background: var(--c-primary);
+  box-shadow: 0 0 8px var(--c-primary);
+  flex-shrink: 0;
+  margin: 6px -2px;
+}
+
+.drop-zone-empty {
+  width: 84px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  border: 1px dashed var(--c-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--c-muted);
+  text-align: center;
+  padding: 0 8px;
 }

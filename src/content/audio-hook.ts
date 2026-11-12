@@ -1,37 +1,33 @@
+import { dbToRatio, linearToDb } from "../shared/mixer-math";
 import {
   BRIDGE_TO_HOOK_EVENT,
   HOOK_TO_BRIDGE_EVENT,
+  type DspConfigPayload,
   type FrameMediaPayload,
   type HookCommand,
   type HookReportEvent,
 } from "../shared/types";
-import { linearToDb, dbToRatio } from "../shared/mixer-math";
-import {
-  applyGainParamSmooth,
-  computePeakRatioFromAnalyser,
-  installPageWebAudioPatch,
-  type WrappedContextEntry,
-} from "./webaudio-patch";
+import { createDspChain, DEFAULT_DSP_CONFIG, type DspChainInstance } from "./dsp-chain";
+import { installPageWebAudioPatch, type WrappedContextEntry } from "./webaudio-patch";
 
 /**
  * 페이지 MAIN 월드에서 실행되는 비침습 오디오 제어 엔진 (chrome.tabCapture 미사용).
- * - 동일 출처 / MSE(blob:) 미디어: WebAudio GainNode로 -60dB(-∞) ~ +12dB 무손실 제어 + 실시간 파형 피크 측정
+ * - 동일 출처 / MSE(blob:) 미디어: WebAudio DSP 체인(노멀라이저·게이트·컴프레서·페이더·패닝·안전 리미터) 제어
  * - 교차 출처(CORS 미허용) / EME(DRM) / MediaStream(srcObject): 소리 끊김을 막기 위해 네이티브 volume(0..1, 0dB 상한) 폴백
- * - 순수 WebAudio 앱(AudioContext.destination 직결): 목적지 앞단에 마스터 GainNode를 삽입해 동일하게 제어
+ * - 순수 WebAudio 앱(AudioContext.destination 직결): 목적지 앞단에 동일한 DSP 체인을 삽입해 제어
  */
 
 const METER_INTERVAL_MS = 75;
 
 interface ElementAudioEntry {
-  gainNode: GainNode;
-  analyser: AnalyserNode;
-  buffer: Float32Array<ArrayBuffer>;
+  dspChain: DspChainInstance;
 }
 
 export interface AudioHookController {
   dispatchCommand: (cmd: HookCommand) => void;
   registerElement: (el: HTMLMediaElement) => void;
   getSnapshot: () => FrameMediaPayload;
+  stepTick: () => void;
   dispose: () => void;
 }
 
@@ -49,11 +45,13 @@ export function installAudioHook(win: Window & typeof globalThis): AudioHookCont
   const origVolSet = volDesc?.set;
 
   let targetGain = 1.0;
+  let currentDsp: DspConfigPayload = { ...DEFAULT_DSP_CONFIG };
   let meteringActive = false;
   let meterTimer: ReturnType<typeof setInterval> | null = null;
   let reportTimer: ReturnType<typeof setTimeout> | null = null;
   let vuCur = 0;
   let vuPeak = 0;
+  let lastNormTrimDb = 0;
   let sharedCtx: AudioContext | null = null;
 
   const trackedElements = new Set<HTMLMediaElement>();
@@ -137,18 +135,9 @@ export function installAudioHook(win: Window & typeof globalThis): AudioHookCont
 
     try {
       const source = ctx.createMediaElementSource(el);
-      const gainNode = ctx.createGain();
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
-      gainNode.gain.value = Math.max(0, targetGain);
-
-      internalBypassNodes.add(analyser);
-      source.connect(gainNode);
-      gainNode.connect(analyser);
-      analyser.connect(ctx.destination);
-
-      const buffer = new Float32Array(new ArrayBuffer(analyser.fftSize * 4));
-      hookedEntries.set(el, { gainNode, analyser, buffer });
+      const dspChain = createDspChain(ctx, targetGain, currentDsp, internalBypassNodes);
+      source.connect(dspChain.inputNode);
+      hookedEntries.set(el, { dspChain });
       if (ctx.state === "suspended" && !el.paused) {
         void ctx.resume().catch(() => {});
       }
@@ -171,7 +160,8 @@ export function installAudioHook(win: Window & typeof globalThis): AudioHookCont
       if (!el.paused && sharedCtx.state === "suspended") {
         void sharedCtx.resume().catch(() => {});
       }
-      applyGainParamSmooth(entry.gainNode.gain, sharedCtx, targetGain);
+      entry.dspChain.applyFaderGain(targetGain);
+      entry.dspChain.syncStaticDsp(currentDsp);
     } else {
       // 네이티브 폴백: 증폭(>1.0)은 1.0(0dB)으로 상한 고정, 감쇠·음소거는 그대로 적용
       const clampedGain = Math.max(0, Math.min(1, targetGain));
@@ -185,8 +175,22 @@ export function installAudioHook(win: Window & typeof globalThis): AudioHookCont
     }
     for (const wc of pageContexts) {
       if (wc.ctx.state !== "closed") {
-        applyGainParamSmooth(wc.busGain.gain, wc.ctx, targetGain);
+        wc.dspChain.applyFaderGain(targetGain);
       }
+    }
+  }
+
+  function syncAllDsp(): void {
+    for (const el of trackedElements) {
+      hookedEntries.get(el)?.dspChain.syncStaticDsp(currentDsp);
+    }
+    for (const wc of pageContexts) {
+      if (wc.ctx.state !== "closed") {
+        wc.dspChain.syncStaticDsp(currentDsp);
+      }
+    }
+    if (!currentDsp.normActive) {
+      lastNormTrimDb = 0;
     }
   }
 
@@ -215,9 +219,15 @@ export function installAudioHook(win: Window & typeof globalThis): AudioHookCont
     const onPlay = (): void => {
       lastActiveElements.add(el);
       syncElementGain(el);
+      updateProcessingLoop();
       scheduleReport();
     };
     const onStateChange = (): void => {
+      syncElementGain(el);
+      scheduleReport();
+    };
+    const onTrackChange = (): void => {
+      hookedEntries.get(el)?.dspChain.notifyTrackTransition();
       syncElementGain(el);
       scheduleReport();
     };
@@ -227,25 +237,33 @@ export function installAudioHook(win: Window & typeof globalThis): AudioHookCont
     el.addEventListener("playing", onPlay, { passive: true });
     el.addEventListener("pause", onStateChange, { passive: true });
     el.addEventListener("ended", onStateChange, { passive: true });
-    el.addEventListener("loadedmetadata", onStateChange, { passive: true });
-    el.addEventListener("emptied", onStateChange, { passive: true });
+    el.addEventListener("loadedmetadata", onTrackChange, { passive: true });
+    el.addEventListener("durationchange", onTrackChange, { passive: true });
+    el.addEventListener("emptied", onTrackChange, { passive: true });
 
     syncElementGain(el);
     scheduleReport();
   }
 
-  function sampleInstantVuRatio(): number {
-    if (targetGain <= 0) return 0;
+  function runAudioTick(): void {
     let maxRatio = 0;
+    let activeTrimDb = 0;
+    let hasActiveChain = false;
 
     for (const el of trackedElements) {
-      if (el.paused || el.ended || el.muted) continue;
+      const isPlaying = !el.paused && !el.ended && !el.muted;
       const entry = hookedEntries.get(el);
       if (entry) {
-        const r = computePeakRatioFromAnalyser(entry.analyser, entry.buffer);
-        if (r > maxRatio) maxRatio = r;
-      } else {
-        // CORS/DRM 네이티브 폴백 요소는 현재 실효 볼륨 비례 엔벨로프로 활성 신호를 표시
+        const trim = entry.dspChain.tickDynamicDsp(currentDsp, isPlaying);
+        if (isPlaying || !hasActiveChain) {
+          activeTrimDb = trim;
+          hasActiveChain = isPlaying || hasActiveChain;
+        }
+        if (meteringActive && isPlaying && targetGain > 0) {
+          const r = entry.dspChain.readPostVuRatio();
+          if (r > maxRatio) maxRatio = r;
+        }
+      } else if (meteringActive && isPlaying && targetGain > 0) {
         const effVol = readSiteVolume(el) * Math.min(1, targetGain);
         if (effVol > 0) {
           const jitter = 0.88 + Math.random() * 0.2;
@@ -256,27 +274,43 @@ export function installAudioHook(win: Window & typeof globalThis): AudioHookCont
     }
 
     for (const wc of pageContexts) {
-      if (wc.ctx.state === "running" && wc.hasConnectedNodes) {
-        const r = computePeakRatioFromAnalyser(wc.analyser, wc.buffer);
+      if (wc.ctx.state === "closed" || !wc.hasConnectedNodes) continue;
+      const isPlaying = wc.ctx.state === "running";
+      const trim = wc.dspChain.tickDynamicDsp(currentDsp, isPlaying);
+      if (isPlaying || !hasActiveChain) {
+        activeTrimDb = trim;
+        hasActiveChain = isPlaying || hasActiveChain;
+      }
+      if (meteringActive && isPlaying && targetGain > 0) {
+        const r = wc.dspChain.readPostVuRatio();
         if (r > maxRatio) maxRatio = r;
       }
     }
-    return Math.max(0, Math.min(1, maxRatio));
+
+    lastNormTrimDb = currentDsp.normActive ? activeTrimDb : 0;
+
+    if (meteringActive) {
+      const instant = Math.max(0, Math.min(1, maxRatio));
+      vuCur = instant > vuCur ? vuCur + (instant - vuCur) * 0.62 : Math.max(0, vuCur - 0.05);
+      vuPeak = vuCur >= vuPeak ? vuCur : Math.max(vuCur, vuPeak - 0.015);
+      emitToBridge({
+        type: "VU_TICK",
+        vuLevel: Math.round(vuCur * 1000) / 1000,
+        vuPeak: Math.round(vuPeak * 1000) / 1000,
+        normTrimDb: lastNormTrimDb,
+      });
+    }
   }
 
-  function updateMeteringTimer(): void {
-    if (meteringActive && !meterTimer) {
-      meterTimer = setInterval(() => {
-        const instant = sampleInstantVuRatio();
-        vuCur = instant > vuCur ? vuCur + (instant - vuCur) * 0.62 : Math.max(0, vuCur - 0.05);
-        vuPeak = vuCur >= vuPeak ? vuCur : Math.max(vuCur, vuPeak - 0.015);
-        emitToBridge({
-          type: "VU_TICK",
-          vuLevel: Math.round(vuCur * 1000) / 1000,
-          vuPeak: Math.round(vuPeak * 1000) / 1000,
-        });
-      }, METER_INTERVAL_MS);
-    } else if (!meteringActive && meterTimer) {
+  /**
+   * 팝업이 닫혀 있어도(meteringActive === false) 노멀라이저나 노이즈 게이트가 켜져 있으면
+   * 페이지 내부에서만 경량 DSP 루프를 유지하고 브리지 IPC 전송은 생략한다.
+   */
+  function updateProcessingLoop(): void {
+    const needsLoop = meteringActive || currentDsp.normActive || currentDsp.gateEnabled;
+    if (needsLoop && !meterTimer) {
+      meterTimer = setInterval(runAudioTick, METER_INTERVAL_MS);
+    } else if (!needsLoop && meterTimer) {
       clearInterval(meterTimer);
       meterTimer = null;
       vuCur = 0;
@@ -319,6 +353,7 @@ export function installAudioHook(win: Window & typeof globalThis): AudioHookCont
       mediaTitle: sessionTitle,
       vuLevel: vuCur,
       vuPeak,
+      normTrimDb: lastNormTrimDb,
     };
   }
 
@@ -351,7 +386,6 @@ export function installAudioHook(win: Window & typeof globalThis): AudioHookCont
       return;
     }
 
-    // 가장 최근에 재생 중이던 미디어 요소를 우선 재개하고, 없으면 유효 소스가 있는 첫 미디어를 재생
     const candidates =
       lastActiveElements.size > 0
         ? Array.from(lastActiveElements).filter((el) => trackedElements.has(el))
@@ -376,6 +410,11 @@ export function installAudioHook(win: Window & typeof globalThis): AudioHookCont
         targetGain = Math.max(0, Number.isFinite(cmd.targetGain) ? cmd.targetGain : 1);
         syncAllGains();
         break;
+      case "APPLY_DSP":
+        currentDsp = { ...DEFAULT_DSP_CONFIG, ...cmd.dsp };
+        syncAllDsp();
+        updateProcessingLoop();
+        break;
       case "SET_PLAYING":
         setFramePlaying(cmd.shouldPlay);
         break;
@@ -386,7 +425,11 @@ export function installAudioHook(win: Window & typeof globalThis): AudioHookCont
       }
       case "SET_METERING":
         meteringActive = cmd.active;
-        updateMeteringTimer();
+        if (!meteringActive) {
+          vuCur = 0;
+          vuPeak = 0;
+        }
+        updateProcessingLoop();
         break;
       case "REQUEST_REPORT":
         emitToBridge({ type: "MEDIA_REPORT", payload: buildSnapshot() });
@@ -394,7 +437,6 @@ export function installAudioHook(win: Window & typeof globalThis): AudioHookCont
     }
   }
 
-  // 1. HTMLMediaElement 프로토타입 훅 (오프-DOM new Audio() 포함 전수 포착 + 볼륨 가상화)
   if (MediaProto && origVolGet && origVolSet) {
     const origPlay = MediaProto.play;
     MediaProto.play = function patchedPlay(this: HTMLMediaElement): Promise<void> {
@@ -420,7 +462,6 @@ export function installAudioHook(win: Window & typeof globalThis): AudioHookCont
     });
   }
 
-  // 2. 페이지 자체 WebAudio AudioContext 목적지 훅
   installPageWebAudioPatch({
     win,
     OrigAudioCtx,
@@ -428,10 +469,10 @@ export function installAudioHook(win: Window & typeof globalThis): AudioHookCont
     internalBypassNodes,
     pageContexts,
     getTargetGain: () => targetGain,
+    getDspConfig: () => currentDsp,
     onActivityChange: scheduleReport,
   });
 
-  // 3. 기존 DOM 미디어 스캔 및 동적 추가 감시
   function scanNodeForMedia(root: ParentNode): void {
     root.querySelectorAll?.("video, audio").forEach((node) => {
       registerElement(node as HTMLMediaElement);
@@ -479,6 +520,7 @@ export function installAudioHook(win: Window & typeof globalThis): AudioHookCont
     dispatchCommand,
     registerElement,
     getSnapshot: buildSnapshot,
+    stepTick: runAudioTick,
     dispose: () => {
       if (meterTimer) clearInterval(meterTimer);
       if (reportTimer) clearTimeout(reportTimer);

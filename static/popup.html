@@ -6,6 +6,7 @@
   <title>Sound Manager</title>
   <link rel="stylesheet" href="popup.css" />
   <link rel="stylesheet" href="popup-strips.css" />
+  <link rel="stylesheet" href="popup-fx.css" />
 </head>
 <body>
   <div id="console-root" data-dark="true">
@@ -51,6 +52,18 @@
           class="console-btn reset-modes-btn c-raised"
           disabled
         >S·F 해제</button>
+        <button
+          id="auto-norm-btn"
+          type="button"
+          title="전역 자동 노멀라이저(균일 N): '전역 따름' 채널에만 표준 프리셋을 적용하며 고급 개별 설정을 덮어쓰지 않습니다"
+          class="console-btn top-toggle-btn c-raised"
+        >균일 N</button>
+        <button
+          id="adv-rack-btn"
+          type="button"
+          title="선택 채널 고급 FX 사이드 랙 열기/닫기"
+          class="console-btn top-toggle-btn c-raised"
+        >고급 FX ▸</button>
       </div>
     </header>
 
@@ -67,10 +80,11 @@
       </div>
     </div>
 
-    <!-- 콘솔 스트립 베이: 좌측 가변/가로 스크롤 채널 구역 + 우측 고정 MASTER BUS -->
+    <!-- 콘솔 스트립 베이: 좌측 가변/가로 스크롤 채널 구역 + 우측 고정 MASTER BUS + 우측 도킹 고급 FX 사이드 랙 -->
     <main class="console-bay">
       <div id="channels-scroll" class="channels-scroll"></div>
       <div id="master-dock" class="master-dock"></div>
+      <aside id="side-fx-rack" class="side-fx-rack c-surface hidden" aria-label="선택 채널 고급 FX"></aside>
     </main>
   </div>
 

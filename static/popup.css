@@ -47,7 +47,7 @@ button {
   display: inline-flex;
   flex-direction: column;
   min-width: 400px;
-  max-width: min(780px, 100vw);
+  max-width: min(792px, 100vw);
   background: var(--c-bg);
   color: var(--c-text);
   border: 1px solid var(--c-border);
@@ -118,7 +118,7 @@ button {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  column-gap: 12px;
+  column-gap: 10px;
   row-gap: 6px;
   padding: 6px 12px;
   min-height: 42px;
@@ -164,7 +164,7 @@ button {
   font-size: 12px;
   white-space: nowrap;
   min-width: 0;
-  max-width: 190px;
+  max-width: 176px;
 }
 
 .status-dot {
@@ -181,7 +181,7 @@ button {
 .deck-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
   margin-left: auto;
 }
@@ -210,11 +210,11 @@ button {
 
 .alpha-track {
   position: relative;
-  width: 56px;
+  width: 48px;
   height: 14px;
   display: flex;
   align-items: center;
-  cursor: ew-resize;
+  cursor: default;
   flex-shrink: 0;
 }
 
@@ -241,18 +241,32 @@ button {
   height: 14px;
   border-radius: 3px;
   border: 1px solid var(--c-border);
-  pointer-events: none;
+  cursor: grab;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.alpha-thumb:active {
+  cursor: grabbing;
 }
 
 .alpha-readout {
   font-family: Consolas, "SFMono-Regular", Menlo, monospace;
   font-size: 11px;
   white-space: nowrap;
-  min-width: 76px;
+  min-width: 72px;
   text-align: right;
 }
 
 .reset-modes-btn {
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.top-toggle-btn {
   height: 26px;
   padding: 0 8px;
   border-radius: 6px;
@@ -362,7 +376,7 @@ button {
   gap: 8px;
   padding: 10px;
   overflow-x: auto;
-  min-width: 0;
+  min-width: 114px;
 }
 
 .channels-scroll::-webkit-scrollbar {

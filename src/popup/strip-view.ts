@@ -8,6 +8,7 @@ import {
   MAX_DB,
   MIN_DB,
   ratioToDb,
+  resolveEffectiveNormalizer,
   SCALE_TICKS,
   type MixerContextInput,
 } from "../shared/mixer-math";
@@ -16,11 +17,12 @@ import { attachDbInlineEditor } from "./db-inline-editor";
 import { ICONS } from "./icons";
 
 /**
- * 개별 채널 스트립 및 우측 고정 MASTER BUS 스트립의 DOM 생성과 상태 동기화 뷰 모듈.
+ * 개별 채널 스트립의 DOM 생성, 노브 전용 드래그, 슬롯 투톤 게이지(빗금), VU 미터 동기화 뷰 모듈.
  */
 
 export interface StripCallbacks {
   onSelectChannel: (tabId: number) => void;
+  onBeginDragChannel: (ev: PointerEvent, tabId: number) => void;
   onSetTabDb: (tabId: number, db: number) => void;
   onToggleMute: (tabId: number) => void;
   onToggleMode: (tabId: number, mode: ExclusiveMode, shiftKey: boolean) => void;
@@ -42,15 +44,16 @@ export interface ChannelStripRefs {
   tabId: number;
   el: HTMLElement;
   topAccent: HTMLElement;
+  grip: HTMLElement;
+  normBadge: HTMLElement;
   header: HTMLButtonElement;
   faviconBox: HTMLElement;
   hostLabel: HTMLElement;
   titleEl: HTMLElement;
   track: HTMLElement;
   fill: HTMLElement;
+  attenBand: HTMLElement;
   corsZone: HTMLElement;
-  deltaBar: HTMLElement;
-  ghostCap: HTMLElement;
   knob: HTMLElement;
   knobLine: HTMLElement;
   scaleItems: Array<{ db: number; el: HTMLDivElement }>;
@@ -70,23 +73,33 @@ export interface ChannelStripRefs {
   renderedFavIcon: string;
 }
 
-export function attachPointerDrag(
-  el: HTMLElement,
+/**
+ * 페이더·슬라이더 노브 전용 포인터 드래그 핸들러.
+ * 빈 트랙이나 실효 볼륨 게이지 클릭 시 의도치 않게 노브가 점프하던 미스디렉션을 차단하고,
+ * 더블클릭(0.0dB / 기본값 복귀)만 노브와 트랙 모두에서 허용한다.
+ */
+export function attachKnobDrag(
+  knobEl: HTMLElement,
+  trackEl: HTMLElement,
   axis: "x" | "y",
   onRatio: (ratio: number) => void,
   onReset?: () => void,
 ): void {
   if (onReset) {
-    el.addEventListener("dblclick", (ev) => {
+    const resetHandler = (ev: MouseEvent): void => {
       ev.preventDefault();
+      ev.stopPropagation();
       onReset();
-    });
+    };
+    knobEl.addEventListener("dblclick", resetHandler);
+    trackEl.addEventListener("dblclick", resetHandler);
   }
-  el.addEventListener("pointerdown", (ev) => {
+  knobEl.addEventListener("pointerdown", (ev) => {
     if (ev.button !== 0 || ev.detail >= 2) return;
     ev.preventDefault();
+    ev.stopPropagation();
     const apply = (moveEv: PointerEvent): void => {
-      const rect = el.getBoundingClientRect();
+      const rect = trackEl.getBoundingClientRect();
       if (rect.width <= 0 || rect.height <= 0) return;
       const raw =
         axis === "y"
@@ -94,7 +107,6 @@ export function attachPointerDrag(
           : (moveEv.clientX - rect.left) / rect.width;
       onRatio(Math.max(0, Math.min(1, raw)));
     };
-    apply(ev);
     const onMove = (moveEv: PointerEvent): void => apply(moveEv);
     const onUp = (): void => {
       window.removeEventListener("pointermove", onMove);
@@ -137,7 +149,7 @@ export function paintLedColumn(
     const isLit = i < litCount;
     const isPeak = i === peakIdx && peakIdx >= litCount;
     seg.style.backgroundColor = isLit || isPeak ? segColor : t.border;
-    seg.style.opacity = isLit ? "0.95" : isPeak ? "0.85" : "0.28";
+    seg.style.opacity = isLit ? "0.95" : isPeak ? "0.85" : "0.26";
   }
 }
 
@@ -173,7 +185,12 @@ function syncSwitchStyle(
 
 function renderFaviconInto(box: HTMLElement, favIconUrl: string): void {
   box.innerHTML = "";
-  if (favIconUrl && (favIconUrl.startsWith("http://") || favIconUrl.startsWith("https://") || favIconUrl.startsWith("data:"))) {
+  if (
+    favIconUrl &&
+    (favIconUrl.startsWith("http://") ||
+      favIconUrl.startsWith("https://") ||
+      favIconUrl.startsWith("data:"))
+  ) {
     const img = document.createElement("img");
     img.src = favIconUrl;
     img.alt = "";
@@ -198,6 +215,10 @@ export function buildChannelStripDom(
   el.dataset.tabId = String(initialCh.tabId);
   el.innerHTML = `
     <div data-ref="topAccent" class="strip-top-accent"></div>
+    <div data-ref="grip" class="grip-bar" title="드래그하여 채널 순서 변경 · 재생↔일시정지 구역 이동 시 즉시 전환">
+      <span class="grip-dots">${ICONS.grip}</span>
+      <span data-ref="normBadge" class="norm-badge hidden">N</span>
+    </div>
     <button data-ref="header" type="button" class="strip-header">
       <div class="strip-header-row1">
         <span data-ref="faviconBox" class="favicon-box">${ICONS.waveBadge}</span>
@@ -207,24 +228,21 @@ export function buildChannelStripDom(
       <div data-ref="titleEl" class="strip-title truncate"></div>
     </button>
 
-    <div class="fader-well">
-      <div data-ref="track" class="fader-track" title="드래그·휠 조절 (Shift+휠 미세) · 더블클릭 0.0dB 복귀">
+    <div data-ref="faderWell" class="fader-well">
+      <div data-ref="track" class="fader-track" title="노브 드래그 · 휠 조절 (Shift+휠 미세) · 더블클릭 0.0dB 복귀">
         <span class="unity-wing-l" style="bottom:${zeroPct}%"></span>
         <span class="unity-wing-r" style="bottom:${zeroPct}%"></span>
         <div class="fader-slot">
           <div data-ref="fill" class="fader-fill"></div>
+          <div data-ref="attenBand" class="attenuated-band hidden"></div>
           <div data-ref="corsZone" class="cors-zone hidden" style="height:${100 - zeroPct}%"></div>
         </div>
-        <div data-ref="deltaBar" class="delta-bar hidden"></div>
-        <div data-ref="ghostCap" class="ghost-cap hidden"></div>
-        <div data-ref="knob" class="fader-cap">
+        <div data-ref="knob" class="fader-cap" title="노브를 잡아 위아래로 드래그 · 더블클릭 시 0.0dB 복귀">
           <span class="cap-groove-sub"></span>
           <span data-ref="knobLine" class="cap-groove-main"></span>
           <span class="cap-groove-sub"></span>
         </div>
       </div>
-      <div data-ref="scaleSlot" style="height:100%;display:flex;align-items:center"></div>
-      <div data-ref="vuSlot" style="height:100%;display:flex;align-items:center"></div>
     </div>
 
     <div data-ref="readoutBtn" role="button" tabindex="0" title="클릭하여 dB 직접 입력 (Enter 적용 · Esc 취소)" class="readout-btn c-recessed">
@@ -262,23 +280,25 @@ export function buildChannelStripDom(
 
   const scale = buildScaleDom();
   const vu = createLedColumn();
-  el.querySelector('[data-ref="scaleSlot"]')!.appendChild(scale.wrap);
-  el.querySelector('[data-ref="vuSlot"]')!.appendChild(vu.col);
+  const well = el.querySelector('[data-ref="faderWell"]')!;
+  well.appendChild(scale.wrap);
+  well.appendChild(vu.col);
 
   const q = <T extends HTMLElement>(name: string): T => el.querySelector(`[data-ref="${name}"]`) as T;
   const refs: ChannelStripRefs = {
     tabId: initialCh.tabId,
     el,
     topAccent: q("topAccent"),
+    grip: q("grip"),
+    normBadge: q("normBadge"),
     header: q("header"),
     faviconBox: q("faviconBox"),
     hostLabel: q("hostLabel"),
     titleEl: q("titleEl"),
     track: q("track"),
     fill: q("fill"),
+    attenBand: q("attenBand"),
     corsZone: q("corsZone"),
-    deltaBar: q("deltaBar"),
-    ghostCap: q("ghostCap"),
     knob: q("knob"),
     knobLine: q("knobLine"),
     scaleItems: scale.items,
@@ -299,6 +319,7 @@ export function buildChannelStripDom(
   };
 
   el.addEventListener("pointerdown", () => cb.onSelectChannel(initialCh.tabId), { passive: true });
+  refs.grip.addEventListener("pointerdown", (ev) => cb.onBeginDragChannel(ev, initialCh.tabId));
   el.addEventListener(
     "wheel",
     (ev) => {
@@ -313,7 +334,8 @@ export function buildChannelStripDom(
     { passive: false },
   );
 
-  attachPointerDrag(
+  attachKnobDrag(
+    refs.knob,
     refs.track,
     "y",
     (ratio) => {
@@ -352,6 +374,43 @@ export function buildChannelStripDom(
   return refs;
 }
 
+export function syncChannelReadoutSub(
+  r: ChannelStripRefs,
+  ch: TabChannelState,
+  settings: PersistedSettings,
+  ctx: MixerContextInput,
+  t: ThemeTokens,
+): void {
+  if (r.readoutBtn.dataset.editing === "true") return;
+  const effDb = computeDisplayedEffectiveDb(ch, ctx);
+  const userPct = dbToRatio(ch.db) * 100;
+  const effPct = Number.isFinite(effDb) ? dbToRatio(Math.min(MAX_DB, effDb)) * 100 : 0;
+  const attenuated = (ctx.anyFocus || ctx.anySolo) && ch.playing && !ch.muted && userPct - effPct > 0.5;
+  const pinned = isChannelPinned(settings.domainDefaults, ch.domain, ch.db);
+  const norm = resolveEffectiveNormalizer(settings.autoNormEnabled, ch.fx, ch.corsCap);
+
+  if (ch.corsCap) {
+    r.subText.textContent = "보안 0dB 상한";
+    r.subText.style.color = t.muted;
+  } else if (!ch.playing) {
+    r.subText.textContent = "일시정지";
+    r.subText.style.color = t.muted;
+  } else if (ch.muted) {
+    r.subText.textContent = "음소거";
+    r.subText.style.color = t.states.danger;
+  } else if (attenuated) {
+    r.subText.textContent = `실효 ${formatDb(effDb)}dB`;
+    r.subText.style.color = t.primary;
+  } else if (norm.active) {
+    const sign = ch.normTrimDb >= 0 ? "+" : "";
+    r.subText.textContent = `균일 ${sign}${ch.normTrimDb.toFixed(1)}dB`;
+    r.subText.style.color = norm.source === "custom-on" ? t.accent : t.primary;
+  } else {
+    r.subText.textContent = pinned ? "도메인 고정" : "개별 볼륨";
+    r.subText.style.color = pinned ? t.accent : t.muted;
+  }
+}
+
 export function syncChannelStripDom(
   r: ChannelStripRefs,
   ch: TabChannelState,
@@ -363,11 +422,12 @@ export function syncChannelStripDom(
   const effDb = computeDisplayedEffectiveDb(ch, ctx);
   const userPct = dbToRatio(ch.db) * 100;
   const effPct = Number.isFinite(effDb) ? dbToRatio(Math.min(MAX_DB, effDb)) * 100 : 0;
-  const dimmed = Number.isFinite(effDb) && Math.abs(effDb - (ch.db + settings.masterDb)) > 0.1;
-  const silencedByMode = !Number.isFinite(effDb) && ch.playing && !ch.muted && ch.db > MIN_DB;
+  const attenuated = (ctx.anyFocus || ctx.anySolo) && ch.playing && !ch.muted && userPct - effPct > 0.5;
   const pinned = isChannelPinned(settings.domainDefaults, ch.domain, ch.db);
+  const norm = resolveEffectiveNormalizer(settings.autoNormEnabled, ch.fx, ch.corsCap);
 
   r.el.dataset.selected = String(selected);
+  r.el.dataset.zone = ch.playing ? "playing" : "paused";
   r.el.style.backgroundColor = ch.playing ? t.raised : t.surface;
   r.el.style.borderColor = ch.focus ? t.primary : ch.solo ? t.accent : t.border;
   r.el.style.opacity = ch.playing ? "1" : "0.74";
@@ -379,6 +439,25 @@ export function syncChannelStripDom(
         ? t.states.danger
         : "transparent";
 
+  const showCustomOff = !ch.corsCap && ch.fx.normMode === "off" && settings.autoNormEnabled;
+  r.normBadge.classList.toggle("hidden", !(norm.active || showCustomOff));
+  if (norm.source === "custom-on") {
+    r.normBadge.textContent = "N*";
+    r.normBadge.style.backgroundColor = t.accent;
+    r.normBadge.style.color = t.onAccent;
+    r.normBadge.title = "개별 노멀라이저 고정 ON";
+  } else if (showCustomOff) {
+    r.normBadge.textContent = "N×";
+    r.normBadge.style.backgroundColor = t.surface;
+    r.normBadge.style.color = t.muted;
+    r.normBadge.title = "전역 균일 N 개별 제외됨";
+  } else {
+    r.normBadge.textContent = "N";
+    r.normBadge.style.backgroundColor = t.primary;
+    r.normBadge.style.color = t.onPrimary;
+    r.normBadge.title = "전역 균일 N 적용 중";
+  }
+
   r.header.title = `${ch.title}${ch.domain ? ` (${ch.domain})` : ""} — 클릭 시 해당 탭·창으로 이동`;
   r.faviconBox.style.borderColor = ch.focus ? t.primary : t.border;
   r.faviconBox.style.color = ch.focus ? t.primary : ch.solo ? t.accent : t.text;
@@ -389,35 +468,24 @@ export function syncChannelStripDom(
   r.hostLabel.textContent = ch.shortHost;
   r.titleEl.textContent = ch.title;
 
-  r.fill.style.height = `${userPct}%`;
-  r.fill.style.backgroundColor = ch.muted
-    ? t.muted
-    : ch.solo
-      ? t.accent
-      : ch.focus || !(ctx.anyFocus || ctx.anySolo)
-        ? t.primary
-        : t.muted;
-  r.fill.style.opacity = ch.muted ? "0.25" : dimmed || silencedByMode ? "0.45" : "0.85";
+  if (attenuated) {
+    r.fill.style.height = `${effPct}%`;
+    r.fill.style.opacity = "0.9";
+    r.attenBand.classList.remove("hidden");
+    r.attenBand.style.bottom = `${effPct}%`;
+    r.attenBand.style.height = `${userPct - effPct}%`;
+  } else {
+    r.fill.style.height = `${userPct}%`;
+    r.fill.style.opacity = ch.muted ? "0.25" : "0.85";
+    r.attenBand.classList.add("hidden");
+  }
+  r.fill.style.backgroundColor = ch.muted ? t.muted : ch.solo ? t.accent : t.primary;
   r.corsZone.classList.toggle("hidden", !ch.corsCap);
 
   for (const { db, el: sEl } of r.scaleItems) {
     sEl.style.color = db === 0 ? t.text : t.muted;
     sEl.style.opacity = ch.corsCap && db > 0 ? "0.32" : db === 0 ? "0.95" : "0.68";
     sEl.style.fontWeight = db === 0 ? "700" : "400";
-  }
-
-  if (dimmed || silencedByMode) {
-    r.deltaBar.classList.remove("hidden");
-    r.deltaBar.style.bottom = `${Math.min(userPct, effPct)}%`;
-    r.deltaBar.style.height = `${Math.abs(userPct - effPct)}%`;
-    r.deltaBar.style.backgroundColor = t.primary;
-    r.deltaBar.style.opacity = "0.45";
-    r.ghostCap.classList.remove("hidden");
-    r.ghostCap.style.bottom = `calc(${effPct}% - 2.5px)`;
-    r.ghostCap.style.borderColor = t.primary;
-  } else {
-    r.deltaBar.classList.add("hidden");
-    r.ghostCap.classList.add("hidden");
   }
 
   r.knob.style.bottom = `calc(${userPct}% - 7px)`;
@@ -435,23 +503,7 @@ export function syncChannelStripDom(
     r.readoutBtn.style.borderColor = t.border;
     r.dbText.textContent = formatDb(ch.db);
     r.dbText.style.color = ch.muted ? t.states.danger : ch.db > 0 ? t.states.warning : t.text;
-
-    if (ch.corsCap) {
-      r.subText.textContent = "보안 0dB 상한";
-      r.subText.style.color = t.muted;
-    } else if (!ch.playing) {
-      r.subText.textContent = "일시정지";
-      r.subText.style.color = t.muted;
-    } else if (ch.muted) {
-      r.subText.textContent = "음소거";
-      r.subText.style.color = t.states.danger;
-    } else if (dimmed || silencedByMode) {
-      r.subText.textContent = `실효 ${formatDb(effDb)}dB`;
-      r.subText.style.color = t.primary;
-    } else {
-      r.subText.textContent = pinned ? "도메인 고정" : "개별 볼륨";
-      r.subText.style.color = pinned ? t.accent : t.muted;
-    }
+    syncChannelReadoutSub(r, ch, settings, ctx, t);
   }
 
   r.playBtn.innerHTML = ch.playing

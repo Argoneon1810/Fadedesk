@@ -3,6 +3,7 @@
  */
 
 export const ICONS = {
+  grip: `<svg width="16" height="6" viewBox="0 0 16 6" fill="currentColor"><circle cx="3" cy="1.5" r="1"/><circle cx="8" cy="1.5" r="1"/><circle cx="13" cy="1.5" r="1"/><circle cx="3" cy="4.5" r="1"/><circle cx="8" cy="4.5" r="1"/><circle cx="13" cy="4.5" r="1"/></svg>`,
   play: `<svg width="10" height="10" viewBox="0 0 12 12" fill="currentColor"><path d="M3 2.1a.6.6 0 0 1 .92-.5l6.2 3.9a.6.6 0 0 1 0 1l-6.2 3.9A.6.6 0 0 1 3 9.9V2.1z"/></svg>`,
   pause: `<svg width="10" height="10" viewBox="0 0 12 12" fill="currentColor"><rect x="2.5" y="2" width="2.4" height="8" rx="0.7"/><rect x="7.1" y="2" width="2.4" height="8" rx="0.7"/></svg>`,
   pin: `<svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8.8 2.2l3 3-1.6.9-1.8 1.8.4 2.5-1.1 1.1-2.3-2.3-2.7 2.7"/><path d="M5.4 9.2L2.8 6.6l1.1-1.1 2.5.4 1.8-1.8.6-1.9z"/></svg>`,

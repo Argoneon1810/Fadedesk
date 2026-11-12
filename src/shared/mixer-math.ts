@@ -1,14 +1,33 @@
-import type { ExclusiveMode } from "./types";
+import type {
+  ChannelFxState,
+  ChannelNormMode,
+  CompRatioPreset,
+  DspConfigPayload,
+  ExclusiveMode,
+  NormSpeedPreset,
+  ResolvedNormalizerConfig,
+} from "./types";
 
 /**
- * dB 로그 볼륨 변환, Focus 일반화 원-핫 감쇠, Solo/Focus 상호 배타 전환 연산.
+ * dB 로그 볼륨 변환, Focus 일반화 원-핫 감쇠, 비파괴 2계층 노멀라이저 해석, 선형 진폭 RSS 마스터 미터 연산.
  */
 
 export const MIN_DB = -60;
 export const MAX_DB = 12;
 export const MAX_FOCUS_DIM_DB = 40;
-export const LED_COUNT = 18;
+export const LED_COUNT = 20;
 export const SCALE_TICKS: readonly number[] = [12, 6, 0, -12, -24, -48];
+
+export const DEFAULT_CHANNEL_FX: Readonly<ChannelFxState> = {
+  normMode: "follow",
+  normTargetLufs: -16,
+  normSpeed: "std",
+  pan: 0,
+  gateEnabled: false,
+  gateThresholdDb: -48,
+  compEnabled: false,
+  compRatio: 4,
+};
 
 export interface GainChannelInput {
   tabId: number;
@@ -95,6 +114,52 @@ export function ratioToDb(ratio: number, corsCap = false): number {
   return clampDb(halfStep, corsCap);
 }
 
+/** 로그 VU 위치 비율 [0, 1]을 원래 선형 파형 진폭으로 역변환한다. */
+export function ratioToLinearAmplitude(ratio: number): number {
+  if (!Number.isFinite(ratio) || ratio <= 0) return 0;
+  const clamped = Math.min(1, ratio);
+  const db = MIN_DB + clamped * (MAX_DB - MIN_DB);
+  return db <= MIN_DB ? 0 : Math.pow(10, db / 20);
+}
+
+/**
+ * 개별 채널의 로그 VU 비율을 선형 진폭으로 복원한 뒤, 스테레오 패닝 배율과
+ * 비상관 신호 제곱합 제곱근(RSS, sqrt(sum A_i^2))으로 MASTER BUS 좌/우 VU 비율을 계산한다.
+ * 로그 비율 단순 합산으로 인해 0dB 이하 채널들이 레드존(+7.5dB 이상)으로 포화되던 문제를 방지한다.
+ */
+export function computeMasterStereoVu(
+  channels: ReadonlyArray<{
+    playing: boolean;
+    muted: boolean;
+    corsCap: boolean;
+    vuLevel: number;
+    fx?: { pan: number };
+  }>,
+  masterMuted: boolean,
+): { left: number; right: number } {
+  if (masterMuted) return { left: 0, right: 0 };
+
+  let sumSqL = 0;
+  let sumSqR = 0;
+  for (const ch of channels) {
+    if (!ch.playing || ch.muted || ch.vuLevel <= 0) continue;
+    const amp = ratioToLinearAmplitude(ch.vuLevel);
+    if (amp <= 0) continue;
+    const pan = ch.corsCap ? 0 : Math.max(-100, Math.min(100, ch.fx?.pan ?? 0));
+    const gainL = pan <= 0 ? 1 : Math.cos((pan / 100) * (Math.PI / 2));
+    const gainR = pan >= 0 ? 1 : Math.cos((-pan / 100) * (Math.PI / 2));
+    sumSqL += amp * gainL * (amp * gainL);
+    sumSqR += amp * gainR * (amp * gainR);
+  }
+
+  const mixL = Math.sqrt(sumSqL);
+  const mixR = Math.sqrt(sumSqR);
+  return {
+    left: mixL <= 0 ? 0 : dbToRatio(Math.min(MAX_DB, linearToDb(mixL))),
+    right: mixR <= 0 ? 0 : dbToRatio(Math.min(MAX_DB, linearToDb(mixR))),
+  };
+}
+
 /**
  * Focus 모드 비선택 채널의 로그 감쇠량 G_dim(α) = -40 * (1 - α) dB.
  * α = 0 이면 순수 Solo(-∞ dB), α = 0.70 이면 -12.0 dB, α = 1.0 이면 0.0 dB.
@@ -111,6 +176,119 @@ export function formatDb(db: number): string {
   if (!Number.isFinite(db) || db <= MIN_DB) return "-∞";
   const fixed = db.toFixed(1);
   return db > 0 ? `+${fixed}` : fixed === "-0.0" ? "0.0" : fixed;
+}
+
+/** 스테레오 패닝 표시 문자열 ("C", "L25", "R30") */
+export function formatPan(pan: number): string {
+  const rounded = Math.round(pan);
+  if (rounded === 0) return "C";
+  return rounded < 0 ? `L${Math.abs(rounded)}` : `R${rounded}`;
+}
+
+/** 채널 FX 부분 패치를 안전하게 검증·병합하여 새 ChannelFxState 객체를 반환한다. */
+export function sanitizeChannelFx(
+  base?: Partial<ChannelFxState> | null,
+  patch?: Partial<ChannelFxState> | null,
+): ChannelFxState {
+  const merged = { ...DEFAULT_CHANNEL_FX, ...(base ?? {}), ...(patch ?? {}) };
+  const validModes: ChannelNormMode[] = ["follow", "on", "off"];
+  const validSpeeds: NormSpeedPreset[] = ["slow", "std", "fast"];
+  const validRatios: CompRatioPreset[] = [2, 4, 8];
+
+  const normMode = validModes.includes(merged.normMode) ? merged.normMode : "follow";
+  const normTargetLufs = Number.isFinite(merged.normTargetLufs)
+    ? Math.max(-20, Math.min(-12, Math.round(merged.normTargetLufs)))
+    : -16;
+  const normSpeed = validSpeeds.includes(merged.normSpeed) ? merged.normSpeed : "std";
+  const pan = Number.isFinite(merged.pan)
+    ? Math.max(-100, Math.min(100, Math.round(merged.pan)))
+    : 0;
+  const gateEnabled = Boolean(merged.gateEnabled);
+  const gateThresholdDb = Number.isFinite(merged.gateThresholdDb)
+    ? Math.max(-65, Math.min(-30, Math.round(merged.gateThresholdDb)))
+    : -48;
+  const compEnabled = Boolean(merged.compEnabled);
+  const compRatio = validRatios.includes(merged.compRatio) ? merged.compRatio : 4;
+
+  return {
+    normMode,
+    normTargetLufs,
+    normSpeed,
+    pan,
+    gateEnabled,
+    gateThresholdDb,
+    compEnabled,
+    compRatio,
+  };
+}
+
+/**
+ * 전역 `autoNormEnabled`(`균일 N`) 스위치와 채널별 고급 `ChannelFxState`를 비파괴로 합성한다.
+ * - `normMode === "on"`: 전역 스위치와 무관하게 사용자의 개별 목표 음압·속도로 동작
+ * - `normMode === "off"`: 전역 스위치가 켜져도 우회하며 사용자의 세부 수치는 그대로 보존
+ * - `normMode === "follow"`: 전역 스위치를 따르며 Easy 표준 프리셋(-16 LUFS, "std")을 사용
+ */
+export function resolveEffectiveNormalizer(
+  autoNormEnabled: boolean,
+  fx: ChannelFxState,
+  corsCap: boolean,
+): ResolvedNormalizerConfig {
+  if (corsCap) {
+    return { active: false, targetLufs: -16, speed: "std", source: "off" };
+  }
+  if (fx.normMode === "on") {
+    return {
+      active: true,
+      targetLufs: fx.normTargetLufs,
+      speed: fx.normSpeed,
+      source: "custom-on",
+    };
+  }
+  if (fx.normMode === "off") {
+    return {
+      active: false,
+      targetLufs: fx.normTargetLufs,
+      speed: fx.normSpeed,
+      source: "custom-off",
+    };
+  }
+  return {
+    active: autoNormEnabled,
+    targetLufs: -16,
+    speed: "std",
+    source: autoNormEnabled ? "auto" : "off",
+  };
+}
+
+/** 오디오 훅(`dsp-chain.ts`)에 전달할 채널별 DSP 설정 페이로드를 생성한다. */
+export function buildDspConfigPayload(
+  autoNormEnabled: boolean,
+  fx: ChannelFxState,
+  corsCap: boolean,
+): DspConfigPayload {
+  const norm = resolveEffectiveNormalizer(autoNormEnabled, fx, corsCap);
+  if (corsCap) {
+    return {
+      normActive: false,
+      normTargetLufs: -16,
+      normSpeed: "std",
+      pan: 0,
+      gateEnabled: false,
+      gateThresholdDb: -48,
+      compEnabled: false,
+      compRatio: 4,
+    };
+  }
+  return {
+    normActive: norm.active,
+    normTargetLufs: norm.targetLufs,
+    normSpeed: norm.speed,
+    pan: fx.pan,
+    gateEnabled: fx.gateEnabled,
+    gateThresholdDb: fx.gateThresholdDb,
+    compEnabled: fx.compEnabled,
+    compRatio: fx.compRatio,
+  };
 }
 
 /**

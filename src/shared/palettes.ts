@@ -144,5 +144,7 @@ export const DEFAULT_SETTINGS: PersistedSettings = {
   alpha: 0.7,
   masterDb: 0.0,
   masterMuted: false,
+  autoNormEnabled: false,
+  advRackOpen: false,
   domainDefaults: {},
 };

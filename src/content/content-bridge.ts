@@ -51,6 +51,7 @@ function installContentBridge(): void {
           type: "FRAME_VU",
           vuLevel: parsed.vuLevel,
           vuPeak: parsed.vuPeak,
+          normTrimDb: typeof parsed.normTrimDb === "number" ? parsed.normTrimDb : 0,
         });
       }
     } catch {

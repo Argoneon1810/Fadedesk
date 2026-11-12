@@ -1,0 +1,158 @@
+/*
+ * Sound Manager 고급 FX 사이드 랙 전용 스타일시트.
+ * 우측 도킹 사이드 랙(#side-fx-rack), 2계층 노멀라이저·패닝·노이즈 게이트·컴프레서 컨트롤 스타일.
+ */
+
+.side-fx-rack {
+  width: 214px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--c-border);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.fx-rack-header {
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--c-border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.fx-rack-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+
+.fx-rack-title {
+  font-weight: 600;
+  flex: 1 1 auto;
+}
+
+.fx-trim-badge {
+  font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--c-border);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.fx-rack-sub {
+  font-size: 10.5px;
+  line-height: 14px;
+}
+
+.fx-cards-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fx-cards-disabled {
+  opacity: 0.42;
+  pointer-events: none;
+}
+
+.fx-card {
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--c-border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fx-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.fx-card-title {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.fx-card-hint {
+  font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.fx-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.fx-meta-val {
+  font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+}
+
+.fx-pan-ticks {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+  font-size: 10px;
+}
+
+.fx-seg-grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.fx-seg-btn {
+  height: 20px;
+  border-radius: 4px;
+  font-size: 10px;
+}
+
+.fx-mini-btn {
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+  font-size: 10px;
+}
+
+input[type="range"].fx-range {
+  width: 100%;
+  margin: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 5px;
+  border-radius: 9999px;
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  outline: none;
+  cursor: ew-resize;
+}
+
+input[type="range"].fx-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 13px;
+  border-radius: 3px;
+  background: var(--c-raised);
+  border: 1px solid var(--c-primary);
+  cursor: grab;
+}
+
+input[type="range"].fx-range:active::-webkit-slider-thumb {
+  cursor: grabbing;
+}
