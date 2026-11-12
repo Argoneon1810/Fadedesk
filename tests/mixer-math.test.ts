@@ -9,6 +9,7 @@ import {
   extractDomainInfo,
   getFocusDimDb,
   linearToDb,
+  parseDbInput,
   toggleExclusiveFlags,
 } from "../src/shared/mixer-math";
 
@@ -178,4 +179,21 @@ test("URL 도메인 추출 및 재생/대기 정렬 순서 검증", () => {
     domain: "",
     shortHost: "chrome",
   });
+});
+
+test("dB 수치 직접 입력 파서(parseDbInput) 및 0.1dB 정밀도·예외 방어 검증", () => {
+  assert.equal(parseDbInput("-6"), -6.0);
+  assert.equal(parseDbInput("-3.2"), -3.2);
+  assert.equal(parseDbInput("+4.5 dB"), 4.5);
+  assert.equal(parseDbInput("−8.4db"), -8.4);
+  assert.equal(parseDbInput("-inf"), -60);
+  assert.equal(parseDbInput("-∞"), -60);
+  assert.equal(parseDbInput("18.5", false), 12.0);
+  assert.equal(parseDbInput("6.0", true), 0.0);
+
+  // 빈 값이나 오타는 볼륨이 의도치 않게 초기화되지 않도록 null 반환
+  assert.equal(parseDbInput(""), null);
+  assert.equal(parseDbInput("   "), null);
+  assert.equal(parseDbInput("abc"), null);
+  assert.equal(parseDbInput("-"), null);
 });

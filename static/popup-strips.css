@@ -302,25 +302,60 @@
   display: block;
 }
 
-/* 디지털 dB 표시창 */
+/* 디지털 dB 표시창 및 인라인 숫자 편집기 */
 .readout-btn {
   width: 100%;
   border-radius: 4px;
   border: 1px solid var(--c-border);
   padding: 4px;
   text-align: center;
-  cursor: pointer;
+  cursor: text;
   overflow: hidden;
+  transition: border-color 100ms ease, box-shadow 100ms ease;
 }
 
-.readout-row1 {
+.readout-btn:hover {
+  border-color: var(--c-muted);
+}
+
+.readout-btn:focus-visible,
+.readout-btn[data-editing="true"] {
+  outline: none;
+  border-color: var(--c-primary);
+  box-shadow: inset 0 0 0 1px var(--c-primary);
+}
+
+.readout-row1,
+.readout-edit-row {
   display: flex;
   align-items: baseline;
   justify-content: center;
   gap: 2px;
   white-space: nowrap;
+  height: 15px;
   line-height: 15px;
   font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+}
+
+.readout-input {
+  width: 44px;
+  height: 15px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--c-text);
+  font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: right;
+}
+
+.readout-input::selection {
+  background: var(--c-primary);
+  color: var(--c-on-primary, #091112);
 }
 
 .readout-db {

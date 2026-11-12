@@ -28,12 +28,37 @@ export interface MixerContextInput {
   anyFocus: boolean;
 }
 
-/** dB 값을 0.5dB 단위로 반올림하고 허용 범위(-60dB .. +12dB 또는 보안 0dB 상한)로 제한한다. */
+/** dB 값을 0.1dB 단위로 반올림하고 허용 범위(-60dB .. +12dB 또는 보안 0dB 상한)로 제한한다. */
 export function clampDb(db: number, corsCap = false): number {
   if (!Number.isFinite(db) || db <= MIN_DB) return MIN_DB;
   const upper = corsCap ? 0 : MAX_DB;
-  const rounded = Math.round(db * 2) / 2;
+  const rounded = Math.round(db * 10) / 10;
   return Math.max(MIN_DB, Math.min(upper, rounded));
+}
+
+/**
+ * 사용자가 직접 입력한 dB 문자열을 파싱한다.
+ * 빈 문자열이나 잘못된 입력은 볼륨이 의도치 않게 바뀌지 않도록 null을 반환한다.
+ */
+export function parseDbInput(raw: string, corsCap = false): number | null {
+  const normalized = raw
+    .trim()
+    .replace(/\u2212/g, "-")
+    .replace(/\s*d[bB]$/i, "")
+    .trim();
+  if (!normalized) return null;
+
+  const lower = normalized.toLowerCase();
+  if (lower === "-inf" || lower === "-infinity" || lower === "-∞" || lower === "∞") {
+    return MIN_DB;
+  }
+
+  if (!/^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(normalized)) {
+    return null;
+  }
+  const parsed = Number(normalized);
+  if (!Number.isFinite(parsed)) return null;
+  return clampDb(parsed, corsCap);
 }
 
 /** Focus 스무딩 계수 α를 0.05 단위로 정규화한다 (0 <= α <= 1). */
@@ -66,7 +91,8 @@ export function dbToRatio(db: number): number {
 export function ratioToDb(ratio: number, corsCap = false): number {
   const r = Math.max(0, Math.min(1, Number.isFinite(ratio) ? ratio : 0));
   const rawDb = MIN_DB + r * (MAX_DB - MIN_DB);
-  return clampDb(rawDb, corsCap);
+  const halfStep = Math.round(rawDb * 2) / 2;
+  return clampDb(halfStep, corsCap);
 }
 
 /**

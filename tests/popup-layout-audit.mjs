@@ -63,11 +63,12 @@ const SAMPLE_CHANNELS = [
   },
 ];
 
-function buildAuditHtml(scenarioName, snapshotObj, openPopover = false) {
+function buildAuditHtml(scenarioName, snapshotObj, openPopover = false, testInlineEdit = false) {
   const baseHtml = fs.readFileSync(path.join(UNPACKED_DIR, "popup.html"), "utf8");
   const injectedScript = `
   <script>
     window.__AUDIT_ERRORS__ = [];
+    window.__SENT_ACTIONS__ = [];
     window.addEventListener("error", (e) => window.__AUDIT_ERRORS__.push(String(e.message || e)));
     window.chrome = {
       runtime: {
@@ -78,11 +79,40 @@ function buildAuditHtml(scenarioName, snapshotObj, openPopover = false) {
             if (${JSON.stringify(openPopover)}) {
               document.getElementById("theme-dot-btn")?.click();
             }
+            if (${JSON.stringify(testInlineEdit)}) {
+              const strips = document.querySelectorAll(".channel-strip");
+              const ch2Box = strips[1]?.querySelector('[data-ref="readoutBtn"]');
+              const ch2Input = strips[1]?.querySelector('[data-ref="dbInput"]');
+              const ch2DbText = strips[1]?.querySelector('[data-ref="dbText"]');
+
+              // 1) 클릭 직후 0.0dB로 리셋되지 않고 편집 모드가 열리는지 검증
+              ch2Box?.click();
+              if (ch2Box?.dataset.editing !== "true") {
+                window.__AUDIT_ERRORS__.push("INLINE_EDIT_NOT_OPENED");
+              }
+              if (window.__SENT_ACTIONS__.some((m) => m.type === "SET_TAB_DB" && m.db === 0)) {
+                window.__AUDIT_ERRORS__.push("ACCIDENTAL_ZERO_RESET_ON_CLICK");
+              }
+              if (ch2Input?.value !== "-6.0") {
+                window.__AUDIT_ERRORS__.push("UNEXPECTED_INIT_VAL:" + ch2Input?.value);
+              }
+
+              // 2) 숫자(-10.3) 입력 후 Enter 적용 검증 + 입력 중 '0' 키가 리셋 단축키로 새지 않는지 검증
+              ch2Input.value = "-10.3";
+              ch2Input.dispatchEvent(new KeyboardEvent("keydown", { key: "0", bubbles: true }));
+              ch2Input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+              if (ch2DbText?.textContent !== "-10.3") {
+                window.__AUDIT_ERRORS__.push("COMMIT_DB_MISMATCH:" + ch2DbText?.textContent);
+              }
+
+              // 3) 채널 3(+4.5dB) 편집기를 열어 둔 상태로 레이아웃·넘침 감사 수행
+              strips[2]?.querySelector('[data-ref="readoutBtn"]')?.click();
+            }
           }, 10);
           return {
             onMessage: { addListener: (fn) => listeners.push(fn) },
             onDisconnect: { addListener: () => {} },
-            postMessage: () => {},
+            postMessage: (msg) => window.__SENT_ACTIONS__.push(msg),
           };
         },
         sendMessage: async () => ({}),
@@ -180,8 +210,13 @@ const scenarios = [
   },
   {
     name: "popover_light",
-    w: 680, h: 420, openPop: true,
+    w: 680, h: 420, openPop: true, inlineEdit: false,
     snap: { settings: { theme: "emerald", modePref: "light", alpha: 0.7, masterDb: 0, masterMuted: false, domainDefaults: {} }, channels: SAMPLE_CHANNELS },
+  },
+  {
+    name: "inline_edit_open",
+    w: 680, h: 420, openPop: false, inlineEdit: true,
+    snap: { settings: { theme: "teal", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false, domainDefaults: { "chzzk.naver.com": 0, "youtube.com": -6 } }, channels: SAMPLE_CHANNELS },
   },
 ];
 
@@ -192,7 +227,7 @@ try {
       const scProfile = path.join(TMP_DIR, `profile_${sc.name}`);
       fs.mkdirSync(scProfile, { recursive: true });
       const htmlFile = path.join(TMP_DIR, `audit_${sc.name}.html`);
-      fs.writeFileSync(htmlFile, buildAuditHtml(sc.name, sc.snap, sc.openPop), "utf8");
+      fs.writeFileSync(htmlFile, buildAuditHtml(sc.name, sc.snap, sc.openPop, Boolean(sc.inlineEdit)), "utf8");
       const fileUrl = "file:///" + htmlFile.replace(/\\/g, "/");
       const { stdout } = await execFileAsync(
         CHROME_BIN,

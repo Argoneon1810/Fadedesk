@@ -12,6 +12,7 @@ import {
   type MixerContextInput,
 } from "../shared/mixer-math";
 import type { ExclusiveMode, PersistedSettings, TabChannelState, ThemeTokens } from "../shared/types";
+import { attachDbInlineEditor } from "./db-inline-editor";
 import { ICONS } from "./icons";
 
 /**
@@ -29,6 +30,7 @@ export interface StripCallbacks {
   onSetMasterDb: (db: number) => void;
   onToggleMasterMute: () => void;
   onToggleAllPlaying: () => void;
+  onRefreshUi: () => void;
 }
 
 export interface LedColumnRef {
@@ -53,7 +55,7 @@ export interface ChannelStripRefs {
   knobLine: HTMLElement;
   scaleItems: Array<{ db: number; el: HTMLDivElement }>;
   vu: LedColumnRef;
-  readoutBtn: HTMLButtonElement;
+  readoutBtn: HTMLElement;
   dbText: HTMLElement;
   subText: HTMLElement;
   playBtn: HTMLButtonElement;
@@ -225,13 +227,17 @@ export function buildChannelStripDom(
       <div data-ref="vuSlot" style="height:100%;display:flex;align-items:center"></div>
     </div>
 
-    <button data-ref="readoutBtn" type="button" title="클릭 시 0.0 dB(원본 볼륨)로 초기화" class="readout-btn c-recessed">
-      <div class="readout-row1">
+    <div data-ref="readoutBtn" role="button" tabindex="0" title="클릭하여 dB 직접 입력 (Enter 적용 · Esc 취소)" class="readout-btn c-recessed">
+      <div data-ref="displayRow" class="readout-row1">
         <span data-ref="dbText" class="readout-db tabular"></span>
         <span class="readout-unit">dB</span>
       </div>
+      <div data-ref="editRow" class="readout-edit-row hidden">
+        <input data-ref="dbInput" type="text" inputmode="decimal" spellcheck="false" autocomplete="off" class="readout-input tabular" aria-label="채널 데시벨 직접 입력" />
+        <span class="readout-unit">dB</span>
+      </div>
       <div data-ref="subText" class="readout-sub truncate tabular"></div>
-    </button>
+    </div>
 
     <div class="transport-row">
       <button data-ref="playBtn" type="button" class="console-btn play-btn" title="재생 / 일시정지"></button>
@@ -318,7 +324,18 @@ export function buildChannelStripDom(
     () => cb.onSetTabDb(initialCh.tabId, 0),
   );
 
-  refs.readoutBtn.onclick = () => cb.onSetTabDb(initialCh.tabId, 0);
+  attachDbInlineEditor({
+    box: refs.readoutBtn,
+    displayRow: q("displayRow"),
+    editRow: q("editRow"),
+    input: q<HTMLInputElement>("dbInput"),
+    subEl: refs.subText,
+    getCurrentDb: () => getLatestCh()?.db ?? initialCh.db,
+    isCorsCapped: () => Boolean(getLatestCh()?.corsCap),
+    onSelect: () => cb.onSelectChannel(initialCh.tabId),
+    onCommitDb: (nextDb) => cb.onSetTabDb(initialCh.tabId, nextDb),
+    onAfterExit: () => cb.onRefreshUi(),
+  });
   refs.header.onclick = () => {
     const ch = getLatestCh();
     if (ch) cb.onJumpToTab(ch.tabId, ch.windowId, ch.title);
@@ -411,24 +428,30 @@ export function syncChannelStripDom(
 
   paintLedColumn(r.vu.segs, ch.vuLevel, ch.vuPeak, t);
 
-  r.dbText.textContent = formatDb(ch.db);
-  r.dbText.style.color = ch.muted ? t.states.danger : ch.db > 0 ? t.states.warning : t.text;
-
-  if (ch.corsCap) {
-    r.subText.textContent = "보안 0dB 상한";
-    r.subText.style.color = t.muted;
-  } else if (!ch.playing) {
-    r.subText.textContent = "일시정지";
-    r.subText.style.color = t.muted;
-  } else if (ch.muted) {
-    r.subText.textContent = "음소거";
-    r.subText.style.color = t.states.danger;
-  } else if (dimmed || silencedByMode) {
-    r.subText.textContent = `실효 ${formatDb(effDb)}dB`;
+  if (r.readoutBtn.dataset.editing === "true") {
+    r.readoutBtn.style.borderColor = t.primary;
     r.subText.style.color = t.primary;
   } else {
-    r.subText.textContent = pinned ? "도메인 고정" : "개별 볼륨";
-    r.subText.style.color = pinned ? t.accent : t.muted;
+    r.readoutBtn.style.borderColor = t.border;
+    r.dbText.textContent = formatDb(ch.db);
+    r.dbText.style.color = ch.muted ? t.states.danger : ch.db > 0 ? t.states.warning : t.text;
+
+    if (ch.corsCap) {
+      r.subText.textContent = "보안 0dB 상한";
+      r.subText.style.color = t.muted;
+    } else if (!ch.playing) {
+      r.subText.textContent = "일시정지";
+      r.subText.style.color = t.muted;
+    } else if (ch.muted) {
+      r.subText.textContent = "음소거";
+      r.subText.style.color = t.states.danger;
+    } else if (dimmed || silencedByMode) {
+      r.subText.textContent = `실효 ${formatDb(effDb)}dB`;
+      r.subText.style.color = t.primary;
+    } else {
+      r.subText.textContent = pinned ? "도메인 고정" : "개별 볼륨";
+      r.subText.style.color = pinned ? t.accent : t.muted;
+    }
   }
 
   r.playBtn.innerHTML = ch.playing

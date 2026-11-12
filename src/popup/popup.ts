@@ -181,6 +181,7 @@ function renderAll(): void {
     "--c-text": t.text,
     "--c-muted": t.muted,
     "--c-primary": t.primary,
+    "--c-on-primary": t.onPrimary,
     "--c-accent": t.accent,
   };
   for (const [k, v] of Object.entries(vars)) {
@@ -315,6 +316,9 @@ const stripCallbacks: StripCallbacks = {
     sendAction({ source: "popup", type: "SET_ALL_PLAYING", shouldPlay });
     renderAll();
   },
+  onRefreshUi() {
+    renderAll();
+  },
 };
 
 function setupTopDeckAndKeyboard(): void {
@@ -366,6 +370,9 @@ function setupTopDeckAndKeyboard(): void {
 
   // 마우스리스 키보드 워크플로 (방향키 채널 선택·볼륨 조절, 0 리셋, Space 재생, M/S/F/P/Enter)
   window.addEventListener("keydown", (ev) => {
+    const activeTag = document.activeElement?.tagName;
+    if (activeTag === "INPUT" || activeTag === "TEXTAREA") return;
+
     if (ev.key === "Escape" && popoverOpen) {
       ev.preventDefault();
       popoverOpen = false;

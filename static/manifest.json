@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Sound Manager",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "여러 창과 백그라운드 탭의 미디어를 한곳에서 재생·정지하고 dB 로그 볼륨과 Focus/Solo 모드로 제어하는 스튜디오 콘솔",
   "minimum_chrome_version": "111",
   "permissions": [

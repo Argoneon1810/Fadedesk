@@ -1,5 +1,6 @@
 import { clampDb, dbToRatio, formatDb, ratioToDb } from "../shared/mixer-math";
 import type { PersistedSettings, TabChannelState, ThemeTokens } from "../shared/types";
+import { attachDbInlineEditor } from "./db-inline-editor";
 import { ICONS } from "./icons";
 import {
   attachPointerDrag,
@@ -22,9 +23,10 @@ export interface MasterStripRefs {
   knobLine: HTMLElement;
   vuL: LedColumnRef;
   vuR: LedColumnRef;
-  readoutBtn: HTMLButtonElement;
+  readoutBtn: HTMLElement;
   dbText: HTMLElement;
   dbUnit: HTMLElement;
+  subText: HTMLElement;
   pauseAllBtn: HTMLButtonElement;
   muteAllBtn: HTMLButtonElement;
   vuCurL: number;
@@ -62,13 +64,17 @@ export function buildMasterStripDom(
       </div>
       <div data-ref="vuRightSlot" style="height:100%;display:flex;align-items:center"></div>
     </div>
-    <button data-ref="readoutBtn" type="button" title="클릭 시 마스터 0.0 dB 초기화" class="readout-btn c-recessed">
-      <div class="readout-row1">
+    <div data-ref="readoutBtn" role="button" tabindex="0" title="클릭하여 마스터 dB 직접 입력 (Enter 적용 · Esc 취소)" class="readout-btn c-recessed">
+      <div data-ref="displayRow" class="readout-row1">
         <span data-ref="dbText" class="readout-db tabular"></span>
         <span data-ref="dbUnit" class="readout-unit">dB</span>
       </div>
-      <div class="readout-sub truncate c-muted">마스터 게인</div>
-    </button>
+      <div data-ref="editRow" class="readout-edit-row hidden">
+        <input data-ref="dbInput" type="text" inputmode="decimal" spellcheck="false" autocomplete="off" class="readout-input tabular" aria-label="마스터 데시벨 직접 입력" />
+        <span class="readout-unit">dB</span>
+      </div>
+      <div data-ref="subText" class="readout-sub truncate c-muted">마스터 게인</div>
+    </div>
     <button data-ref="pauseAllBtn" type="button" class="console-btn master-action-btn c-raised"></button>
     <button data-ref="muteAllBtn" type="button" class="console-btn master-mute-btn"></button>
   `;
@@ -91,6 +97,7 @@ export function buildMasterStripDom(
     readoutBtn: q("readoutBtn"),
     dbText: q("dbText"),
     dbUnit: q("dbUnit"),
+    subText: q("subText"),
     pauseAllBtn: q("pauseAllBtn"),
     muteAllBtn: q("muteAllBtn"),
     vuCurL: 0,
@@ -115,7 +122,17 @@ export function buildMasterStripDom(
     (ratio) => cb.onSetMasterDb(ratioToDb(ratio, false)),
     () => cb.onSetMasterDb(0),
   );
-  refs.readoutBtn.onclick = () => cb.onSetMasterDb(0);
+  attachDbInlineEditor({
+    box: refs.readoutBtn,
+    displayRow: q("displayRow"),
+    editRow: q("editRow"),
+    input: q<HTMLInputElement>("dbInput"),
+    subEl: refs.subText,
+    getCurrentDb: () => getMasterDb(),
+    isCorsCapped: () => false,
+    onCommitDb: (nextDb) => cb.onSetMasterDb(nextDb),
+    onAfterExit: () => cb.onRefreshUi(),
+  });
   refs.pauseAllBtn.onclick = () => cb.onToggleAllPlaying();
   refs.muteAllBtn.onclick = () => cb.onToggleMasterMute();
 
@@ -142,13 +159,21 @@ export function syncMasterStripDom(
   paintLedColumn(m.vuL.segs, m.vuCurL, m.vuPeakL, t);
   paintLedColumn(m.vuR.segs, m.vuCurR, m.vuPeakR, t);
 
-  m.dbText.textContent = settings.masterMuted ? "MUTE" : formatDb(settings.masterDb);
-  m.dbText.style.color = settings.masterMuted
-    ? t.states.danger
-    : settings.masterDb > 0
-      ? t.states.warning
-      : t.text;
-  m.dbUnit.style.display = settings.masterMuted ? "none" : "inline";
+  if (m.readoutBtn.dataset.editing === "true") {
+    m.readoutBtn.style.borderColor = t.primary;
+    m.subText.style.color = t.primary;
+  } else {
+    m.readoutBtn.style.borderColor = t.border;
+    m.subText.textContent = "마스터 게인";
+    m.subText.style.color = t.muted;
+    m.dbText.textContent = settings.masterMuted ? "MUTE" : formatDb(settings.masterDb);
+    m.dbText.style.color = settings.masterMuted
+      ? t.states.danger
+      : settings.masterDb > 0
+        ? t.states.warning
+        : t.text;
+    m.dbUnit.style.display = settings.masterMuted ? "none" : "inline";
+  }
 
   m.pauseAllBtn.disabled = channels.length === 0;
   m.pauseAllBtn.innerHTML = anyPlaying
