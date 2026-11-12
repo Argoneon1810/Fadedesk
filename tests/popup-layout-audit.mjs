@@ -10,7 +10,8 @@ const execFileAsync = promisify(execFile);
 /**
  * 실제 빌드된 dist/unpacked/ 자산(popup.html + popup.css + popup-strips.css + popup-fx.css + popup-help.css + popup.js)을
  * 헤드리스 Chrome에서 실행해 런타임 오류, 줄바꿈, 한글 상하 잘림, 테마 팝오버 넘침,
- * 스위치 뱅크 3버튼(M·S·F), 스트립 하단 빈틈, CORS 채널 FX 랙 높이 불변성, 튜토리얼 도움말 모달 & 중첩 시각 카드를 전수 감사한다.
+ * 스위치 뱅크 3버튼(M·S·F), 스트립 하단 빈틈, CORS 채널 FX 랙 높이 불변성, 튜토리얼 도움말 모달 & 중첩 시각 카드,
+ * 그리고 0.5.1 팝업 폭 잠금(768px/788px · #status-pill 124px), 비선택 채널 원클릭 조작, 블럭형 드롭 슬롯 & 비동기 SNAPSHOT 방어를 전수 감사한다.
  */
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -37,7 +38,6 @@ const TMP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "sound-manager-ui-audit-")
 const PROFILE_DIR = path.join(TMP_DIR, "profile");
 fs.mkdirSync(PROFILE_DIR, { recursive: true });
 
-// dist/unpacked 자산을 임시 폴더로 복사 (빌드 전 static 최신본 폴백 지원)
 for (const name of ["popup.html", "popup.css", "popup-strips.css", "popup-fx.css", "popup-help.css", "popup.js"]) {
   const unpackedPath = path.join(UNPACKED_DIR, name);
   const staticPath = path.join(ROOT, "static", name);
@@ -90,48 +90,46 @@ const SAMPLE_CHANNELS = [
   },
 ];
 
-function buildAuditHtml(scenarioName, snapshotObj, openPopover = false, testInlineEdit = false, selectTabId = null, testHelpModal = false) {
+function buildAuditHtml(sc) {
   const baseHtml = fs.readFileSync(path.join(TMP_DIR, "popup.html"), "utf8");
   const injectedScript = `
   <script>
     window.__AUDIT_ERRORS__ = [];
     window.__SENT_ACTIONS__ = [];
+    window.__PORT_LISTENERS__ = [];
     window.addEventListener("error", (e) => window.__AUDIT_ERRORS__.push(String(e.message || e)));
     window.chrome = {
       runtime: {
         connect() {
-          const listeners = [];
+          const listeners = window.__PORT_LISTENERS__;
           setTimeout(() => {
-            listeners.forEach((fn) => fn({ type: "SNAPSHOT", snapshot: ${JSON.stringify(snapshotObj)} }));
-            if (${JSON.stringify(openPopover)}) {
+            listeners.forEach((fn) => fn({ type: "SNAPSHOT", snapshot: ${JSON.stringify(sc.snap)} }));
+            if (${JSON.stringify(Boolean(sc.openPop))}) {
               document.getElementById("theme-dot-btn")?.click();
             }
-            if (${JSON.stringify(selectTabId)} !== null) {
-              const targetStrip = document.querySelector('.channel-strip[data-tab-id="' + ${JSON.stringify(selectTabId)} + '"]');
+            if (${JSON.stringify(sc.selectTabId ?? null)} !== null) {
+              const targetStrip = document.querySelector('.channel-strip[data-tab-id="' + ${JSON.stringify(sc.selectTabId ?? null)} + '"]');
               if (targetStrip) {
                 targetStrip.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
                 targetStrip.querySelector('.strip-header')?.click();
               }
             }
-            if (${JSON.stringify(testInlineEdit)}) {
+            if (${JSON.stringify(Boolean(sc.inlineEdit))}) {
               const strips = document.querySelectorAll(".channel-strip");
               const ch2Box = strips[1]?.querySelector('[data-ref="readoutBtn"]');
               const ch2Input = strips[1]?.querySelector('[data-ref="dbInput"]');
               const ch2DbText = strips[1]?.querySelector('[data-ref="dbText"]');
 
-              // 1) 클릭 직후 0.0dB로 리셋되지 않고 편집 모드가 열리는지 검증
               ch2Box?.click();
               if (ch2Box?.dataset.editing !== "true") window.__AUDIT_ERRORS__.push("INLINE_EDIT_NOT_OPENED");
               if (window.__SENT_ACTIONS__.some((m) => m.type === "SET_TAB_DB" && m.db === 0)) window.__AUDIT_ERRORS__.push("ACCIDENTAL_ZERO_RESET_ON_CLICK");
               if (ch2Input?.value !== "-6.0") window.__AUDIT_ERRORS__.push("UNEXPECTED_INIT_VAL:" + ch2Input?.value);
 
-              // 2) 숫자(-10.3) 입력 후 Enter 적용 검증 + 입력 중 '0' 키가 리셋 단축키로 새지 않는지 검증
               ch2Input.value = "-10.3";
               ch2Input.dispatchEvent(new KeyboardEvent("keydown", { key: "0", bubbles: true }));
               ch2Input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
               if (ch2DbText?.textContent !== "-10.3") window.__AUDIT_ERRORS__.push("COMMIT_DB_MISMATCH:" + ch2DbText?.textContent);
 
-              // 3) 채널 3(+4.5dB) 편집기를 열어 둔 상태로 레이아웃·넘침 감사 수행
               strips[2]?.querySelector('[data-ref="readoutBtn"]')?.click();
             }
           }, 10);
@@ -141,7 +139,10 @@ function buildAuditHtml(scenarioName, snapshotObj, openPopover = false, testInli
             postMessage: (msg) => window.__SENT_ACTIONS__.push(msg),
           };
         },
-        sendMessage: async () => ({}),
+        sendMessage: async (msg) => {
+          window.__SENT_ACTIONS__.push(msg);
+          return {};
+        },
       },
     };
     window.addEventListener("load", () => {
@@ -149,17 +150,141 @@ function buildAuditHtml(scenarioName, snapshotObj, openPopover = false, testInli
         const issues = [...window.__AUDIT_ERRORS__.map((e) => "JS_ERR: " + e)];
         const root = document.getElementById("console-root");
         const rr = root.getBoundingClientRect();
+        const isWin = ${JSON.stringify(Boolean(sc.isWindow))};
+        const popoutBtn = document.getElementById("popout-btn");
+
+        if (isWin) {
+          if (document.documentElement.dataset.view !== "window") issues.push("WINDOW_VIEW_ATTR_MISSING");
+          if (!popoutBtn || !popoutBtn.classList.contains("hidden")) issues.push("POPOUT_BTN_NOT_HIDDEN_IN_WINDOW");
+        } else {
+          if (document.documentElement.dataset.view !== "popup") issues.push("POPUP_VIEW_ATTR_MISSING");
+          if (!popoutBtn || popoutBtn.classList.contains("hidden")) issues.push("POPOUT_BTN_HIDDEN_IN_POPUP");
+          const expectedW = ${JSON.stringify(Boolean(sc.snap.settings.advRackOpen))} ? 788 : 768;
+          if (Math.round(rr.width) !== expectedW) {
+            issues.push("POPUP_FIXED_WIDTH_MISMATCH: " + Math.round(rr.width) + " !== " + expectedW);
+          }
+        }
+
+        const pill = document.getElementById("status-pill");
+        const initPillW = pill ? Math.round(pill.getBoundingClientRect().width) : 0;
+        if (initPillW !== 124) {
+          issues.push("STATUS_PILL_FIXED_WIDTH_MISMATCH: " + initPillW + " !== 124");
+        }
+
         const masterCount = document.querySelectorAll(".master-strip").length;
         const channelCount = document.querySelectorAll(".channel-strip").length;
-        const expectedChannels = ${snapshotObj.channels.length};
+        const expectedChannels = ${sc.snap.channels.length};
         if (masterCount !== 1) issues.push("MISSING_MASTER_STRIP: count=" + masterCount);
         if (channelCount !== expectedChannels) issues.push("CHANNEL_COUNT_MISMATCH: " + channelCount + " !== " + expectedChannels);
-        if (${JSON.stringify(openPopover)}) {
+        if (${JSON.stringify(Boolean(sc.openPop))}) {
           const pop = document.getElementById("theme-popover");
           if (!pop || pop.classList.contains("hidden")) issues.push("POPOVER_NOT_OPEN");
         }
         if (document.documentElement.scrollWidth > window.innerWidth + 1) {
           issues.push("OUTER_OVERFLOW: " + document.documentElement.scrollWidth + " > " + window.innerWidth);
+        }
+
+        // 0.5.1 핵심 인터랙션 회귀 감사: 폭 불변성 · 비선택 채널 원클릭 조작 · 블럭 슬롯 & 드래그 중 SNAPSHOT 잠금
+        if (${JSON.stringify(Boolean(sc.test051Ux))}) {
+          const initRootW = Math.round(root.getBoundingClientRect().width);
+          const ch1 = document.querySelector('.channel-strip[data-tab-id="1"]');
+          const ch2 = document.querySelector('.channel-strip[data-tab-id="2"]');
+          const ch5 = document.querySelector('.channel-strip[data-tab-id="5"]');
+
+          // A) 이미 일시정지된 채널(#5)이 존재할 때 재생 채널(#1) 드래그 시 '여기에 놓아 일시정지' 빈 구역이 뜨지 않고 블럭 슬롯만 표시되는지 검증
+          const grip1 = ch1?.querySelector('[data-ref="grip"]');
+          const g1r = grip1.getBoundingClientRect();
+          const ch5r = ch5.getBoundingClientRect();
+          grip1.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, pointerId: 11, clientX: g1r.left + 10, clientY: g1r.top + 5 }));
+          window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerId: 11, clientX: g1r.left + 28, clientY: g1r.top + 5 }));
+          if (document.querySelectorAll(".drop-zone-empty").length !== 0) {
+            issues.push("UNEXPECTED_EMPTY_ZONE_WHEN_PAUSED_NONEMPTY");
+          }
+          window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerId: 11, clientX: ch5r.left + 12, clientY: g1r.top + 5 }));
+          const ind1 = document.querySelector(".drop-slot-indicator");
+          if (!ind1) {
+            issues.push("MISSING_BLOCK_SLOT_INDICATOR_ON_PAUSE_CROSS");
+          } else {
+            if (Math.round(ind1.getBoundingClientRect().width) !== 94) {
+              issues.push("SLOT_INDICATOR_WIDTH_MISMATCH: " + Math.round(ind1.getBoundingClientRect().width));
+            }
+            if (ind1.textContent !== "여기에 놓아 일시정지") {
+              issues.push("SLOT_INDICATOR_TEXT_MISMATCH_PAUSE: " + ind1.textContent);
+            }
+          }
+          if (Math.round(root.getBoundingClientRect().width) !== initRootW) {
+            issues.push("ROOT_WIDTH_SHIFTED_DURING_DRAG");
+          }
+          window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+          if (document.querySelectorAll(".drop-slot-indicator").length !== 0) {
+            issues.push("SLOT_INDICATOR_NOT_CLEANED_ON_ESC");
+          }
+
+          // B) 이미 일시정지 상태인 유일 채널(#5)을 잡았을 때 '여기에 놓아 일시정지'가 뜨지 않고, 드래그 중 비동기 SNAPSHOT이 와도 '여기에 놓아 재생' 슬롯이 왼쪽에 유지되는지 검증
+          const grip5 = ch5?.querySelector('[data-ref="grip"]');
+          const g5r = grip5.getBoundingClientRect();
+          const ch1r = ch1.getBoundingClientRect();
+          grip5.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, pointerId: 12, clientX: g5r.left + 10, clientY: g5r.top + 5 }));
+          window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerId: 12, clientX: g5r.left - 18, clientY: g5r.top + 5 }));
+          if (document.querySelectorAll(".drop-zone-empty").length !== 0) {
+            issues.push("PAUSED_CHANNEL_DRAG_SPAWNED_EMPTY_PAUSE_ZONE");
+          }
+          // 드래그 도중 비동기 SNAPSHOT 주입 (Bug 1 재현 조건)
+          window.__PORT_LISTENERS__.forEach((fn) => fn({ type: "SNAPSHOT", snapshot: ${JSON.stringify(sc.snap)} }));
+          window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerId: 12, clientX: ch1r.left + 8, clientY: g5r.top + 5 }));
+          const ind2 = document.querySelector(".drop-slot-indicator");
+          const divEl = document.querySelector(".pause-divider");
+          if (!ind2 || !divEl || !divEl.isConnected) {
+            issues.push("DRAG_DOM_CORRUPTED_BY_ASYNC_SNAPSHOT");
+          } else {
+            if (ind2.textContent !== "여기에 놓아 재생") {
+              issues.push("PLAY_SLOT_TEXT_MISMATCH: " + ind2.textContent);
+            }
+            if (ind2.getBoundingClientRect().right > divEl.getBoundingClientRect().left + 2) {
+              issues.push("PLAY_SLOT_PLACED_RIGHT_OF_PAUSE_DIVIDER");
+            }
+          }
+          window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+
+          // C) 비선택 채널(#5, 현재 #1 선택됨)의 재생 버튼을 한 번 클릭했을 때 선택과 TOGGLE_TAB_PLAY(shouldPlay: true)가 첫 클릭에 동시에 수행되는지 검증
+          ch1.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0 }));
+          if (ch5.dataset.selected !== "false") issues.push("CH5_SHOULD_START_UNSELECTED");
+          window.__SENT_ACTIONS__.length = 0;
+          const playBtn5 = ch5.querySelector('[data-ref="playBtn"]');
+          const playChild5 = playBtn5.firstElementChild || playBtn5;
+          playChild5.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0 }));
+          playBtn5.click();
+          if (ch5.dataset.selected !== "true") issues.push("SINGLE_CLICK_DID_NOT_SELECT_STRIP");
+          const sentToggle = window.__SENT_ACTIONS__.find((m) => m.type === "TOGGLE_TAB_PLAY" && m.tabId === 5);
+          if (!sentToggle || sentToggle.shouldPlay !== true) {
+            issues.push("SINGLE_CLICK_PLAY_ACTION_LOST: " + JSON.stringify(window.__SENT_ACTIONS__));
+          }
+
+          // D) 이제 일시정지 그룹이 0개인 상태에서 재생 채널(#1)을 잡으면 '여기에 놓아 일시정지' 블럭 1개가 뜨고 그 블럭 자체가 드롭 타깃으로 강조되는지 검증
+          const g1rAfter = grip1.getBoundingClientRect();
+          grip1.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, pointerId: 13, clientX: g1rAfter.left + 10, clientY: g1rAfter.top + 5 }));
+          window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerId: 13, clientX: g1rAfter.left + 25, clientY: g1rAfter.top + 5 }));
+          const emptyZones = document.querySelectorAll(".drop-zone-empty");
+          if (emptyZones.length !== 1 || emptyZones[0].textContent !== "여기에 놓아 일시정지") {
+            issues.push("MISSING_EMPTY_PAUSE_ZONE_WHEN_ZERO_PAUSED: count=" + emptyZones.length);
+          } else {
+            const ezRect = emptyZones[0].getBoundingClientRect();
+            window.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, pointerId: 13, clientX: ezRect.left + 40, clientY: ezRect.top + 20 }));
+            if (emptyZones[0].dataset.active !== "true") issues.push("EMPTY_PAUSE_ZONE_NOT_ACTIVATED_DIRECTLY");
+            if (document.querySelectorAll(".drop-slot-indicator").length !== 0) {
+              issues.push("DUPLICATE_SLOT_INDICATOR_NEXT_TO_EMPTY_ZONE");
+            }
+          }
+          window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+
+          // E) 토스트 출력 중에도 #status-pill(124px)과 #console-root(768px) 폭이 1px도 변하지 않는지 검증
+          ch2.querySelector('[data-ref="pinBtn"]')?.click();
+          if (Math.round(pill.getBoundingClientRect().width) !== 124) {
+            issues.push("STATUS_PILL_WIDTH_CHANGED_ON_TOAST: " + Math.round(pill.getBoundingClientRect().width));
+          }
+          if (Math.round(root.getBoundingClientRect().width) !== initRootW) {
+            issues.push("ROOT_WIDTH_CHANGED_ON_TOAST: " + Math.round(root.getBoundingClientRect().width));
+          }
         }
 
         // 1) 모든 .switch-bank가 3개 버튼(M, S, F)을 온전히 갖추었는지 검증
@@ -195,7 +320,7 @@ function buildAuditHtml(scenarioName, snapshotObj, openPopover = false, testInli
         const advRackHeight = advRack && !advRack.classList.contains("hidden")
           ? Math.round(advRack.getBoundingClientRect().height) : 0;
 
-        if (${JSON.stringify(scenarioName)} === "adv_rack_cors" && advRack && !advRack.classList.contains("hidden")) {
+        if (${JSON.stringify(sc.name)} === "adv_rack_cors" && advRack && !advRack.classList.contains("hidden")) {
           const ch2 = document.querySelector('.channel-strip[data-tab-id="2"]');
           const ch4 = document.querySelector('.channel-strip[data-tab-id="4"]');
           if (ch2 && ch4) {
@@ -209,8 +334,8 @@ function buildAuditHtml(scenarioName, snapshotObj, openPopover = false, testInli
           }
         }
 
-        // 4) 0.4.0 튜토리얼 도움말 모달 & 중첩 시각 용어 카드 인터랙션 검증
-        if (${JSON.stringify(testHelpModal)}) {
+        // 4) 0.4.0~0.5.0 튜토리얼 도움말 모달 & 중첩 시각 용어 카드 인터랙션 검증
+        if (${JSON.stringify(Boolean(sc.testHelpModal))}) {
           const helpBtn = document.getElementById("help-btn");
           helpBtn?.click();
           const backdrop = document.getElementById("help-backdrop");
@@ -235,6 +360,7 @@ function buildAuditHtml(scenarioName, snapshotObj, openPopover = false, testInli
           if (faderChip && nestedCard) {
             faderChip.dispatchEvent(new PointerEvent("pointerenter", { bubbles: true }));
             if (nestedCard.classList.contains("hidden")) issues.push("NESTED_CARD_NOT_VISIBLE_ON_ENTER");
+            if (getComputedStyle(nestedCard).pointerEvents !== "none") issues.push("UNPINNED_NESTED_CARD_INTERCEPTS_POINTER");
             faderChip.dispatchEvent(new PointerEvent("pointerleave", { bubbles: true }));
             if (!nestedCard.classList.contains("hidden")) issues.push("NESTED_CARD_NOT_HIDDEN_ON_LEAVE");
           }
@@ -246,6 +372,7 @@ function buildAuditHtml(scenarioName, snapshotObj, openPopover = false, testInli
             knobChip.click();
             knobChip.dispatchEvent(new PointerEvent("pointerleave", { bubbles: true }));
             if (nestedCard.classList.contains("hidden")) issues.push("NESTED_CARD_NOT_PINNED_ON_CLICK");
+            if (getComputedStyle(nestedCard).pointerEvents !== "auto") issues.push("PINNED_NESTED_CARD_NOT_INTERACTIVE");
             if (!nestedCard.querySelector("svg")) issues.push("NESTED_CARD_MISSING_SVG");
           }
         }
@@ -255,7 +382,7 @@ function buildAuditHtml(scenarioName, snapshotObj, openPopover = false, testInli
           const rect = el.getBoundingClientRect();
           if (rect.width === 0 && rect.height === 0) return;
           const cls = el.getAttribute("class") || "";
-          const isTruncate = cls.includes("truncate");
+          const isTruncate = cls.includes("truncate") || cls.includes("status-text");
           if (!isTruncate && el.scrollWidth > el.clientWidth + 1) {
             issues.push("CLIP_X [" + el.textContent.trim().slice(0, 20) + "]: " + el.scrollWidth + " > " + el.clientWidth);
           }
@@ -266,7 +393,7 @@ function buildAuditHtml(scenarioName, snapshotObj, openPopover = false, testInli
             if (n.parentElement && n.parentElement.closest("svg")) continue;
             const pCls = (n.parentElement && n.parentElement.getAttribute("class")) || "";
             const isWrapAllowed = cls.includes("desc") || pCls.includes("desc") || cls.includes("tip") || pCls.includes("tip") || cls.includes("allow-wrap") || pCls.includes("allow-wrap");
-            const nodeTrunc = isTruncate || pCls.includes("truncate");
+            const nodeTrunc = isTruncate || pCls.includes("truncate") || pCls.includes("status-text");
             const range = document.createRange();
             range.selectNodeContents(n);
             const rects = range.getClientRects();
@@ -290,7 +417,7 @@ function buildAuditHtml(scenarioName, snapshotObj, openPopover = false, testInli
         });
 
         // 5) Escape 2계층 해제(1차: 중첩 카드 -> 2차: 모달 전체) 검증
-        if (${JSON.stringify(testHelpModal)}) {
+        if (${JSON.stringify(Boolean(sc.testHelpModal))}) {
           const backdrop = document.getElementById("help-backdrop");
           const nestedCard = document.querySelector('[data-ref="nestedCard"]');
           window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
@@ -309,7 +436,7 @@ function buildAuditHtml(scenarioName, snapshotObj, openPopover = false, testInli
         const pre = document.createElement("pre");
         pre.id = "ui-audit-json";
         pre.textContent = JSON.stringify({
-          scenario: ${JSON.stringify(scenarioName)},
+          scenario: ${JSON.stringify(sc.name)},
           width: Math.round(rr.width),
           height: Math.round(rr.height),
           advRackHeight,
@@ -322,67 +449,69 @@ function buildAuditHtml(scenarioName, snapshotObj, openPopover = false, testInli
   return baseHtml.replace("</head>", `${injectedScript}\n</head>`);
 }
 
+const BASE_SETTINGS = {
+  theme: "teal", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false,
+  autoNormEnabled: false, advRackOpen: false, popoutWidth: 780, popoutHeight: 480, domainDefaults: {},
+};
+
 const scenarios = [
   {
-    name: "empty_default", w: 560, h: 420, openPop: false,
-    snap: {
-      settings: { theme: "teal", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false, autoNormEnabled: false, advRackOpen: false, domainDefaults: {} },
-      channels: [],
-    },
+    name: "empty_popup", w: 800, h: 600, isWindow: false, openPop: false,
+    snap: { settings: { ...BASE_SETTINGS }, channels: [] },
   },
   {
-    name: "active_680", w: 680, h: 420, openPop: false,
+    name: "active_popup_051", w: 800, h: 600, isWindow: false, openPop: false, test051Ux: true,
     snap: {
-      settings: { theme: "teal", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false, autoNormEnabled: false, advRackOpen: false, domainDefaults: { "chzzk.naver.com": 0, "youtube.com": -6 } },
+      settings: { ...BASE_SETTINGS, domainDefaults: { "chzzk.naver.com": 0, "youtube.com": -6 } },
       channels: SAMPLE_CHANNELS,
     },
   },
   {
-    name: "narrow_520", w: 520, h: 440, openPop: false,
+    name: "adv_rack_normal", w: 800, h: 600, isWindow: false, openPop: false, selectTabId: 2,
     snap: {
-      settings: { theme: "teal", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false, autoNormEnabled: false, advRackOpen: false, domainDefaults: { "chzzk.naver.com": 0 } },
+      settings: { ...BASE_SETTINGS, autoNormEnabled: true, advRackOpen: true, domainDefaults: { "youtube.com": -6 } },
       channels: SAMPLE_CHANNELS,
     },
   },
   {
-    name: "popover_dark", w: 680, h: 420, openPop: true,
+    name: "adv_rack_cors", w: 800, h: 600, isWindow: false, openPop: false, selectTabId: 4,
     snap: {
-      settings: { theme: "cobalt", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false, autoNormEnabled: false, advRackOpen: false, domainDefaults: {} },
+      settings: { ...BASE_SETTINGS, autoNormEnabled: true, advRackOpen: true },
       channels: SAMPLE_CHANNELS,
     },
   },
   {
-    name: "popover_light", w: 680, h: 420, openPop: true, inlineEdit: false,
+    name: "window_narrow_520", w: 520, h: 440, isWindow: true, openPop: false,
     snap: {
-      settings: { theme: "emerald", modePref: "light", alpha: 0.7, masterDb: 0, masterMuted: false, autoNormEnabled: false, advRackOpen: false, domainDefaults: {} },
+      settings: { ...BASE_SETTINGS, domainDefaults: { "chzzk.naver.com": 0 } },
       channels: SAMPLE_CHANNELS,
     },
   },
   {
-    name: "inline_edit_open", w: 680, h: 420, openPop: false, inlineEdit: true,
+    name: "window_popover_dark", w: 680, h: 460, isWindow: true, openPop: true,
     snap: {
-      settings: { theme: "teal", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false, autoNormEnabled: false, advRackOpen: false, domainDefaults: { "chzzk.naver.com": 0, "youtube.com": -6 } },
+      settings: { ...BASE_SETTINGS, theme: "cobalt", modePref: "dark" },
       channels: SAMPLE_CHANNELS,
     },
   },
   {
-    name: "adv_rack_normal", w: 800, h: 520, openPop: false, inlineEdit: false, selectTabId: 2,
+    name: "window_popover_light", w: 680, h: 460, isWindow: true, openPop: true,
     snap: {
-      settings: { theme: "teal", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false, autoNormEnabled: true, advRackOpen: true, domainDefaults: { "youtube.com": -6 } },
+      settings: { ...BASE_SETTINGS, theme: "emerald", modePref: "light" },
       channels: SAMPLE_CHANNELS,
     },
   },
   {
-    name: "adv_rack_cors", w: 800, h: 520, openPop: false, inlineEdit: false, selectTabId: 4,
+    name: "window_inline_edit", w: 680, h: 460, isWindow: true, openPop: false, inlineEdit: true,
     snap: {
-      settings: { theme: "teal", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false, autoNormEnabled: true, advRackOpen: true, domainDefaults: {} },
+      settings: { ...BASE_SETTINGS, domainDefaults: { "chzzk.naver.com": 0, "youtube.com": -6 } },
       channels: SAMPLE_CHANNELS,
     },
   },
   {
-    name: "help_modal_nested_term", w: 680, h: 460, openPop: false, inlineEdit: false, testHelpModal: true,
+    name: "window_help_modal", w: 680, h: 480, isWindow: true, openPop: false, testHelpModal: true,
     snap: {
-      settings: { theme: "teal", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false, autoNormEnabled: false, advRackOpen: false, domainDefaults: { "chzzk.naver.com": 0, "youtube.com": -6 } },
+      settings: { ...BASE_SETTINGS, domainDefaults: { "chzzk.naver.com": 0, "youtube.com": -6 } },
       channels: SAMPLE_CHANNELS,
     },
   },
@@ -395,12 +524,9 @@ try {
       const scProfile = path.join(TMP_DIR, `profile_${sc.name}`);
       fs.mkdirSync(scProfile, { recursive: true });
       const htmlFile = path.join(TMP_DIR, `audit_${sc.name}.html`);
-      fs.writeFileSync(
-        htmlFile,
-        buildAuditHtml(sc.name, sc.snap, sc.openPop, Boolean(sc.inlineEdit), sc.selectTabId ?? null, Boolean(sc.testHelpModal)),
-        "utf8",
-      );
-      const fileUrl = "file:///" + htmlFile.replace(/\\/g, "/");
+      fs.writeFileSync(htmlFile, buildAuditHtml(sc), "utf8");
+      const query = sc.isWindow ? "?view=window" : "";
+      const fileUrl = "file:///" + htmlFile.replace(/\\/g, "/") + query;
       const { stdout } = await execFileAsync(
         CHROME_BIN,
         [
@@ -444,7 +570,6 @@ try {
     }
   }
 
-  // CORS 채널 클릭 시 사이드 랙 레이아웃 높이 점프 불변성 검증 (|normal - cors| <= 1px)
   if (advNormalHeight !== null && advCorsHeight !== null) {
     const heightDiff = Math.abs(advNormalHeight - advCorsHeight);
     if (heightDiff > 1) {

@@ -398,3 +398,59 @@ test("APPLY_DSP: 스테레오 패닝(pan: -50 -> -0.5) 설정 및 normActive 해
 
   controller.dispose();
 });
+
+test("보조 AudioContext('running')가 있어도 HTML 미디어가 일시정지면 playingCount=0 · pausedCount=1을 보고한다", async () => {
+  const env = createMockAudioEnvironment();
+  const controller = installAudioHook(env.win);
+
+  const ytMusicVideo = new env.FakeMediaElement();
+  ytMusicVideo.currentSrc = "blob:https://music.youtube.com/track-1";
+  await ytMusicVideo.play();
+  ytMusicVideo.pause();
+
+  // 사이트 보조 AudioContext가 상시 running 상태로 destination에 연결되어 있는 상황 재현
+  const auxCtx = new env.win.AudioContext();
+  const auxNode = new env.FakeAudioNode(auxCtx as never);
+  auxNode.connect(auxCtx.destination);
+
+  const snap = controller.getSnapshot();
+  assert.equal(snap.hasMedia, true);
+  assert.equal(snap.playingCount, 0);
+  assert.equal(snap.pausedCount, 1);
+
+  controller.dispose();
+});
+
+test("SET_PLAYING(true): 분리된 더미 오디오 요소를 건너뛰고 최근 활성 미디어 재생과 일시중단된 AudioContext.resume()을 함께 수행한다", async () => {
+  const env = createMockAudioEnvironment();
+  const controller = installAudioHook(env.win);
+
+  // 먼저 등록된 뒤 DOM에서 떨어져 나간 더미 요소
+  const deadAudio = new env.FakeMediaElement();
+  deadAudio.currentSrc = "";
+  deadAudio.readyState = 0;
+  await deadAudio.play();
+  deadAudio.pause();
+  deadAudio.isConnected = false;
+
+  // 실제 곡을 재생하다가 일시정지된 활성 미디어 요소
+  const liveVideo = new env.FakeMediaElement();
+  liveVideo.currentSrc = "blob:https://music.youtube.com/live-song";
+  await liveVideo.play();
+  liveVideo.pause();
+
+  const pageCtx = new env.win.AudioContext();
+  const osc = new env.FakeAudioNode(pageCtx as never);
+  osc.connect(pageCtx.destination);
+  await pageCtx.suspend();
+  assert.equal(pageCtx.state, "suspended");
+
+  controller.dispatchCommand({ type: "SET_PLAYING", shouldPlay: true });
+  await Promise.resolve();
+
+  assert.equal(liveVideo.paused, false);
+  assert.equal(pageCtx.state, "running");
+  assert.equal(controller.getSnapshot().playingCount, 1);
+
+  controller.dispose();
+});

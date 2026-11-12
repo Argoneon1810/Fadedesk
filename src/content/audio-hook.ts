@@ -217,6 +217,7 @@ export function installAudioHook(win: Window & typeof globalThis): AudioHookCont
       scheduleReport();
     };
     const onPlay = (): void => {
+      lastActiveElements.delete(el);
       lastActiveElements.add(el);
       syncElementGain(el);
       updateProcessingLoop();
@@ -319,8 +320,8 @@ export function installAudioHook(win: Window & typeof globalThis): AudioHookCont
   }
 
   function buildSnapshot(): FrameMediaPayload {
-    let playingCount = 0;
-    let pausedCount = 0;
+    let mediaPlayingCount = 0;
+    let mediaPausedCount = 0;
     let corsRestricted = false;
 
     for (const el of trackedElements) {
@@ -329,19 +330,25 @@ export function installAudioHook(win: Window & typeof globalThis): AudioHookCont
       if (!hasSource && el.readyState === 0) continue;
 
       if (!el.paused && !el.ended) {
-        playingCount++;
+        mediaPlayingCount++;
       } else if (hasSource && (el.currentTime > 0 || el.readyState >= 1 || lastActiveElements.has(el))) {
-        pausedCount++;
+        mediaPausedCount++;
       }
       if (isElementCorsOrDrmRestricted(el) && !hookedEntries.has(el)) {
         corsRestricted = true;
       }
     }
 
-    for (const wc of pageContexts) {
-      if (wc.ctx.state === "closed" || !wc.hasConnectedNodes) continue;
-      if (wc.ctx.state === "running") playingCount++;
-      else if (wc.ctx.state === "suspended") pausedCount++;
+    let playingCount = mediaPlayingCount;
+    let pausedCount = mediaPausedCount;
+
+    // 프레임 내에 HTML 미디어 요소가 하나도 없을 때만 순수 WebAudio 앱으로 취급하여 pageContexts 합산
+    if (mediaPlayingCount + mediaPausedCount === 0) {
+      for (const wc of pageContexts) {
+        if (wc.ctx.state === "closed" || !wc.hasConnectedNodes) continue;
+        if (wc.ctx.state === "running") playingCount++;
+        else if (wc.ctx.state === "suspended") pausedCount++;
+      }
     }
 
     const sessionTitle = win.navigator?.mediaSession?.metadata?.title?.trim() ?? "";
@@ -370,6 +377,7 @@ export function installAudioHook(win: Window & typeof globalThis): AudioHookCont
       let pausedAny = false;
       for (const el of trackedElements) {
         if (!el.paused && !el.ended) {
+          lastActiveElements.delete(el);
           lastActiveElements.add(el);
           el.pause();
           pausedAny = true;
@@ -386,20 +394,74 @@ export function installAudioHook(win: Window & typeof globalThis): AudioHookCont
       return;
     }
 
-    const candidates =
-      lastActiveElements.size > 0
-        ? Array.from(lastActiveElements).filter((el) => trackedElements.has(el))
-        : Array.from(trackedElements).filter((el) => Boolean(el.currentSrc || el.getAttribute("src")));
-
-    const primary = candidates[0];
-    if (primary) {
-      void primary.play().catch(() => {});
-    } else {
-      for (const wc of pageContexts) {
-        if (wc.ctx.state === "suspended" && wc.hasConnectedNodes) {
-          void wc.ctx.resume().catch(() => {});
-        }
+    // 1) 일시 중단된 내부·페이지 AudioContext를 먼저 깨움
+    if (sharedCtx && sharedCtx.state === "suspended") {
+      void sharedCtx.resume().catch(() => {});
+    }
+    for (const wc of pageContexts) {
+      if (wc.ctx.state === "suspended" && wc.hasConnectedNodes) {
+        void wc.ctx.resume().catch(() => {});
       }
+    }
+
+    // 2) lastActiveElements에서 분리되었거나 소스가 비어 있는 죽은 요소 제거
+    for (const el of lastActiveElements) {
+      const hasSrc = Boolean(
+        el.currentSrc || el.getAttribute("src") || (el as unknown as { srcObject?: unknown }).srcObject,
+      );
+      if (!el.isConnected || !hasSrc) {
+        lastActiveElements.delete(el);
+      }
+    }
+
+    // 3) 가장 최근 활성 요소 우선으로 유효 재생 후보 구성
+    const seenCandidates = new Set<HTMLMediaElement>();
+    const candidates: HTMLMediaElement[] = [];
+    const orderedElements = [
+      ...Array.from(lastActiveElements).reverse(),
+      ...Array.from(trackedElements),
+    ];
+
+    for (const el of orderedElements) {
+      if (seenCandidates.has(el)) continue;
+      seenCandidates.add(el);
+      const hasSrc = Boolean(
+        el.currentSrc || el.getAttribute("src") || (el as unknown as { srcObject?: unknown }).srcObject,
+      );
+      if (el.isConnected && hasSrc) {
+        candidates.push(el);
+      }
+    }
+
+    // 4) 첫 후보부터 순차 play() 시도 및 실패 시 다음 후보 폴백
+    function tryCandidate(idx: number): void {
+      if (idx >= candidates.length) {
+        scheduleReport();
+        return;
+      }
+      const candidate = candidates[idx]!;
+      try {
+        const res = candidate.play();
+        if (res && typeof res.then === "function") {
+          res
+            .then(() => {
+              syncElementGain(candidate);
+              scheduleReport();
+            })
+            .catch(() => {
+              tryCandidate(idx + 1);
+            });
+        } else {
+          syncElementGain(candidate);
+          scheduleReport();
+        }
+      } catch {
+        tryCandidate(idx + 1);
+      }
+    }
+
+    if (candidates.length > 0) {
+      tryCandidate(0);
     }
     scheduleReport();
   }
@@ -441,6 +503,7 @@ export function installAudioHook(win: Window & typeof globalThis): AudioHookCont
     const origPlay = MediaProto.play;
     MediaProto.play = function patchedPlay(this: HTMLMediaElement): Promise<void> {
       registerElement(this);
+      lastActiveElements.delete(this);
       lastActiveElements.add(this);
       syncElementGain(this);
       return origPlay.call(this);

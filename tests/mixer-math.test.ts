@@ -456,3 +456,56 @@ test("채널 드래그 정렬: 동일 구역 재배치(shouldTogglePlay: false) 
   );
   assert.equal(snap.channels.find((c) => c.tabId === 103)?.playing, true);
 });
+
+test("명시적 탭 재생 상태 동기화(setTabPlaying · toggleTabPlayingOptimistic) 검증", () => {
+  const store = new MixerStateStore();
+  store.updateFrameReport(
+    { tabId: 201, windowId: 1, url: "https://music.youtube.com/watch?v=1", title: "YTM" },
+    0,
+    {
+      hasMedia: true,
+      playingCount: 0,
+      pausedCount: 1,
+      corsRestricted: false,
+      mediaTitle: "테스트 곡",
+      vuLevel: 0,
+      vuPeak: 0,
+      normTrimDb: 0,
+    },
+  );
+
+  assert.equal(store.isTabPlaying(201), false);
+  assert.equal(store.setTabPlaying(201, true), true);
+  assert.equal(store.isTabPlaying(201), true);
+  assert.equal(store.buildSnapshot().channels[0]?.playing, true);
+
+  assert.equal(store.toggleTabPlayingOptimistic(201), true);
+  assert.equal(store.isTabPlaying(201), false);
+
+  // 미등록 탭 방어
+  assert.equal(store.isTabPlaying(999), false);
+  assert.equal(store.setTabPlaying(999, true), false);
+  assert.equal(store.toggleTabPlayingOptimistic(999), false);
+});
+
+test("독립 콘솔 창 크기(setPopoutBounds · hydrateSettings) 클램핑 및 중복 저장 방지 검증", () => {
+  const store = new MixerStateStore();
+  assert.equal(store.getSettings().popoutWidth, 780);
+  assert.equal(store.getSettings().popoutHeight, 480);
+
+  // 하한/상한 클램핑 (520..2560, 380..1600)
+  assert.equal(store.setPopoutBounds(300, 200), true);
+  assert.equal(store.getSettings().popoutWidth, 520);
+  assert.equal(store.getSettings().popoutHeight, 380);
+
+  // 동일 치수 재요청 시 불필요한 스토리지 쓰기 방지를 위해 false 반환
+  assert.equal(store.setPopoutBounds(520, 380), false);
+
+  // 비정상 수치(NaN, Infinity) 방어
+  assert.equal(store.setPopoutBounds(Number.NaN, 600), false);
+  assert.equal(store.setPopoutBounds(800, Number.POSITIVE_INFINITY), false);
+
+  store.hydrateSettings({ popoutWidth: 4000, popoutHeight: 2400 });
+  assert.equal(store.getSettings().popoutWidth, 2560);
+  assert.equal(store.getSettings().popoutHeight, 1600);
+});

@@ -21,6 +21,11 @@ html, body {
   overflow: hidden;
 }
 
+html[data-reordering="true"],
+html[data-reordering="true"] * {
+  cursor: grabbing !important;
+}
+
 button {
   font-family: inherit;
   color: inherit;
@@ -41,19 +46,21 @@ button {
   white-space: nowrap;
 }
 
-/* 최상위 콘솔 프레임 (기본: Chrome 확장 팝업 1줄 콘솔형 고유 폭 자동 산정) */
+/* 최상위 콘솔 프레임 (기본: Chrome 확장 팝업 고정 외곽 폭 — 상태 전환·토스트·드래그 중 크기 불변 보장) */
 #console-root {
   position: relative;
   display: flex;
   flex-direction: column;
-  width: max-content;
-  min-width: 716px;
-  max-width: 780px;
+  width: 768px;
   background: var(--c-bg);
   color: var(--c-text);
   border: 1px solid var(--c-border);
   overflow: clip;
   transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+#console-root[data-fx-open="true"] {
+  width: 788px;
 }
 
 #console-root[data-help-open="true"] {
@@ -68,7 +75,8 @@ html[data-view="window"] body {
   overflow: auto;
 }
 
-html[data-view="window"] #console-root {
+html[data-view="window"] #console-root,
+html[data-view="window"] #console-root[data-fx-open="true"] {
   width: 100%;
   min-width: 460px;
   max-width: none;
@@ -140,6 +148,11 @@ html[data-view="window"] .console-bay {
 .console-btn svg {
   display: block;
   flex-shrink: 0;
+}
+
+.console-btn > *,
+.strip-header > * {
+  pointer-events: none;
 }
 
 /* 상단 컨트롤 데크 */
@@ -221,13 +234,16 @@ html[data-view="window"] .console-bay {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 8px;
+  width: 124px;
+  height: 22px;
+  padding: 0 8px;
   border-radius: 9999px;
   border: 1px solid var(--c-border);
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  min-width: 0;
-  max-width: 136px;
+  flex-shrink: 0;
+  overflow: clip;
 }
 
 .status-dot {
@@ -238,7 +254,12 @@ html[data-view="window"] .console-bay {
 }
 
 .status-text {
+  flex: 1 1 auto;
+  min-width: 0;
   line-height: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .deck-right {

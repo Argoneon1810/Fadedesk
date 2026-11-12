@@ -281,9 +281,14 @@ async function handlePopupAction(msg: PopupActionMessage): Promise<void> {
       broadcastSnapshotAndBadge();
       break;
 
-    case "TOGGLE_TAB_PLAY":
-      sendCommandToTab(msg.tabId, { type: "TOGGLE_PLAY" });
+    case "TOGGLE_TAB_PLAY": {
+      const nextPlay = typeof msg.shouldPlay === "boolean" ? msg.shouldPlay : !store.isTabPlaying(msg.tabId);
+      store.setTabPlaying(msg.tabId, nextPlay);
+      sendCommandToTab(msg.tabId, { type: "SET_PLAYING", shouldPlay: nextPlay });
+      pushGainsToAllTabs();
+      broadcastSnapshotAndBadge();
       break;
+    }
 
     case "TOGGLE_DOMAIN_PIN":
       if (store.toggleDomainPin(msg.tabId)) {
@@ -344,16 +349,17 @@ async function handlePopupAction(msg: PopupActionMessage): Promise<void> {
       break;
 
     case "REORDER_CHANNELS": {
-      const res = store.reorderChannels(
+      store.reorderChannels(
         msg.movedTabId,
         msg.targetZone,
         msg.orderedPlayingIds,
         msg.orderedPausedIds,
       );
-      if (res.shouldTogglePlay) {
-        sendCommandToTab(msg.movedTabId, { type: "SET_PLAYING", shouldPlay: res.nextPlaying });
-        pushGainsToAllTabs();
-      }
+      const shouldPlay = msg.targetZone === "playing";
+      store.setTabPlaying(msg.movedTabId, shouldPlay);
+      sendCommandToTab(msg.movedTabId, { type: "SET_PLAYING", shouldPlay });
+      pushGainsToAllTabs();
+      await persistSettings();
       broadcastSnapshotAndBadge();
       break;
     }
@@ -361,8 +367,11 @@ async function handlePopupAction(msg: PopupActionMessage): Promise<void> {
     case "SET_ALL_PLAYING": {
       const snap = store.buildSnapshot();
       for (const ch of snap.channels) {
+        store.setTabPlaying(ch.tabId, msg.shouldPlay);
         sendCommandToTab(ch.tabId, { type: "SET_PLAYING", shouldPlay: msg.shouldPlay });
       }
+      pushGainsToAllTabs();
+      broadcastSnapshotAndBadge();
       break;
     }
 

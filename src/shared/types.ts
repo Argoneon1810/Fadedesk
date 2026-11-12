@@ -180,7 +180,7 @@ export type PopupActionMessage =
   | { source: "popup"; type: "TOGGLE_TAB_MUTE"; tabId: number }
   | { source: "popup"; type: "TOGGLE_TAB_MODE"; tabId: number; mode: ExclusiveMode; shiftKey: boolean }
   | { source: "popup"; type: "CLEAR_MODES" }
-  | { source: "popup"; type: "TOGGLE_TAB_PLAY"; tabId: number }
+  | { source: "popup"; type: "TOGGLE_TAB_PLAY"; tabId: number; shouldPlay?: boolean }
   | { source: "popup"; type: "TOGGLE_DOMAIN_PIN"; tabId: number }
   | { source: "popup"; type: "JUMP_TO_TAB"; tabId: number; windowId: number }
   | { source: "popup"; type: "SET_ALPHA"; alpha: number }

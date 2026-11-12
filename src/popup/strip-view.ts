@@ -62,6 +62,8 @@ export interface ChannelStripRefs {
   dbText: HTMLElement;
   subText: HTMLElement;
   playBtn: HTMLButtonElement;
+  playIcon: HTMLElement;
+  playLabel: HTMLElement;
   pinBtn: HTMLButtonElement;
   pinDot: HTMLElement;
   muteBtn: HTMLButtonElement;
@@ -71,6 +73,7 @@ export interface ChannelStripRefs {
   focusBtn: HTMLButtonElement;
   focusPip: HTMLElement;
   renderedFavIcon: string;
+  renderedPlaying: boolean | null;
 }
 
 /**
@@ -258,7 +261,9 @@ export function buildChannelStripDom(
     </div>
 
     <div class="transport-row">
-      <button data-ref="playBtn" type="button" class="console-btn play-btn" title="재생 / 일시정지"></button>
+      <button data-ref="playBtn" type="button" class="console-btn play-btn" title="재생 / 일시정지">
+        <span data-ref="playIcon"></span><span data-ref="playLabel"></span>
+      </button>
       <button data-ref="pinBtn" type="button" class="console-btn pin-btn">
         ${ICONS.pin}
         <span data-ref="pinDot" class="pin-dot"></span>
@@ -307,6 +312,8 @@ export function buildChannelStripDom(
     dbText: q("dbText"),
     subText: q("subText"),
     playBtn: q("playBtn"),
+    playIcon: q("playIcon"),
+    playLabel: q("playLabel"),
     pinBtn: q("pinBtn"),
     pinDot: q("pinDot"),
     muteBtn: q("muteBtn"),
@@ -316,6 +323,7 @@ export function buildChannelStripDom(
     focusBtn: q("focusBtn"),
     focusPip: q("focusPip"),
     renderedFavIcon: "__UNSET__",
+    renderedPlaying: null,
   };
 
   el.addEventListener("pointerdown", () => cb.onSelectChannel(initialCh.tabId), { passive: true });
@@ -506,9 +514,11 @@ export function syncChannelStripDom(
     syncChannelReadoutSub(r, ch, settings, ctx, t);
   }
 
-  r.playBtn.innerHTML = ch.playing
-    ? `${ICONS.pause}<span>재생</span>`
-    : `${ICONS.play}<span>대기</span>`;
+  if (r.renderedPlaying !== ch.playing) {
+    r.renderedPlaying = ch.playing;
+    r.playIcon.innerHTML = ch.playing ? ICONS.pause : ICONS.play;
+    r.playLabel.textContent = ch.playing ? "재생" : "대기";
+  }
   r.playBtn.style.backgroundColor = ch.playing ? t.surface : t.bg;
   r.playBtn.style.borderColor = ch.playing ? t.primary : t.border;
   r.playBtn.style.color = ch.playing ? t.primary : t.muted;

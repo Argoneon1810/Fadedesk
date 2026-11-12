@@ -392,26 +392,42 @@ export class MixerStateStore {
     if (orderSeq >= this.seqCounter) this.seqCounter = orderSeq + 1;
 
     if (moved && wasPlaying !== nextPlaying) {
-      if (!nextPlaying) {
-        for (const f of moved.frames.values()) {
-          f.pausedCount += f.playingCount;
-          f.playingCount = 0;
-        }
-        moved.audible = false;
-      } else {
-        let promoted = false;
-        for (const f of moved.frames.values()) {
-          if (f.hasMedia && !promoted) {
-            f.playingCount = Math.max(1, f.playingCount);
-            f.pausedCount = Math.max(0, f.pausedCount - 1);
-            promoted = true;
-          }
-        }
-        if (!promoted) moved.audible = true;
-      }
+      this.setTabPlaying(movedTabId, nextPlaying);
       return { shouldTogglePlay: true, nextPlaying };
     }
     return { shouldTogglePlay: false, nextPlaying };
+  }
+
+  isTabPlaying(tabId: number): boolean {
+    const rec = this.tabs.get(tabId);
+    return rec ? this.isRecordPlaying(rec) : false;
+  }
+
+  setTabPlaying(tabId: number, shouldPlay: boolean): boolean {
+    const rec = this.tabs.get(tabId);
+    if (!rec) return false;
+    if (!shouldPlay) {
+      for (const f of rec.frames.values()) {
+        f.pausedCount += f.playingCount;
+        f.playingCount = 0;
+      }
+      rec.audible = false;
+    } else {
+      let promoted = false;
+      for (const f of rec.frames.values()) {
+        if (f.hasMedia && !promoted) {
+          f.playingCount = Math.max(1, f.playingCount);
+          f.pausedCount = Math.max(0, f.pausedCount - 1);
+          promoted = true;
+        }
+      }
+      if (!promoted) rec.audible = true;
+    }
+    return true;
+  }
+
+  toggleTabPlayingOptimistic(tabId: number): boolean {
+    return this.setTabPlaying(tabId, !this.isTabPlaying(tabId));
   }
 
   setAlpha(alpha: number): void {

@@ -34,7 +34,10 @@ export interface MasterStripRefs {
   dbUnit: HTMLElement;
   subText: HTMLElement;
   pauseAllBtn: HTMLButtonElement;
+  pauseAllIcon: HTMLElement;
+  pauseAllLabel: HTMLElement;
   muteAllBtn: HTMLButtonElement;
+  renderedAnyPlaying: boolean | null;
   vuCurL: number;
   vuPeakL: number;
   vuCurR: number;
@@ -79,8 +82,12 @@ export function buildMasterStripDom(
       </div>
       <div data-ref="subText" class="readout-sub truncate c-muted">마스터 게인</div>
     </div>
-    <button data-ref="pauseAllBtn" type="button" class="console-btn master-action-btn c-raised"></button>
-    <button data-ref="muteAllBtn" type="button" class="console-btn master-mute-btn"></button>
+    <button data-ref="pauseAllBtn" type="button" class="console-btn master-action-btn c-raised">
+      <span data-ref="pauseAllIcon"></span><span data-ref="pauseAllLabel"></span>
+    </button>
+    <button data-ref="muteAllBtn" type="button" class="console-btn master-mute-btn">
+      <span>${ICONS.speakerOff}</span><span>전체 음소거</span>
+    </button>
   `;
 
   const vuL = createLedColumn();
@@ -105,7 +112,10 @@ export function buildMasterStripDom(
     dbUnit: q("dbUnit"),
     subText: q("subText"),
     pauseAllBtn: q("pauseAllBtn"),
+    pauseAllIcon: q("pauseAllIcon"),
+    pauseAllLabel: q("pauseAllLabel"),
     muteAllBtn: q("muteAllBtn"),
+    renderedAnyPlaying: null,
     vuCurL: 0,
     vuPeakL: 0,
     vuCurR: 0,
@@ -183,11 +193,12 @@ export function syncMasterStripDom(
   }
 
   m.pauseAllBtn.disabled = channels.length === 0;
-  m.pauseAllBtn.innerHTML = anyPlaying
-    ? `${ICONS.pause}<span>전체 정지</span>`
-    : `${ICONS.play}<span>전체 재생</span>`;
+  if (m.renderedAnyPlaying !== anyPlaying) {
+    m.renderedAnyPlaying = anyPlaying;
+    m.pauseAllIcon.innerHTML = anyPlaying ? ICONS.pause : ICONS.play;
+    m.pauseAllLabel.textContent = anyPlaying ? "전체 정지" : "전체 재생";
+  }
 
-  m.muteAllBtn.innerHTML = `${ICONS.speakerOff}<span>전체 음소거</span>`;
   m.muteAllBtn.style.backgroundColor = settings.masterMuted ? t.states.danger : t.raised;
   m.muteAllBtn.style.borderColor = settings.masterMuted ? t.states.danger : t.border;
   m.muteAllBtn.style.color = settings.masterMuted ? t.states.onDanger : t.text;

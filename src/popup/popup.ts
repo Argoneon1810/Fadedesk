@@ -8,7 +8,7 @@ import {
   type ConsoleSnapshot, type ModePref, type PopupActionMessage,
   type TabChannelState, type ThemeKey, type ThemeTokens,
 } from "../shared/types";
-import { startChannelReorderDrag } from "./drag-reorder";
+import { isChannelReorderDragging, startChannelReorderDrag } from "./drag-reorder";
 import { buildFxRackDom, syncFxRackDom, syncFxRackTrimBadge, type FxRackRefs } from "./fx-rack-view";
 import { buildHelpModalDom, syncHelpModalDom, type HelpModalRefs } from "./help-modal";
 import { ICONS } from "./icons";
@@ -79,6 +79,7 @@ function renderThemePopover(t: ThemeTokens, isDark: boolean): void {
 }
 
 function reconcileChannelStrips(callbacks: StripCallbacks): void {
+  if (isChannelReorderDragging()) return;
   const scrollRow = document.getElementById("channels-scroll")!;
   const channels = snapshot.channels;
   const liveIds = new Set(channels.map((c) => c.tabId));
@@ -123,6 +124,7 @@ function renderAll(): void {
   const root = document.getElementById("console-root")!;
   root.dataset.dark = String(isDark);
   root.dataset.helpOpen = String(helpOpen);
+  root.dataset.fxOpen = String(snapshot.settings.advRackOpen);
 
   const vars: Record<string, string> = {
     "--c-bg": t.bg, "--c-surface": t.surface, "--c-raised": t.raised,
@@ -148,6 +150,7 @@ function renderAll(): void {
   statusDot.style.backgroundColor = toastText
     ? t.primary : anySolo ? t.accent : playingCount > 0 ? t.states.success : t.muted;
   statusText.textContent = toastText || `재생 ${playingCount} · 대기 ${pausedCount}`;
+  statusText.title = statusText.textContent;
   statusText.style.color = toastText ? t.primary : t.muted;
 
   const alphaBox = document.getElementById("alpha-box")!, alphaLabel = document.getElementById("alpha-label")!;
@@ -216,7 +219,17 @@ function renderAll(): void {
 
 const stripCallbacks: StripCallbacks = {
   onSelectChannel(tabId) {
-    if (selectedTabId !== tabId) { selectedTabId = tabId; renderAll(); }
+    if (selectedTabId === tabId) return;
+    selectedTabId = tabId;
+    for (const [id, refs] of stripMap.entries()) {
+      refs.el.dataset.selected = String(id === tabId);
+    }
+    syncFxRackDom(
+      fxRackRefs,
+      findChannel(selectedTabId) ?? snapshot.channels[0],
+      snapshot.settings,
+      currentTokens(),
+    );
   },
   onBeginDragChannel(ev, tabId) {
     startChannelReorderDrag({
@@ -261,8 +274,9 @@ const stripCallbacks: StripCallbacks = {
   },
   onTogglePlay(tabId) {
     const ch = findChannel(tabId);
-    if (ch) ch.playing = !ch.playing;
-    sendAction({ source: "popup", type: "TOGGLE_TAB_PLAY", tabId });
+    const shouldPlay = ch ? !ch.playing : undefined;
+    if (ch && shouldPlay !== undefined) ch.playing = shouldPlay;
+    sendAction({ source: "popup", type: "TOGGLE_TAB_PLAY", tabId, shouldPlay });
     renderAll();
   },
   onTogglePin(tabId, ch) {
