@@ -1,0 +1,5 @@
+[SWEA Login Persister](https://github.com/Argoneon1810/persistent_login)
+[Tiltfill private](https://github.com/Argoneon1810/zoom_to_fill)
+[Tiltfill public](https://github.com/Argoneon1810/Tiltfill)
+[YouTube Live Chat Emoji Panel Enhancer](https://github.com/Argoneon1810/youtube_emojy_enlarge)
+[Chrome New Tab Enhancer](https://github.com/Argoneon1810/more_than_10_shortcuts)
