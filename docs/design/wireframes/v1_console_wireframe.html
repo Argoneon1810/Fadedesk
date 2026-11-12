@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>Sound Manager — Wireframe v1 (Monochrome Console)</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    .hatch-zone {
+      background-image: repeating-linear-gradient(
+        -45deg,
+        rgba(128, 128, 128, 0.18),
+        rgba(128, 128, 128, 0.18) 3px,
+        transparent 3px,
+        transparent 6px
+      );
+    }
+    .no-select { user-select: none; -webkit-user-select: none; }
+  </style>
+</head>
+<body class="bg-transparent text-[var(--foreground)] antialiased p-0 m-0 no-select">
+  <div class="py-1.5 space-y-1.5">
+    <!-- Simulated Chrome Extension Popup Frame (Monochrome Wireframe) -->
+    <div id="popup-frame" class="inline-block rounded-lg border-2 border-[var(--foreground)]/40 bg-[var(--background)] overflow-hidden">
+      <!-- Top Mini Bar -->
+      <div class="flex items-center justify-between gap-3 px-3 py-1.5 border-b border-[var(--border)] text-xs">
+        <div class="flex items-center gap-2">
+          <span class="font-mono font-bold tracking-tight">[WIREFRAME v1]</span>
+          <span id="status-counts" class="px-1.5 py-0.5 rounded border border-[var(--border)] text-[var(--muted-foreground)] font-mono">재생 4 · 대기 1</span>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <label class="flex items-center gap-1.5 text-[var(--muted-foreground)]" title="α=0이면 순수 원-핫 Solo(-∞dB), α=1이면 감쇠 없음(0dB)">
+            <span>Focus 스무딩(α)</span>
+            <input id="alpha-slider" type="range" min="0" max="1" step="0.05" value="0.70" class="w-20 accent-[var(--foreground)] cursor-pointer" />
+            <span id="alpha-readout" class="font-mono w-24 text-[var(--foreground)]">0.70 (-12dB)</span>
+          </label>
+          <button id="reset-modes-btn" class="px-1.5 py-0.5 rounded border border-[var(--border)] text-xs hover:bg-[var(--card)] disabled:opacity-35 cursor-pointer">
+            S/F 해제
+          </button>
+        </div>
+      </div>
+
+      <!-- Strip Console Area -->
+      <div id="strips-row" class="flex items-stretch px-2 py-2 gap-1.5 overflow-x-auto"></div>
+    </div>
+
+    <div class="text-xs text-[var(--muted-foreground)] flex items-center justify-between max-w-[590px]">
+      <span>조작 테스트: 페이더 드래그 · 스트립 위 마우스 휠(Shift 미세조절) · 더블클릭(0dB 복귀) · F 원클릭 교체(Shift 다중)</span>
+      <span id="toast-msg" class="font-mono text-[var(--foreground)]"></span>
+    </div>
+  </div>
+
+  <script>
+    const MIN_DB = -60;
+    const MAX_DB = 12;
+    const MAX_DIM_DB = 40;
+
+    const state = {
+      alpha: 0.70,
+      masterDb: 0.0,
+      masterMuted: false,
+      channels: [
+        { id: 1, site: "CHZ", title: "침착맨 라이브", domain: "chzzk.naver.com", db: 0.0, playing: true, muted: false, solo: false, focus: true, pinned: true, corsCap: false, baseVu: 0.76 },
+        { id: 2, site: "YT", title: "Lo-Fi 작업 브금", domain: "youtube.com", db: -6.0, playing: true, muted: false, solo: false, focus: false, pinned: true, corsCap: false, baseVu: 0.58 },
+        { id: 3, site: "YT", title: "개발 컨퍼런스", domain: "youtube.com", db: 4.5, playing: true, muted: false, solo: false, focus: false, pinned: false, corsCap: false, baseVu: 0.65 },
+        { id: 4, site: "NFX", title: "넷플릭스 영화", domain: "netflix.com", db: 0.0, playing: true, muted: false, solo: false, focus: false, pinned: false, corsCap: true, baseVu: 0.62 },
+        { id: 5, site: "SC", title: "오후 플레이리스트", domain: "soundcloud.com", db: -3.0, playing: false, muted: false, solo: false, focus: false, pinned: false, corsCap: false, baseVu: 0.50 }
+      ]
+    };
+
+    function dbToRatio(db) {
+      if (db <= MIN_DB) return 0;
+      if (db >= MAX_DB) return 1;
+      return (db - MIN_DB) / (MAX_DB - MIN_DB);
+    }
+
+    function ratioToDb(ratio) {
+      const clamped = Math.max(0, Math.min(1, ratio));
+      return Math.round((MIN_DB + clamped * (MAX_DB - MIN_DB)) * 2) / 2;
+    }
+
+    function getFocusDimDb() {
+      if (state.alpha <= 0) return -Infinity;
+      return -Math.round(MAX_DIM_DB * (1 - state.alpha) * 10) / 10;
+    }
+
+    function getEffectiveDb(ch) {
+      if (!ch.playing || ch.muted || state.masterMuted || ch.db <= MIN_DB) return -Infinity;
+      const anySolo = state.channels.some(c => c.solo);
+      const anyFocus = state.channels.some(c => c.focus);
+      let delta = state.masterDb;
+      if (anySolo) {
+        if (!ch.solo) return -Infinity;
+      } else if (anyFocus) {
+        if (!ch.focus) {
+          const dim = getFocusDimDb();
+          if (!isFinite(dim)) return -Infinity;
+          delta += dim;
+        }
+      }
+      const res = ch.db + delta;
+      return res <= MIN_DB ? -Infinity : res;
+    }
+
+    function formatDb(db) {
+      if (!isFinite(db) || db <= MIN_DB) return "-∞ dB";
+      return (db > 0 ? "+" : "") + db.toFixed(1) + " dB";
+    }
+
+    function showToast(text) {
+      const el = document.getElementById("toast-msg");
+      el.textContent = text;
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(() => { el.textContent = ""; }, 1800);
+    }
+
+    function bindFaderDrag(trackEl, onRatio, onReset) {
+      trackEl.addEventListener("dblclick", (e) => {
+        e.preventDefault();
+        onReset();
+      });
+      trackEl.addEventListener("pointerdown", (e) => {
+        if (e.detail >= 2) return;
+        e.preventDefault();
+        trackEl.setPointerCapture(e.pointerId);
+        const update = (ev) => {
+          const rect = trackEl.getBoundingClientRect();
+          const ratio = 1 - (ev.clientY - rect.top) / rect.height;
+          onRatio(ratio);
+        };
+        update(e);
+        const move = (ev) => update(ev);
+        const up = () => {
+          trackEl.removeEventListener("pointermove", move);
+          trackEl.removeEventListener("pointerup", up);
+        };
+        trackEl.addEventListener("pointermove", move);
+        trackEl.addEventListener("pointerup", up);
+      });
+    }
+
+    function createStripElement(ch) {
+      const effDb = getEffectiveDb(ch);
+      const userRatio = dbToRatio(ch.db);
+      const effRatio = isFinite(effDb) ? dbToRatio(Math.min(MAX_DB, effDb)) : 0;
+      const zeroRatio = dbToRatio(0);
+      const isDimmedByMode = isFinite(effDb) && Math.abs(effDb - (ch.db + state.masterDb)) > 0.1;
+      const isSilencedByMode = !isFinite(effDb) && ch.playing && !ch.muted && ch.db > MIN_DB;
+
+      const wrap = document.createElement("div");
+      wrap.className = `w-[78px] shrink-0 rounded border flex flex-col justify-between p-1.5 ${
+        ch.playing ? "border-[var(--border)] bg-[var(--card)]" : "border-dashed border-[var(--border)] opacity-65"
+      }`;
+
+      wrap.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        const step = e.shiftKey ? 0.5 : 1.5;
+        const dir = e.deltaY < 0 ? 1 : -1;
+        const cap = ch.corsCap ? 0 : MAX_DB;
+        ch.db = Math.max(MIN_DB, Math.min(cap, Math.round((ch.db + dir * step) * 2) / 2));
+        render();
+      }, { passive: false });
+
+      // 1. Header (Favicon placeholder + Title -> Jump to Tab)
+      const header = document.createElement("button");
+      header.className = "w-full text-left group pb-1 border-b border-[var(--border)] cursor-pointer";
+      header.title = `${ch.title} (${ch.domain})\n클릭 시 해당 탭으로 포커스 이동`;
+      header.innerHTML = `
+        <div class="flex items-center gap-1">
+          <span class="px-1 border border-[var(--foreground)]/40 rounded text-[10px] font-mono leading-tight">${ch.site}</span>
+          <span class="text-xs truncate flex-1 font-medium group-hover:underline">${ch.title}</span>
+        </div>
+      `;
+      header.addEventListener("click", () => showToast(`↗ 탭 이동: ${ch.title}`));
+      wrap.appendChild(header);
+
+      // 2. Vertical Fader + VU Meter
+      const faderZone = document.createElement("div");
+      faderZone.className = "relative h-[144px] my-1.5 flex items-center justify-center gap-2";
+
+      const track = document.createElement("div");
+      track.className = "relative w-5 h-full flex items-center justify-center cursor-ns-resize";
+      track.innerHTML = `
+        <div class="w-1.5 h-full rounded-sm border border-[var(--foreground)]/35 bg-[var(--background)] relative overflow-hidden">
+          ${ch.corsCap ? `<div class="hatch-zone absolute inset-x-0 top-0 border-b border-[var(--foreground)]/50" style="height:${(1 - zeroRatio) * 100}%" title="보안 제한 영상: 0dB 상한"></div>` : ""}
+        </div>
+        <!-- 0 dB tick -->
+        <div class="absolute inset-x-0 border-t border-dashed border-[var(--foreground)]/55 pointer-events-none" style="bottom:${zeroRatio * 100}%"></div>
+        <span class="absolute -left-1 text-[9px] font-mono text-[var(--muted-foreground)] pointer-events-none" style="bottom:calc(${zeroRatio * 100}% - 5px)">0</span>
+        ${(isDimmedByMode || isSilencedByMode) ? `
+          <div class="absolute w-4 h-1.5 border border-dashed border-[var(--foreground)]/70 bg-[var(--background)]/80 pointer-events-none"
+               style="bottom:calc(${effRatio * 100}% - 3px)" title="실효 출력 위치"></div>
+        ` : ""}
+        <!-- User Fader Knob -->
+        <div class="absolute w-5 h-2.5 rounded-sm border border-[var(--foreground)] bg-[var(--foreground)] pointer-events-none"
+             style="bottom:calc(${userRatio * 100}% - 5px)"></div>
+      `;
+
+      bindFaderDrag(track, (r) => {
+        const rawDb = ratioToDb(r);
+        ch.db = ch.corsCap ? Math.min(0, rawDb) : rawDb;
+        render();
+      }, () => {
+        ch.db = 0;
+        render();
+      });
+
+      // Slim VU Meter bar
+      const vuHeight = !isFinite(effDb) ? 0 : Math.max(4, Math.min(100, Math.round(dbToRatio(effDb) * ch.baseVu * 115)));
+      const vu = document.createElement("div");
+      vu.className = "w-1.5 h-full border border-[var(--border)] bg-[var(--background)] flex flex-col justify-end overflow-hidden";
+      vu.innerHTML = `<div class="vu-bar w-full bg-[var(--foreground)]/60 transition-all duration-150" data-ch="${ch.id}" style="height:${vuHeight}%"></div>`;
+
+      faderZone.appendChild(track);
+      faderZone.appendChild(vu);
+      wrap.appendChild(faderZone);
+
+      // dB Readout + optional CORS cap note
+      const readout = document.createElement("div");
+      readout.className = "text-center font-mono leading-tight mb-1";
+      const subNote = ch.corsCap
+        ? "0dB MAX"
+        : !ch.playing
+          ? "일시정지"
+          : (isDimmedByMode || isSilencedByMode)
+            ? `실효 ${formatDb(effDb)}`
+            : "&nbsp;";
+      readout.innerHTML = `
+        <div class="text-xs font-semibold">${formatDb(ch.db)}</div>
+        <div class="text-[10px] text-[var(--muted-foreground)] truncate">${subNote}</div>
+      `;
+      wrap.appendChild(readout);
+
+      // 3. Compact Action Cluster: [Play/Pause] [Pin] + [M] [S] [F]
+      const actions = document.createElement("div");
+      actions.className = "space-y-1";
+      const btnCls = (on) =>
+        `text-xs font-mono py-0.5 rounded border cursor-pointer ${
+          on
+            ? "bg-[var(--foreground)] text-[var(--background)] border-[var(--foreground)] font-bold"
+            : "border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--background)]"
+        }`;
+
+      actions.innerHTML = `
+        <div class="grid grid-cols-2 gap-1">
+          <button data-act="play" class="${btnCls(false)}" title="재생 / 일시정지">${ch.playing ? "⏸" : "▶"}</button>
+          <button data-act="pin" class="${btnCls(ch.pinned)}" title="현재 dB를 도메인(${ch.domain}) 기본값으로 고정">📌</button>
+        </div>
+        <div class="grid grid-cols-3 gap-0.5">
+          <button data-act="mute" class="${btnCls(ch.muted)}" title="Mute (음소거)">M</button>
+          <button data-act="solo" class="${btnCls(ch.solo)}" title="Solo (α=0 원-핫)">S</button>
+          <button data-act="focus" class="${btnCls(ch.focus)}" title="Focus (클릭: 원클릭 교체 / Shift+클릭: 다중)">F</button>
+        </div>
+      `;
+
+      actions.querySelector('[data-act="play"]').onclick = () => { ch.playing = !ch.playing; render(); };
+      actions.querySelector('[data-act="pin"]').onclick = () => {
+        ch.pinned = !ch.pinned;
+        showToast(ch.pinned ? `📌 ${ch.domain} 기본값 저장 (${formatDb(ch.db)})` : `${ch.domain} 기본값 해제`);
+        render();
+      };
+      actions.querySelector('[data-act="mute"]').onclick = () => { ch.muted = !ch.muted; render(); };
+      actions.querySelector('[data-act="solo"]').onclick = () => { ch.solo = !ch.solo; render(); };
+      actions.querySelector('[data-act="focus"]').onclick = (e) => {
+        if (e.shiftKey) {
+          ch.focus = !ch.focus;
+        } else {
+          const wasOnlyFocus = ch.focus && state.channels.filter(c => c.focus).length === 1;
+          state.channels.forEach(c => { c.focus = false; });
+          ch.focus = !wasOnlyFocus;
+        }
+        render();
+      };
+
+      wrap.appendChild(actions);
+      return wrap;
+    }
+
+    function createMasterElement() {
+      const ratio = dbToRatio(state.masterDb);
+      const zeroRatio = dbToRatio(0);
+      const wrap = document.createElement("div");
+      wrap.className = "w-[78px] shrink-0 rounded border-2 border-[var(--foreground)]/50 bg-[var(--card)] flex flex-col justify-between p-1.5";
+
+      wrap.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        const step = e.shiftKey ? 0.5 : 1.5;
+        state.masterDb = Math.max(MIN_DB, Math.min(MAX_DB, Math.round((state.masterDb + (e.deltaY < 0 ? step : -step)) * 2) / 2));
+        render();
+      }, { passive: false });
+
+      wrap.innerHTML = `
+        <div class="pb-1 border-b border-[var(--border)] text-center">
+          <div class="text-xs font-mono font-bold tracking-wider">MASTER</div>
+        </div>
+      `;
+
+      const faderZone = document.createElement("div");
+      faderZone.className = "relative h-[144px] my-1.5 flex items-center justify-center";
+      const track = document.createElement("div");
+      track.className = "relative w-6 h-full flex items-center justify-center cursor-ns-resize";
+      track.innerHTML = `
+        <div class="w-2 h-full rounded-sm border border-[var(--foreground)]/45 bg-[var(--background)]"></div>
+        <div class="absolute inset-x-0 border-t border-dashed border-[var(--foreground)]/60 pointer-events-none" style="bottom:${zeroRatio * 100}%"></div>
+        <div class="absolute w-6 h-3 rounded-sm border-2 border-[var(--foreground)] bg-[var(--background)] pointer-events-none" style="bottom:calc(${ratio * 100}% - 6px)"></div>
+      `;
+      bindFaderDrag(track, (r) => { state.masterDb = ratioToDb(r); render(); }, () => { state.masterDb = 0; render(); });
+      faderZone.appendChild(track);
+      wrap.appendChild(faderZone);
+
+      const readout = document.createElement("div");
+      readout.className = "text-center font-mono leading-tight mb-1";
+      readout.innerHTML = `
+        <div class="text-xs font-semibold">${state.masterMuted ? "MUTED" : formatDb(state.masterDb)}</div>
+        <div class="text-[10px] text-[var(--muted-foreground)]">전체 출력</div>
+      `;
+      wrap.appendChild(readout);
+
+      const actions = document.createElement("div");
+      actions.className = "space-y-1";
+      const anyPlaying = state.channels.some(c => c.playing);
+      actions.innerHTML = `
+        <button data-act="pause-all" class="w-full text-xs font-mono py-0.5 rounded border border-[var(--border)] hover:bg-[var(--background)] cursor-pointer">
+          ${anyPlaying ? "⏸ 전체" : "▶ 전체"}
+        </button>
+        <button data-act="mute-all" class="w-full text-xs font-mono py-0.5 rounded border cursor-pointer ${
+          state.masterMuted ? "bg-[var(--foreground)] text-[var(--background)] border-[var(--foreground)] font-bold" : "border-[var(--border)] hover:bg-[var(--background)]"
+        }">M 전체</button>
+      `;
+      actions.querySelector('[data-act="pause-all"]').onclick = () => {
+        const target = !anyPlaying;
+        state.channels.forEach(c => { c.playing = target; });
+        render();
+      };
+      actions.querySelector('[data-act="mute-all"]').onclick = () => {
+        state.masterMuted = !state.masterMuted;
+        render();
+      };
+      wrap.appendChild(actions);
+      return wrap;
+    }
+
+    function render() {
+      const row = document.getElementById("strips-row");
+      row.innerHTML = "";
+
+      const playing = state.channels.filter(c => c.playing);
+      const paused = state.channels.filter(c => !c.playing);
+
+      document.getElementById("status-counts").textContent = `재생 ${playing.length} · 대기 ${paused.length}`;
+      const dim = getFocusDimDb();
+      document.getElementById("alpha-readout").textContent =
+        `${state.alpha.toFixed(2)} (${isFinite(dim) ? (dim === 0 ? "0dB" : dim.toFixed(0) + "dB") : "-∞"})`;
+      document.getElementById("reset-modes-btn").disabled = !state.channels.some(c => c.solo || c.focus);
+
+      playing.forEach(ch => row.appendChild(createStripElement(ch)));
+      if (playing.length && paused.length) {
+        const sep = document.createElement("div");
+        sep.className = "w-px bg-[var(--border)] my-1 shrink-0";
+        row.appendChild(sep);
+      }
+      paused.forEach(ch => row.appendChild(createStripElement(ch)));
+
+      const masterSep = document.createElement("div");
+      masterSep.className = "w-0.5 bg-[var(--foreground)]/30 my-0.5 shrink-0";
+      row.appendChild(masterSep);
+      row.appendChild(createMasterElement());
+    }
+
+    document.getElementById("alpha-slider").addEventListener("input", (e) => {
+      state.alpha = parseFloat(e.target.value);
+      render();
+    });
+    document.getElementById("reset-modes-btn").addEventListener("click", () => {
+      state.channels.forEach(c => { c.solo = false; c.focus = false; });
+      render();
+    });
+
+    // Subtle meter jitter so active vs dimmed VU difference is immediately visible
+    setInterval(() => {
+      document.querySelectorAll(".vu-bar").forEach(el => {
+        const ch = state.channels.find(c => c.id === Number(el.dataset.ch));
+        if (!ch) return;
+        const effDb = getEffectiveDb(ch);
+        if (!isFinite(effDb)) { el.style.height = "0%"; return; }
+        const jitter = 0.88 + Math.random() * 0.22;
+        const h = Math.max(4, Math.min(100, Math.round(dbToRatio(effDb) * ch.baseVu * 115 * jitter)));
+        el.style.height = h + "%";
+      });
+    }, 180);
+
+    render();
+  </script>
+</body>
+</html>
