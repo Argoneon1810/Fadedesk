@@ -9,13 +9,10 @@ import {
   type TabChannelState, type ThemeKey, type ThemeTokens,
 } from "../shared/types";
 import { startChannelReorderDrag } from "./drag-reorder";
-import {
-  buildFxRackDom, syncFxRackDom, syncFxRackTrimBadge, type FxRackRefs,
-} from "./fx-rack-view";
+import { buildFxRackDom, syncFxRackDom, syncFxRackTrimBadge, type FxRackRefs } from "./fx-rack-view";
+import { buildHelpModalDom, syncHelpModalDom, type HelpModalRefs } from "./help-modal";
 import { ICONS } from "./icons";
-import {
-  buildMasterStripDom, syncMasterStripDom, updateMasterBusVu, type MasterStripRefs,
-} from "./master-view";
+import { buildMasterStripDom, syncMasterStripDom, updateMasterBusVu, type MasterStripRefs } from "./master-view";
 import {
   attachKnobDrag, buildChannelStripDom, paintLedColumn,
   syncChannelReadoutSub, syncChannelStripDom,
@@ -28,11 +25,8 @@ import { renderThemePopoverDom } from "./theme-popover";
  * 백그라운드 포트 실시간 동기화, 채널 드래그 재배치, 2계층 노멀라이저·고급 FX 사이드 랙 제어.
  */
 
-let snapshot: ConsoleSnapshot = {
-  settings: { ...DEFAULT_SETTINGS, domainDefaults: {} },
-  channels: [],
-};
-let popoverOpen = false;
+let snapshot: ConsoleSnapshot = { settings: { ...DEFAULT_SETTINGS, domainDefaults: {} }, channels: [] };
+let popoverOpen = false, helpOpen = false;
 let selectedTabId: number | null = null;
 let toastText = "";
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -46,8 +40,7 @@ const emptyBay = document.createElement("div");
 emptyBay.className = "empty-bay";
 emptyBay.innerHTML = `<div class="empty-icon">${ICONS.consoleEmpty}</div><div class="empty-title">활성 미디어 탭이 없습니다</div><div class="empty-desc">유튜브·스트리밍·음악 사이트에서 미디어를 재생하면 채널 스트립이 이 자리에 자동으로 정렬됩니다.</div>`;
 
-let masterRefs!: MasterStripRefs;
-let fxRackRefs!: FxRackRefs;
+let masterRefs!: MasterStripRefs, fxRackRefs!: FxRackRefs, helpRefs!: HelpModalRefs;
 
 function resolvedMode(): "dark" | "light" {
   const pref = snapshot.settings.modePref;
@@ -55,9 +48,7 @@ function resolvedMode(): "dark" | "light" {
   return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
 }
 
-function currentTokens(): ThemeTokens {
-  return PALETTES[snapshot.settings.theme][resolvedMode()];
-}
+const currentTokens = (): ThemeTokens => PALETTES[snapshot.settings.theme][resolvedMode()];
 
 function sendAction(msg: PopupActionMessage): void {
   try {
@@ -75,9 +66,7 @@ function flashToast(text: string): void {
   renderAll();
 }
 
-function findChannel(tabId: number): TabChannelState | undefined {
-  return snapshot.channels.find((c) => c.tabId === tabId);
-}
+const findChannel = (tabId: number): TabChannelState | undefined => snapshot.channels.find((c) => c.tabId === tabId);
 
 function renderThemePopover(t: ThemeTokens, isDark: boolean): void {
   renderThemePopoverDom(snapshot.settings, popoverOpen, isDark, t, (theme: ThemeKey, modePref: ModePref) => {
@@ -151,8 +140,7 @@ function renderAll(): void {
   const anySolo = channels.some((c) => c.solo);
   const anyFocus = channels.some((c) => c.focus);
 
-  const statusPill = document.getElementById("status-pill")!;
-  const statusDot = document.getElementById("status-dot")!;
+  const statusPill = document.getElementById("status-pill")!, statusDot = document.getElementById("status-dot")!;
   const statusText = document.getElementById("status-text")!;
   statusPill.style.borderColor = toastText ? t.primary : t.border;
   statusDot.style.backgroundColor = toastText
@@ -160,10 +148,8 @@ function renderAll(): void {
   statusText.textContent = toastText || `재생 ${playingCount} · 대기 ${pausedCount}`;
   statusText.style.color = toastText ? t.primary : t.muted;
 
-  const alphaBox = document.getElementById("alpha-box")!;
-  const alphaLabel = document.getElementById("alpha-label")!;
-  const alphaFill = document.getElementById("alpha-fill")!;
-  const alphaThumb = document.getElementById("alpha-thumb")!;
+  const alphaBox = document.getElementById("alpha-box")!, alphaLabel = document.getElementById("alpha-label")!;
+  const alphaFill = document.getElementById("alpha-fill")!, alphaThumb = document.getElementById("alpha-thumb")!;
   const alphaReadout = document.getElementById("alpha-readout")!;
   const resetModesBtn = document.getElementById("reset-modes-btn") as HTMLButtonElement;
   alphaBox.style.borderColor = anyFocus ? t.primary : t.border;
@@ -190,6 +176,14 @@ function renderAll(): void {
   paintTgl(document.getElementById("auto-norm-btn"), snapshot.settings.autoNormEnabled, "균일 N");
   paintTgl(document.getElementById("adv-rack-btn"), snapshot.settings.advRackOpen, snapshot.settings.advRackOpen ? "고급 FX ◂" : "고급 FX ▸");
 
+  const helpBtn = document.getElementById("help-btn") as HTMLButtonElement | null;
+  if (helpBtn) {
+    helpBtn.setAttribute("aria-expanded", String(helpOpen));
+    helpBtn.style.backgroundColor = helpOpen ? t.primary : t.raised;
+    helpBtn.style.color = helpOpen ? t.onPrimary : t.primary;
+    helpBtn.style.borderColor = helpOpen ? t.primary : t.border;
+  }
+
   reconcileChannelStrips(stripCallbacks);
 
   const ctx: MixerContextInput = {
@@ -208,6 +202,7 @@ function renderAll(): void {
   syncMasterStripDom(masterRefs, snapshot.settings, channels, t);
   updateMasterBusVu(masterRefs, snapshot.settings, snapshot.channels, t);
   syncFxRackDom(fxRackRefs, findChannel(selectedTabId ?? 0) ?? channels[0], snapshot.settings, t);
+  syncHelpModalDom(helpRefs, helpOpen, t);
 }
 
 const stripCallbacks: StripCallbacks = {
@@ -221,22 +216,17 @@ const stripCallbacks: StripCallbacks = {
       onSelectChannel: (id) => stripCallbacks.onSelectChannel(id),
       onCommitReorder: (movedTabId, targetZone, orderedPlayingIds, orderedPausedIds) => {
         const ch = findChannel(movedTabId);
-        const wasPlaying = ch?.playing;
-        const nextPlaying = targetZone === "playing";
+        const wasPlaying = ch?.playing, nextPlaying = targetZone === "playing";
         if (ch) ch.playing = nextPlaying;
-
         const playChs = orderedPlayingIds.map((id) => findChannel(id)).filter((c): c is TabChannelState => !!c);
         const pauseChs = orderedPausedIds.map((id) => findChannel(id)).filter((c): c is TabChannelState => !!c);
         playChs.forEach((c) => { c.playing = true; });
         pauseChs.forEach((c) => { c.playing = false; });
         snapshot.channels = [...playChs, ...pauseChs];
-
         sendAction({ source: "popup", type: "REORDER_CHANNELS", movedTabId, targetZone, orderedPlayingIds, orderedPausedIds });
         if (wasPlaying !== undefined && wasPlaying !== nextPlaying) {
           flashToast(`${ch?.title ?? "채널"}: ${nextPlaying ? "재생 구역 이동 · 즉시 재생" : "일시정지 구역 이동 · 즉시 정지"}`);
-        } else {
-          renderAll();
-        }
+        } else renderAll();
       },
       onCancel: () => renderAll(),
     });
@@ -302,9 +292,7 @@ const stripCallbacks: StripCallbacks = {
 };
 
 function setupTopDeckAndKeyboard(): void {
-  const alphaBox = document.getElementById("alpha-box")!;
-  const alphaThumb = document.getElementById("alpha-thumb")!;
-  const alphaTrack = document.getElementById("alpha-track")!;
+  const alphaBox = document.getElementById("alpha-box")!, alphaThumb = document.getElementById("alpha-thumb")!, alphaTrack = document.getElementById("alpha-track")!;
 
   const applyAlpha = (next: number): void => {
     snapshot.settings.alpha = clampAlpha(next);
@@ -319,34 +307,43 @@ function setupTopDeckAndKeyboard(): void {
   attachKnobDrag(alphaThumb, alphaTrack, "x", (ratio) => applyAlpha(ratio), () => applyAlpha(0.7));
 
   const resetBtn = document.getElementById("reset-modes-btn");
-  if (resetBtn) {
-    resetBtn.onclick = () => {
-      for (const ch of snapshot.channels) { ch.solo = false; ch.focus = false; }
-      sendAction({ source: "popup", type: "CLEAR_MODES" });
-      renderAll();
-    };
-  }
+  if (resetBtn) resetBtn.onclick = () => {
+    for (const ch of snapshot.channels) { ch.solo = false; ch.focus = false; }
+    sendAction({ source: "popup", type: "CLEAR_MODES" });
+    renderAll();
+  };
   const autoNormBtn = document.getElementById("auto-norm-btn");
-  if (autoNormBtn) {
-    autoNormBtn.onclick = () => {
-      snapshot.settings.autoNormEnabled = !snapshot.settings.autoNormEnabled;
-      sendAction({ source: "popup", type: "TOGGLE_AUTO_NORM" });
-      renderAll();
-    };
-  }
+  if (autoNormBtn) autoNormBtn.onclick = () => {
+    snapshot.settings.autoNormEnabled = !snapshot.settings.autoNormEnabled;
+    sendAction({ source: "popup", type: "TOGGLE_AUTO_NORM" });
+    renderAll();
+  };
   const advRackBtn = document.getElementById("adv-rack-btn");
-  if (advRackBtn) {
-    advRackBtn.onclick = () => {
-      snapshot.settings.advRackOpen = !snapshot.settings.advRackOpen;
-      sendAction({ source: "popup", type: "SET_ADV_RACK_OPEN", open: snapshot.settings.advRackOpen });
-      renderAll();
-    };
-  }
+  if (advRackBtn) advRackBtn.onclick = () => {
+    snapshot.settings.advRackOpen = !snapshot.settings.advRackOpen;
+    sendAction({ source: "popup", type: "SET_ADV_RACK_OPEN", open: snapshot.settings.advRackOpen });
+    renderAll();
+  };
 
   const dotBtn = document.getElementById("theme-dot-btn")!;
   const pop = document.getElementById("theme-popover")!;
-  dotBtn.onclick = (ev) => { ev.stopPropagation(); popoverOpen = !popoverOpen; renderAll(); };
+  dotBtn.onclick = (ev) => {
+    ev.stopPropagation();
+    if (!popoverOpen) helpOpen = false;
+    popoverOpen = !popoverOpen;
+    renderAll();
+  };
   pop.onclick = (ev) => ev.stopPropagation();
+
+  const helpBtn = document.getElementById("help-btn");
+  if (helpBtn) {
+    helpBtn.onclick = (ev) => {
+      ev.stopPropagation();
+      popoverOpen = false;
+      helpOpen = !helpOpen;
+      renderAll();
+    };
+  }
 
   window.addEventListener("pointerdown", (ev) => {
     if (!popoverOpen) return;
@@ -360,9 +357,26 @@ function setupTopDeckAndKeyboard(): void {
   window.addEventListener("keydown", (ev) => {
     const activeTag = document.activeElement?.tagName;
     if (activeTag === "INPUT" || activeTag === "TEXTAREA") return;
-    if (ev.key === "Escape" && popoverOpen) {
-      ev.preventDefault(); popoverOpen = false; renderAll(); return;
+    if (ev.key === "Escape") {
+      if (helpOpen && helpRefs.isNestedPinned()) {
+        ev.preventDefault();
+        helpRefs.clearNestedPin();
+        return;
+      }
+      if (helpOpen) {
+        ev.preventDefault();
+        helpOpen = false;
+        renderAll();
+        return;
+      }
+      if (popoverOpen) {
+        ev.preventDefault();
+        popoverOpen = false;
+        renderAll();
+        return;
+      }
     }
+    if (helpOpen) return;
     const channels = snapshot.channels;
     if (channels.length === 0) return;
 
@@ -438,9 +452,7 @@ function connectBackgroundPort(): void {
         };
         for (const item of msg.levels) {
           const ch = findChannel(item.tabId);
-          if (ch) {
-            ch.vuLevel = item.vuLevel; ch.vuPeak = item.vuPeak; ch.normTrimDb = item.normTrimDb;
-          }
+          if (ch) { ch.vuLevel = item.vuLevel; ch.vuPeak = item.vuPeak; ch.normTrimDb = item.normTrimDb; }
           const refs = stripMap.get(item.tabId);
           if (refs) {
             paintLedColumn(refs.vu.segs, item.vuLevel, item.vuPeak, t);
@@ -456,21 +468,21 @@ function connectBackgroundPort(): void {
 }
 
 function bootstrapPopup(): void {
+  helpRefs = buildHelpModalDom(document.getElementById("help-backdrop")!, () => {
+    helpOpen = false;
+    renderAll();
+  });
   masterRefs = buildMasterStripDom(() => snapshot.settings.masterDb, stripCallbacks);
   document.getElementById("master-dock")!.appendChild(masterRefs.el);
 
   const sideFxRack = document.getElementById("side-fx-rack")!;
-  fxRackRefs = buildFxRackDom(
-    sideFxRack,
-    () => findChannel(selectedTabId ?? 0) ?? snapshot.channels[0],
-    (tabId: number, patch: Partial<ChannelFxState>) => {
-      const ch = findChannel(tabId);
-      if (!ch) return;
-      ch.fx = sanitizeChannelFx(ch.fx, patch);
-      sendAction({ source: "popup", type: "UPDATE_TAB_FX", tabId, patch });
-      renderAll();
-    },
-  );
+  fxRackRefs = buildFxRackDom(sideFxRack, () => findChannel(selectedTabId ?? 0) ?? snapshot.channels[0], (tabId, patch) => {
+    const ch = findChannel(tabId);
+    if (!ch) return;
+    ch.fx = sanitizeChannelFx(ch.fx, patch);
+    sendAction({ source: "popup", type: "UPDATE_TAB_FX", tabId, patch });
+    renderAll();
+  });
 
   setupTopDeckAndKeyboard();
   renderAll();

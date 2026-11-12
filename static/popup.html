@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="popup.css" />
   <link rel="stylesheet" href="popup-strips.css" />
   <link rel="stylesheet" href="popup-fx.css" />
+  <link rel="stylesheet" href="popup-help.css" />
 </head>
 <body>
   <div id="console-root" data-dark="true">
@@ -24,6 +25,7 @@
           <span id="brand-dot" class="brand-dot"></span>
         </button>
         <span class="brand-title">SOUND MANAGER</span>
+        <button id="help-btn" type="button" aria-haspopup="dialog" aria-expanded="false" title="사용법 및 부품 안내" class="console-btn help-trigger c-raised">?</button>
         <div id="status-pill" class="status-pill c-recessed">
           <span id="status-dot" class="status-dot"></span>
           <span id="status-text" class="status-text truncate">탐색 중...</span>
@@ -80,7 +82,7 @@
       </div>
     </div>
 
-    <!-- 콘솔 스트립 베이: 좌측 가변/가로 스크롤 채널 구역 + 우측 고정 MASTER BUS + 우측 도킹 고급 FX 사이드 랙 -->
+    <div id="help-backdrop" class="help-backdrop hidden"></div>
     <main class="console-bay">
       <div id="channels-scroll" class="channels-scroll"></div>
       <div id="master-dock" class="master-dock"></div>

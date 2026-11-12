@@ -40,6 +40,7 @@ async function buildExtension() {
     ["popup.css", "popup.css"],
     ["popup-strips.css", "popup-strips.css"],
     ["popup-fx.css", "popup-fx.css"],
+    ["popup-help.css", "popup-help.css"],
     ["icons/icon16.png", "icons/icon16.png"],
     ["icons/icon32.png", "icons/icon32.png"],
     ["icons/icon48.png", "icons/icon48.png"],

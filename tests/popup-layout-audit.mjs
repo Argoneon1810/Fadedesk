@@ -8,9 +8,9 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 /**
- * 실제 빌드된 dist/unpacked/ 자산(popup.html + popup.css + popup-strips.css + popup-fx.css + popup.js)을
+ * 실제 빌드된 dist/unpacked/ 자산(popup.html + popup.css + popup-strips.css + popup-fx.css + popup-help.css + popup.js)을
  * 헤드리스 Chrome에서 실행해 런타임 오류, 줄바꿈, 한글 상하 잘림, 테마 팝오버 넘침,
- * 스위치 뱅크 3버튼(M·S·F), 스트립 하단 빈틈(dead bottom gap), CORS 채널 FX 랙 높이 불변성을 전수 감사한다.
+ * 스위치 뱅크 3버튼(M·S·F), 스트립 하단 빈틈, CORS 채널 FX 랙 높이 불변성, 튜토리얼 도움말 모달 & 중첩 시각 카드를 전수 감사한다.
  */
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -32,7 +32,7 @@ const PROFILE_DIR = path.join(TMP_DIR, "profile");
 fs.mkdirSync(PROFILE_DIR, { recursive: true });
 
 // dist/unpacked 자산을 임시 폴더로 복사 (빌드 전 static 최신본 폴백 지원)
-for (const name of ["popup.html", "popup.css", "popup-strips.css", "popup-fx.css", "popup.js"]) {
+for (const name of ["popup.html", "popup.css", "popup-strips.css", "popup-fx.css", "popup-help.css", "popup.js"]) {
   const unpackedPath = path.join(UNPACKED_DIR, name);
   const staticPath = path.join(ROOT, "static", name);
   if (fs.existsSync(unpackedPath)) {
@@ -52,54 +52,39 @@ const SAMPLE_CHANNELS = [
     favIconUrl: "", playing: true, audible: true, mediaCount: 1, db: 0.0,
     muted: false, solo: false, focus: true, corsCap: false, vuLevel: 0.66, vuPeak: 0.76, firstSeenAt: 1,
     sortOrder: 1, normTrimDb: 0.0,
-    fx: {
-      normMode: "follow", normTargetLufs: -16, normSpeed: "std", pan: 0,
-      gateEnabled: true, gateThresholdDb: -48, compEnabled: false, compRatio: 4,
-    },
+    fx: { normMode: "follow", normTargetLufs: -16, normSpeed: "std", pan: 0, gateEnabled: true, gateThresholdDb: -48, compEnabled: false, compRatio: 4 },
   },
   {
     tabId: 2, windowId: 1, title: "Lo-Fi 작업 브금", domain: "youtube.com", shortHost: "youtube",
     favIconUrl: "", playing: true, audible: true, mediaCount: 1, db: -6.0,
     muted: false, solo: false, focus: false, corsCap: false, vuLevel: 0.42, vuPeak: 0.52, firstSeenAt: 2,
     sortOrder: 2, normTrimDb: 2.1,
-    fx: {
-      normMode: "on", normTargetLufs: -14, normSpeed: "fast", pan: -20,
-      gateEnabled: false, gateThresholdDb: -48, compEnabled: true, compRatio: 2,
-    },
+    fx: { normMode: "on", normTargetLufs: -14, normSpeed: "fast", pan: -20, gateEnabled: false, gateThresholdDb: -48, compEnabled: true, compRatio: 2 },
   },
   {
     tabId: 3, windowId: 1, title: "개발 컨퍼런스", domain: "youtube.com", shortHost: "youtube",
     favIconUrl: "", playing: true, audible: true, mediaCount: 1, db: 4.5,
     muted: false, solo: false, focus: false, corsCap: false, vuLevel: 0.54, vuPeak: 0.64, firstSeenAt: 3,
     sortOrder: 3, normTrimDb: 0.0,
-    fx: {
-      normMode: "follow", normTargetLufs: -16, normSpeed: "std", pan: 15,
-      gateEnabled: false, gateThresholdDb: -48, compEnabled: false, compRatio: 4,
-    },
+    fx: { normMode: "follow", normTargetLufs: -16, normSpeed: "std", pan: 15, gateEnabled: false, gateThresholdDb: -48, compEnabled: false, compRatio: 4 },
   },
   {
     tabId: 4, windowId: 2, title: "넷플릭스 영화", domain: "netflix.com", shortHost: "netflix",
     favIconUrl: "", playing: true, audible: true, mediaCount: 1, db: 0.0,
     muted: false, solo: false, focus: false, corsCap: true, vuLevel: 0.48, vuPeak: 0.58, firstSeenAt: 4,
     sortOrder: 4, normTrimDb: 0.0,
-    fx: {
-      normMode: "follow", normTargetLufs: -16, normSpeed: "std", pan: 0,
-      gateEnabled: false, gateThresholdDb: -48, compEnabled: false, compRatio: 4,
-    },
+    fx: { normMode: "follow", normTargetLufs: -16, normSpeed: "std", pan: 0, gateEnabled: false, gateThresholdDb: -48, compEnabled: false, compRatio: 4 },
   },
   {
     tabId: 5, windowId: 2, title: "오후 플레이리스트", domain: "soundcloud.com", shortHost: "soundcloud",
     favIconUrl: "", playing: false, audible: false, mediaCount: 1, db: -3.0,
     muted: false, solo: false, focus: false, corsCap: false, vuLevel: 0, vuPeak: 0, firstSeenAt: 5,
     sortOrder: 5, normTrimDb: 0.0,
-    fx: {
-      normMode: "off", normTargetLufs: -18, normSpeed: "slow", pan: 0,
-      gateEnabled: false, gateThresholdDb: -48, compEnabled: false, compRatio: 4,
-    },
+    fx: { normMode: "off", normTargetLufs: -18, normSpeed: "slow", pan: 0, gateEnabled: false, gateThresholdDb: -48, compEnabled: false, compRatio: 4 },
   },
 ];
 
-function buildAuditHtml(scenarioName, snapshotObj, openPopover = false, testInlineEdit = false, selectTabId = null) {
+function buildAuditHtml(scenarioName, snapshotObj, openPopover = false, testInlineEdit = false, selectTabId = null, testHelpModal = false) {
   const baseHtml = fs.readFileSync(path.join(TMP_DIR, "popup.html"), "utf8");
   const injectedScript = `
   <script>
@@ -130,23 +115,15 @@ function buildAuditHtml(scenarioName, snapshotObj, openPopover = false, testInli
 
               // 1) 클릭 직후 0.0dB로 리셋되지 않고 편집 모드가 열리는지 검증
               ch2Box?.click();
-              if (ch2Box?.dataset.editing !== "true") {
-                window.__AUDIT_ERRORS__.push("INLINE_EDIT_NOT_OPENED");
-              }
-              if (window.__SENT_ACTIONS__.some((m) => m.type === "SET_TAB_DB" && m.db === 0)) {
-                window.__AUDIT_ERRORS__.push("ACCIDENTAL_ZERO_RESET_ON_CLICK");
-              }
-              if (ch2Input?.value !== "-6.0") {
-                window.__AUDIT_ERRORS__.push("UNEXPECTED_INIT_VAL:" + ch2Input?.value);
-              }
+              if (ch2Box?.dataset.editing !== "true") window.__AUDIT_ERRORS__.push("INLINE_EDIT_NOT_OPENED");
+              if (window.__SENT_ACTIONS__.some((m) => m.type === "SET_TAB_DB" && m.db === 0)) window.__AUDIT_ERRORS__.push("ACCIDENTAL_ZERO_RESET_ON_CLICK");
+              if (ch2Input?.value !== "-6.0") window.__AUDIT_ERRORS__.push("UNEXPECTED_INIT_VAL:" + ch2Input?.value);
 
               // 2) 숫자(-10.3) 입력 후 Enter 적용 검증 + 입력 중 '0' 키가 리셋 단축키로 새지 않는지 검증
               ch2Input.value = "-10.3";
               ch2Input.dispatchEvent(new KeyboardEvent("keydown", { key: "0", bubbles: true }));
               ch2Input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
-              if (ch2DbText?.textContent !== "-10.3") {
-                window.__AUDIT_ERRORS__.push("COMMIT_DB_MISMATCH:" + ch2DbText?.textContent);
-              }
+              if (ch2DbText?.textContent !== "-10.3") window.__AUDIT_ERRORS__.push("COMMIT_DB_MISMATCH:" + ch2DbText?.textContent);
 
               // 3) 채널 3(+4.5dB) 편집기를 열어 둔 상태로 레이아웃·넘침 감사 수행
               strips[2]?.querySelector('[data-ref="readoutBtn"]')?.click();
@@ -169,17 +146,11 @@ function buildAuditHtml(scenarioName, snapshotObj, openPopover = false, testInli
         const masterCount = document.querySelectorAll(".master-strip").length;
         const channelCount = document.querySelectorAll(".channel-strip").length;
         const expectedChannels = ${snapshotObj.channels.length};
-        if (masterCount !== 1) {
-          issues.push("MISSING_MASTER_STRIP: count=" + masterCount);
-        }
-        if (channelCount !== expectedChannels) {
-          issues.push("CHANNEL_COUNT_MISMATCH: " + channelCount + " !== " + expectedChannels);
-        }
+        if (masterCount !== 1) issues.push("MISSING_MASTER_STRIP: count=" + masterCount);
+        if (channelCount !== expectedChannels) issues.push("CHANNEL_COUNT_MISMATCH: " + channelCount + " !== " + expectedChannels);
         if (${JSON.stringify(openPopover)}) {
           const pop = document.getElementById("theme-popover");
-          if (!pop || pop.classList.contains("hidden")) {
-            issues.push("POPOVER_NOT_OPEN");
-          }
+          if (!pop || pop.classList.contains("hidden")) issues.push("POPOVER_NOT_OPEN");
         }
         if (document.documentElement.scrollWidth > window.innerWidth + 1) {
           issues.push("OUTER_OVERFLOW: " + document.documentElement.scrollWidth + " > " + window.innerWidth);
@@ -188,9 +159,7 @@ function buildAuditHtml(scenarioName, snapshotObj, openPopover = false, testInli
         // 1) 모든 .switch-bank가 3개 버튼(M, S, F)을 온전히 갖추었는지 검증
         document.querySelectorAll(".switch-bank").forEach((bank, idx) => {
           const btns = bank.querySelectorAll("button");
-          if (btns.length !== 3) {
-            issues.push("SWITCH_BANK_COUNT_MISMATCH #" + idx + ": " + btns.length + " !== 3");
-          }
+          if (btns.length !== 3) issues.push("SWITCH_BANK_COUNT_MISMATCH #" + idx + ": " + btns.length + " !== 3");
           const text = Array.from(btns).map((b) => b.textContent.trim()).join(" ");
           if (!text.includes("M") || !text.includes("S") || !text.includes("F")) {
             issues.push("SWITCH_BANK_LABELS_MISMATCH #" + idx + ": " + text);
@@ -202,30 +171,23 @@ function buildAuditHtml(scenarioName, snapshotObj, openPopover = false, testInli
           const stripRect = strip.getBoundingClientRect();
           const lastChild = strip.lastElementChild;
           if (lastChild) {
-            const lastRect = lastChild.getBoundingClientRect();
-            const gap = stripRect.bottom - lastRect.bottom;
-            if (gap > 10) {
-              issues.push("DEAD_BOTTOM_GAP [channel-strip " + (strip.dataset.tabId || "") + "]: " + gap.toFixed(1) + "px > 10px");
-            }
+            const gap = stripRect.bottom - lastChild.getBoundingClientRect().bottom;
+            if (gap > 10) issues.push("DEAD_BOTTOM_GAP [channel-strip " + (strip.dataset.tabId || "") + "]: " + gap.toFixed(1) + "px > 10px");
           }
         });
         document.querySelectorAll(".master-strip").forEach((strip) => {
           const stripRect = strip.getBoundingClientRect();
           const lastChild = strip.lastElementChild;
           if (lastChild) {
-            const lastRect = lastChild.getBoundingClientRect();
-            const gap = stripRect.bottom - lastRect.bottom;
-            if (gap > 10) {
-              issues.push("DEAD_BOTTOM_GAP [master-strip]: " + gap.toFixed(1) + "px > 10px");
-            }
+            const gap = stripRect.bottom - lastChild.getBoundingClientRect().bottom;
+            if (gap > 10) issues.push("DEAD_BOTTOM_GAP [master-strip]: " + gap.toFixed(1) + "px > 10px");
           }
         });
 
         // 3) 고급 FX 사이드 랙 높이 및 CORS 채널 전환 시 레이아웃 높이 점프 불변성 검증
         const advRack = document.getElementById("side-fx-rack");
         const advRackHeight = advRack && !advRack.classList.contains("hidden")
-          ? Math.round(advRack.getBoundingClientRect().height)
-          : 0;
+          ? Math.round(advRack.getBoundingClientRect().height) : 0;
 
         if (${JSON.stringify(scenarioName)} === "adv_rack_cors" && advRack && !advRack.classList.contains("hidden")) {
           const ch2 = document.querySelector('.channel-strip[data-tab-id="2"]');
@@ -241,10 +203,52 @@ function buildAuditHtml(scenarioName, snapshotObj, openPopover = false, testInli
           }
         }
 
-        document.querySelectorAll("button, .alpha-readout, .status-text, .readout-sub, .strip-title, .pop-theme-btn, .fx-card-title").forEach((el) => {
+        // 4) 0.4.0 튜토리얼 도움말 모달 & 중첩 시각 용어 카드 인터랙션 검증
+        if (${JSON.stringify(testHelpModal)}) {
+          const helpBtn = document.getElementById("help-btn");
+          helpBtn?.click();
+          const backdrop = document.getElementById("help-backdrop");
+          if (!backdrop || backdrop.classList.contains("hidden")) {
+            issues.push("HELP_BACKDROP_NOT_VISIBLE");
+          }
+          const modal = document.querySelector(".help-modal");
+          if (!modal) {
+            issues.push("MISSING_HELP_MODAL");
+          } else {
+            const mr = modal.getBoundingClientRect();
+            if (mr.width <= 0 || mr.height <= 0) issues.push("HELP_MODAL_ZERO_BOUNDS: " + mr.width + "x" + mr.height);
+            if (mr.left < rr.left - 1 || mr.right > rr.right + 1 || mr.top < rr.top - 1 || mr.bottom > rr.bottom + 1) {
+              issues.push("HELP_MODAL_OUT_OF_BOUNDS: [" + mr.left + "," + mr.top + "," + mr.right + "," + mr.bottom + "]");
+            }
+          }
+
+          const faderChip = modal?.querySelector('[data-term="fader"]');
+          const nestedCard = document.querySelector('[data-ref="nestedCard"]');
+          if (!faderChip) issues.push("MISSING_FADER_CHIP");
+          if (!nestedCard) issues.push("MISSING_NESTED_CARD");
+          if (faderChip && nestedCard) {
+            faderChip.dispatchEvent(new PointerEvent("pointerenter", { bubbles: true }));
+            if (nestedCard.classList.contains("hidden")) issues.push("NESTED_CARD_NOT_VISIBLE_ON_ENTER");
+            faderChip.dispatchEvent(new PointerEvent("pointerleave", { bubbles: true }));
+            if (!nestedCard.classList.contains("hidden")) issues.push("NESTED_CARD_NOT_HIDDEN_ON_LEAVE");
+          }
+
+          const knobChip = modal?.querySelector('[data-term="knob"]');
+          if (!knobChip) issues.push("MISSING_KNOB_CHIP");
+          if (knobChip && nestedCard) {
+            knobChip.focus();
+            knobChip.click();
+            knobChip.dispatchEvent(new PointerEvent("pointerleave", { bubbles: true }));
+            if (nestedCard.classList.contains("hidden")) issues.push("NESTED_CARD_NOT_PINNED_ON_CLICK");
+            if (!nestedCard.querySelector("svg")) issues.push("NESTED_CARD_MISSING_SVG");
+          }
+        }
+
+        // 레이아웃 감사: 버튼, 텍스트 배지, 용어 칩, 중첩 시각 카드의 CLIP_X, WRAP, BLEED_Y 감사
+        document.querySelectorAll("button, .alpha-readout, .status-text, .readout-sub, .strip-title, .pop-theme-btn, .fx-card-title, .term-chip, .nested-term-card").forEach((el) => {
           const rect = el.getBoundingClientRect();
           if (rect.width === 0 && rect.height === 0) return;
-          const cls = el.className || "";
+          const cls = el.getAttribute("class") || "";
           const isTruncate = cls.includes("truncate");
           if (!isTruncate && el.scrollWidth > el.clientWidth + 1) {
             issues.push("CLIP_X [" + el.textContent.trim().slice(0, 20) + "]: " + el.scrollWidth + " > " + el.clientWidth);
@@ -253,16 +257,19 @@ function buildAuditHtml(scenarioName, snapshotObj, openPopover = false, testInli
           let n;
           while ((n = walker.nextNode())) {
             if (!n.nodeValue.trim()) continue;
-            const pCls = (n.parentElement && n.parentElement.className) || "";
+            if (n.parentElement && n.parentElement.closest("svg")) continue;
+            const pCls = (n.parentElement && n.parentElement.getAttribute("class")) || "";
+            const isWrapAllowed = cls.includes("desc") || pCls.includes("desc") || cls.includes("tip") || pCls.includes("tip") || cls.includes("allow-wrap") || pCls.includes("allow-wrap");
             const nodeTrunc = isTruncate || pCls.includes("truncate");
             const range = document.createRange();
             range.selectNodeContents(n);
             const rects = range.getClientRects();
-            if (!nodeTrunc && rects.length > 1) {
+            if (!nodeTrunc && !isWrapAllowed && rects.length > 1) {
               issues.push("WRAP [" + n.nodeValue.trim() + "]: rects=" + rects.length);
             }
             const r0 = rects[0];
-            if (r0 && (r0.top < rect.top - 0.6 || r0.bottom > rect.bottom + 0.6)) {
+            const rLast = rects[rects.length - 1];
+            if (r0 && rLast && (r0.top < rect.top - 0.6 || rLast.bottom > rect.bottom + 0.6)) {
               issues.push("BLEED_Y [" + n.nodeValue.trim() + "]");
             }
           }
@@ -272,11 +279,27 @@ function buildAuditHtml(scenarioName, snapshotObj, openPopover = false, testInli
           const knob = well.querySelector('[data-ref="knob"]');
           if (knob) {
             const kr = knob.getBoundingClientRect();
-            if (kr.top < wr.top + 1 || kr.bottom > wr.bottom - 1) {
-              issues.push("KNOB_OUT_OF_WELL #" + idx);
-            }
+            if (kr.top < wr.top + 1 || kr.bottom > wr.bottom - 1) issues.push("KNOB_OUT_OF_WELL #" + idx);
           }
         });
+
+        // 5) Escape 2계층 해제(1차: 중첩 카드 -> 2차: 모달 전체) 검증
+        if (${JSON.stringify(testHelpModal)}) {
+          const backdrop = document.getElementById("help-backdrop");
+          const nestedCard = document.querySelector('[data-ref="nestedCard"]');
+          window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+          if (nestedCard && !nestedCard.classList.contains("hidden")) {
+            issues.push("ESCAPE_LAYER1_NESTED_NOT_CLOSED");
+          }
+          if (!backdrop || backdrop.classList.contains("hidden")) {
+            issues.push("ESCAPE_LAYER1_BACKDROP_ACCIDENTALLY_CLOSED");
+          }
+          window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+          if (backdrop && !backdrop.classList.contains("hidden")) {
+            issues.push("ESCAPE_LAYER2_BACKDROP_NOT_CLOSED");
+          }
+        }
+
         const pre = document.createElement("pre");
         pre.id = "ui-audit-json";
         pre.textContent = JSON.stringify({
@@ -295,90 +318,65 @@ function buildAuditHtml(scenarioName, snapshotObj, openPopover = false, testInli
 
 const scenarios = [
   {
-    name: "empty_default",
-    w: 560, h: 420, openPop: false,
+    name: "empty_default", w: 560, h: 420, openPop: false,
     snap: {
-      settings: {
-        theme: "teal", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false,
-        autoNormEnabled: false, advRackOpen: false, domainDefaults: {},
-      },
+      settings: { theme: "teal", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false, autoNormEnabled: false, advRackOpen: false, domainDefaults: {} },
       channels: [],
     },
   },
   {
-    name: "active_680",
-    w: 680, h: 420, openPop: false,
+    name: "active_680", w: 680, h: 420, openPop: false,
     snap: {
-      settings: {
-        theme: "teal", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false,
-        autoNormEnabled: false, advRackOpen: false, domainDefaults: { "chzzk.naver.com": 0, "youtube.com": -6 },
-      },
+      settings: { theme: "teal", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false, autoNormEnabled: false, advRackOpen: false, domainDefaults: { "chzzk.naver.com": 0, "youtube.com": -6 } },
       channels: SAMPLE_CHANNELS,
     },
   },
   {
-    name: "narrow_520",
-    w: 520, h: 440, openPop: false,
+    name: "narrow_520", w: 520, h: 440, openPop: false,
     snap: {
-      settings: {
-        theme: "teal", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false,
-        autoNormEnabled: false, advRackOpen: false, domainDefaults: { "chzzk.naver.com": 0 },
-      },
+      settings: { theme: "teal", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false, autoNormEnabled: false, advRackOpen: false, domainDefaults: { "chzzk.naver.com": 0 } },
       channels: SAMPLE_CHANNELS,
     },
   },
   {
-    name: "popover_dark",
-    w: 680, h: 420, openPop: true,
+    name: "popover_dark", w: 680, h: 420, openPop: true,
     snap: {
-      settings: {
-        theme: "cobalt", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false,
-        autoNormEnabled: false, advRackOpen: false, domainDefaults: {},
-      },
+      settings: { theme: "cobalt", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false, autoNormEnabled: false, advRackOpen: false, domainDefaults: {} },
       channels: SAMPLE_CHANNELS,
     },
   },
   {
-    name: "popover_light",
-    w: 680, h: 420, openPop: true, inlineEdit: false,
+    name: "popover_light", w: 680, h: 420, openPop: true, inlineEdit: false,
     snap: {
-      settings: {
-        theme: "emerald", modePref: "light", alpha: 0.7, masterDb: 0, masterMuted: false,
-        autoNormEnabled: false, advRackOpen: false, domainDefaults: {},
-      },
+      settings: { theme: "emerald", modePref: "light", alpha: 0.7, masterDb: 0, masterMuted: false, autoNormEnabled: false, advRackOpen: false, domainDefaults: {} },
       channels: SAMPLE_CHANNELS,
     },
   },
   {
-    name: "inline_edit_open",
-    w: 680, h: 420, openPop: false, inlineEdit: true,
+    name: "inline_edit_open", w: 680, h: 420, openPop: false, inlineEdit: true,
     snap: {
-      settings: {
-        theme: "teal", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false,
-        autoNormEnabled: false, advRackOpen: false, domainDefaults: { "chzzk.naver.com": 0, "youtube.com": -6 },
-      },
+      settings: { theme: "teal", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false, autoNormEnabled: false, advRackOpen: false, domainDefaults: { "chzzk.naver.com": 0, "youtube.com": -6 } },
       channels: SAMPLE_CHANNELS,
     },
   },
   {
-    name: "adv_rack_normal",
-    w: 800, h: 520, openPop: false, inlineEdit: false, selectTabId: 2,
+    name: "adv_rack_normal", w: 800, h: 520, openPop: false, inlineEdit: false, selectTabId: 2,
     snap: {
-      settings: {
-        theme: "teal", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false,
-        autoNormEnabled: true, advRackOpen: true, domainDefaults: { "youtube.com": -6 },
-      },
+      settings: { theme: "teal", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false, autoNormEnabled: true, advRackOpen: true, domainDefaults: { "youtube.com": -6 } },
       channels: SAMPLE_CHANNELS,
     },
   },
   {
-    name: "adv_rack_cors",
-    w: 800, h: 520, openPop: false, inlineEdit: false, selectTabId: 4,
+    name: "adv_rack_cors", w: 800, h: 520, openPop: false, inlineEdit: false, selectTabId: 4,
     snap: {
-      settings: {
-        theme: "teal", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false,
-        autoNormEnabled: true, advRackOpen: true, domainDefaults: {},
-      },
+      settings: { theme: "teal", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false, autoNormEnabled: true, advRackOpen: true, domainDefaults: {} },
+      channels: SAMPLE_CHANNELS,
+    },
+  },
+  {
+    name: "help_modal_nested_term", w: 680, h: 460, openPop: false, inlineEdit: false, testHelpModal: true,
+    snap: {
+      settings: { theme: "teal", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false, autoNormEnabled: false, advRackOpen: false, domainDefaults: { "chzzk.naver.com": 0, "youtube.com": -6 } },
       channels: SAMPLE_CHANNELS,
     },
   },
@@ -393,7 +391,7 @@ try {
       const htmlFile = path.join(TMP_DIR, `audit_${sc.name}.html`);
       fs.writeFileSync(
         htmlFile,
-        buildAuditHtml(sc.name, sc.snap, sc.openPop, Boolean(sc.inlineEdit), sc.selectTabId ?? null),
+        buildAuditHtml(sc.name, sc.snap, sc.openPop, Boolean(sc.inlineEdit), sc.selectTabId ?? null, Boolean(sc.testHelpModal)),
         "utf8",
       );
       const fileUrl = "file:///" + htmlFile.replace(/\\/g, "/");
@@ -440,7 +438,7 @@ try {
     }
   }
 
-  // 4) CORS 채널 클릭 시 사이드 랙 레이아웃 높이 점프 불변성 검증 (|normal - cors| <= 1px)
+  // CORS 채널 클릭 시 사이드 랙 레이아웃 높이 점프 불변성 검증 (|normal - cors| <= 1px)
   if (advNormalHeight !== null && advCorsHeight !== null) {
     const heightDiff = Math.abs(advNormalHeight - advCorsHeight);
     if (heightDiff > 1) {
