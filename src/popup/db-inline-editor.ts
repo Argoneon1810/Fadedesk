@@ -1,3 +1,4 @@
+import { ui } from "../shared/i18n";
 import {
   clampDb,
   focusDimDbToAlpha,
@@ -59,7 +60,7 @@ export function attachDbInlineEditor(opts: DbInlineEditorOptions): void {
     box.dataset.editing = "true";
     displayRow.classList.add("hidden");
     editRow.classList.remove("hidden");
-    subEl.textContent = "직접 입력";
+    subEl.textContent = ui().inlineDirectInput;
     input.value = initialText;
 
     input.focus();

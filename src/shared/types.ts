@@ -154,7 +154,7 @@ export const POPUP_PORT_NAME = "sound-manager-popup-port";
 
 /** MAIN 월드 오디오 훅이 수신하는 명령 */
 export type HookCommand =
-  | { type: "APPLY_GAIN"; targetGain: number }
+  | { type: "APPLY_GAIN"; targetGain: number; rampSec?: number }
   | { type: "APPLY_DSP"; dsp: DspConfigPayload }
   | { type: "SET_PLAYING"; shouldPlay: boolean }
   | { type: "TOGGLE_PLAY" }

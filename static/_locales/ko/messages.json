@@ -1,0 +1,20 @@
+{
+  "extName": {
+    "message": "Fadedesk"
+  },
+  "extDescription": {
+    "message": "여러 창과 백그라운드 탭의 소리를 한곳에서 재생·정지하고 dB 페이더, Focus/Solo, 스테레오 팬, 음량 평준화(LUFS), 도메인 핀으로 제어하는 오디오 콘솔"
+  },
+  "actionTitle": {
+    "message": "Fadedesk — 탭별 오디오 믹서 콘솔"
+  },
+  "cmdOpenConsole": {
+    "message": "Fadedesk 콘솔 팝업 열기"
+  },
+  "cmdToggleMasterMute": {
+    "message": "전체 출력 음소거(Master Mute) 토글"
+  },
+  "cmdCycleFocus": {
+    "message": "재생 중인 미디어 탭 순서대로 Focus 전환"
+  }
+}

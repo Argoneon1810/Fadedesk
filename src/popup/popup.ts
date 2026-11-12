@@ -1,5 +1,6 @@
+import { applyStaticPopupI18n, getLocalizedPresetMeta, ui } from "../shared/i18n";
 import {
-  AUTO_NORM_PRESET_META, clampAlpha, clampAlphaStep, clampDb, formatDb, formatFocusReadout,
+  clampAlpha, clampAlphaStep, clampDb, formatDb, formatFocusReadout,
   isChannelPinned, sanitizeChannelFx, toggleExclusiveFlags, type MixerContextInput,
 } from "../shared/mixer-math";
 import { DEFAULT_SETTINGS, PALETTES } from "../shared/palettes";
@@ -45,7 +46,11 @@ pauseDivider.className = "pause-divider";
 
 const emptyBay = document.createElement("div");
 emptyBay.className = "empty-bay";
-emptyBay.innerHTML = `<div class="empty-icon">${ICONS.consoleEmpty}</div><div class="empty-title">활성 미디어 탭이 없습니다</div><div class="empty-desc">유튜브·스트리밍·음악 사이트에서 미디어를 재생하면 채널 스트립이 이 자리에 자동으로 정렬됩니다.</div>`;
+
+function syncEmptyBayCopy(): void {
+  const dict = ui();
+  emptyBay.innerHTML = `<div class="empty-icon">${ICONS.consoleEmpty}</div><div class="empty-title">${dict.emptyTitle}</div><div class="empty-desc">${dict.emptyDesc}</div>`;
+}
 
 let masterRefs!: MasterStripRefs, fxRackRefs!: FxRackRefs, helpRefs!: HelpModalRefs, tourRefs!: TourOverlayRefs;
 
@@ -160,7 +165,7 @@ function renderAll(): void {
     snapshot.settings.autoNormEnabled = true;
     normPopoverOpen = false;
     sendAction({ source: "popup", type: "SET_AUTO_NORM_PRESET", preset, enable: true });
-    flashToast(`균일 N: ${AUTO_NORM_PRESET_META[preset].shortLabel} 프리셋 적용`);
+    flashToast(ui().toastPresetApplied(getLocalizedPresetMeta(preset).shortLabel));
   });
 
   const channels = activeChannels();
@@ -174,7 +179,7 @@ function renderAll(): void {
   statusPill.style.borderColor = toastText ? t.primary : t.border;
   statusDot.style.backgroundColor = toastText
     ? t.primary : anySolo ? t.accent : playingCount > 0 ? t.states.success : t.muted;
-  statusText.textContent = toastText || `재생 ${playingCount} · 대기 ${pausedCount}`;
+  statusText.textContent = toastText || ui().statusCounts(playingCount, pausedCount);
   statusText.title = statusText.textContent;
   statusText.style.color = toastText ? t.primary : t.muted;
 
@@ -195,7 +200,7 @@ function renderAll(): void {
   const advRackBtn = document.getElementById("adv-rack-btn");
   if (advRackBtn) {
     const on = snapshot.settings.advRackOpen;
-    advRackBtn.textContent = on ? "고급 FX ◂" : "고급 FX ▸";
+    advRackBtn.textContent = on ? ui().advRackOpenLabel : ui().advRackClosedLabel;
     advRackBtn.style.backgroundColor = on ? t.primary : t.raised;
     advRackBtn.style.color = on ? t.onPrimary : t.text;
     advRackBtn.style.borderColor = on ? t.primary : t.border;
@@ -268,7 +273,7 @@ const stripCallbacks: StripCallbacks = {
         snapshot.channels = [...playChs, ...pauseChs];
         sendAction({ source: "popup", type: "REORDER_CHANNELS", movedTabId, targetZone, orderedPlayingIds, orderedPausedIds });
         if (wasPlaying !== undefined && wasPlaying !== nextPlaying) {
-          flashToast(`${ch?.title ?? "채널"}: ${nextPlaying ? "재생 구역 이동 · 즉시 재생" : "일시정지 구역 이동 · 즉시 정지"}`);
+          flashToast(ui().toastZoneMoved(ch?.title ?? ui().toastChannelFallback, nextPlaying));
         } else renderAll();
       },
       onCancel: () => renderAll(),
@@ -305,16 +310,16 @@ const stripCallbacks: StripCallbacks = {
     const wasPinned = isChannelPinned(snapshot.settings.domainDefaults, ch.domain, ch.db);
     if (wasPinned) {
       delete snapshot.settings.domainDefaults[ch.domain];
-      flashToast(`${ch.shortHost} 기본 볼륨 해제`);
+      flashToast(ui().toastPinCleared(ch.shortHost));
     } else {
       snapshot.settings.domainDefaults[ch.domain] = ch.db;
-      flashToast(`${ch.shortHost} ${formatDb(ch.db)}dB 고정`);
+      flashToast(ui().toastPinSaved(ch.shortHost, formatDb(ch.db)));
     }
     sendAction({ source: "popup", type: "TOGGLE_DOMAIN_PIN", tabId });
   },
   onJumpToTab(tabId, windowId, title) {
     if (tabId < 0) return;
-    flashToast(`탭 이동: ${title}`);
+    flashToast(ui().toastJumpTab(title));
     sendAction({ source: "popup", type: "JUMP_TO_TAB", tabId, windowId });
   },
   onSetMasterDb(db) {
@@ -596,6 +601,8 @@ function connectBackgroundPort(): void {
 }
 
 function bootstrapPopup(): void {
+  applyStaticPopupI18n();
+  syncEmptyBayCopy();
   initViewModeAndPopout(sendAction);
   helpRefs = buildHelpModalDom(document.getElementById("help-backdrop")!, {
     onRequestClose: () => {

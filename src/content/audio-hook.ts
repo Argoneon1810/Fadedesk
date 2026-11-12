@@ -141,7 +141,7 @@ export function installAudioHook(
     }
   }
 
-  function syncElementGain(el: HTMLMediaElement): void {
+  function syncElementGain(el: HTMLMediaElement, rampSec?: number): void {
     const siteVol = readSiteVolume(state, el);
     if (!el.paused && !state.hookedEntries.has(el)) {
       tryAttachWebAudioToElement(el);
@@ -152,7 +152,7 @@ export function installAudioHook(
       if (!el.paused && state.sharedCtx.state === "suspended") {
         void state.sharedCtx.resume().catch(() => {});
       }
-      entry.dspChain.applyFaderGain(state.targetGain);
+      entry.dspChain.applyFaderGain(state.targetGain, rampSec);
       entry.dspChain.syncStaticDsp(state.currentDsp);
     } else {
       const clampedGain = Math.max(0, Math.min(1, state.targetGain));
@@ -160,10 +160,10 @@ export function installAudioHook(
     }
   }
 
-  function syncAllGains(): void {
-    for (const el of state.trackedElements) syncElementGain(el);
+  function syncAllGains(rampSec?: number): void {
+    for (const el of state.trackedElements) syncElementGain(el, rampSec);
     for (const wc of state.pageContexts) {
-      if (wc.ctx.state !== "closed") wc.dspChain.applyFaderGain(state.targetGain);
+      if (wc.ctx.state !== "closed") wc.dspChain.applyFaderGain(state.targetGain, rampSec);
     }
   }
 
@@ -223,8 +223,7 @@ export function installAudioHook(
       } else if (state.meteringActive && isPlaying && state.targetGain > 0) {
         const effVol = readSiteVolume(state, el) * Math.min(1, state.targetGain);
         if (effVol > 0) {
-          const jitter = 0.88 + Math.random() * 0.2;
-          const approxRatio = dbToRatio(linearToDb(effVol * 0.65 * jitter));
+          const approxRatio = dbToRatio(linearToDb(effVol * 0.65));
           if (approxRatio > maxRatio) maxRatio = approxRatio;
         }
       }
@@ -398,7 +397,7 @@ export function installAudioHook(
     switch (cmd.type) {
       case "APPLY_GAIN":
         state.targetGain = Math.max(0, Number.isFinite(cmd.targetGain) ? cmd.targetGain : 1);
-        syncAllGains();
+        syncAllGains(cmd.rampSec);
         break;
       case "APPLY_DSP":
         state.currentDsp = { ...DEFAULT_DSP_CONFIG, ...cmd.dsp };

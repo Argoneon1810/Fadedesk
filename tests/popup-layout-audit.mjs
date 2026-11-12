@@ -427,10 +427,25 @@ function buildAuditHtml(sc) {
             }
           }
 
+          modal?.querySelector('[data-help-tab="adv"]')?.click();
+          const advDot4 = modal?.querySelector('[data-help-step="4"]');
+          if (!advDot4 || !advDot4.classList.contains("hidden")) {
+            issues.push("ADV_TAB_SHOULD_HIDE_5TH_STEP_DOT");
+          }
+
           modal?.querySelector('[data-help-tab="easy"]')?.click();
           if (!modal?.querySelector('[data-term="tabJump"]') || !modal?.querySelector('[data-term="popout"]')) {
             issues.push("MISSING_STEP0_GENERAL_CHIPS");
           }
+          modal?.querySelector('[data-help-step="4"]')?.click();
+          if (modal?.querySelector('[data-ref="stepBadge"]')?.textContent?.trim() !== "5 / 5") {
+            issues.push("MISSING_STEP5_SAFETY_BADGE: " + modal?.querySelector('[data-ref="stepBadge"]')?.textContent);
+          }
+          const safetyBullets = modal?.querySelectorAll('[data-ref="bulletList"] li')?.length ?? 0;
+          if (safetyBullets < 4) {
+            issues.push("MISSING_STEP5_SAFETY_BULLETS: count=" + safetyBullets);
+          }
+
           const nestedCard = document.querySelector('[data-ref="nestedCard"]');
           modal?.querySelector('[data-help-step="2"]')?.click();
           const pinChip = modal?.querySelector('[data-term="pin"]');
@@ -568,6 +583,44 @@ const BASE_SETTINGS = {
 
 const PINNED_DEFAULTS = { "chzzk.naver.com": 0, "youtube.com": -6 };
 
+const SAMPLE_CHANNELS_EN = [
+  {
+    tabId: 1, windowId: 1, title: "Live Talk Broadcast", domain: "live.example", shortHost: "live",
+    favIconUrl: "", playing: true, audible: true, mediaCount: 1, db: 0.0,
+    muted: false, solo: false, focus: true, corsCap: false, vuLevel: 0.66, vuPeak: 0.76, firstSeenAt: 1,
+    sortOrder: 1, normTrimDb: 0.0,
+    fx: { normMode: "follow", normTargetLufs: -16, normSpeed: "std", pan: 0, gateEnabled: true, gateThresholdDb: -48, compEnabled: false, compRatio: 4 },
+  },
+  {
+    tabId: 2, windowId: 1, title: "Acoustic Focus Session", domain: "audio.example", shortHost: "audio",
+    favIconUrl: "", playing: true, audible: true, mediaCount: 1, db: -6.0,
+    muted: false, solo: false, focus: false, corsCap: false, vuLevel: 0.42, vuPeak: 0.52, firstSeenAt: 2,
+    sortOrder: 2, normTrimDb: 2.1,
+    fx: { normMode: "on", normTargetLufs: -14, normSpeed: "fast", pan: -20, gateEnabled: false, gateThresholdDb: -48, compEnabled: true, compRatio: 2 },
+  },
+  {
+    tabId: 3, windowId: 1, title: "Engineering Keynote", domain: "video.example", shortHost: "video",
+    favIconUrl: "", playing: true, audible: true, mediaCount: 1, db: 4.5,
+    muted: false, solo: false, focus: false, corsCap: false, vuLevel: 0.54, vuPeak: 0.64, firstSeenAt: 3,
+    sortOrder: 3, normTrimDb: 0.0,
+    fx: { normMode: "follow", normTargetLufs: -16, normSpeed: "std", pan: 15, gateEnabled: false, gateThresholdDb: -48, compEnabled: false, compRatio: 4 },
+  },
+  {
+    tabId: 4, windowId: 2, title: "Feature Documentary", domain: "cinema.example", shortHost: "cinema",
+    favIconUrl: "", playing: true, audible: true, mediaCount: 1, db: 0.0,
+    muted: false, solo: false, focus: false, corsCap: true, vuLevel: 0.48, vuPeak: 0.58, firstSeenAt: 4,
+    sortOrder: 4, normTrimDb: 0.0,
+    fx: { normMode: "follow", normTargetLufs: -16, normSpeed: "std", pan: 0, gateEnabled: false, gateThresholdDb: -48, compEnabled: false, compRatio: 4 },
+  },
+  {
+    tabId: 5, windowId: 2, title: "Evening Podcast Episode", domain: "podcast.example", shortHost: "podcast",
+    favIconUrl: "", playing: false, audible: false, mediaCount: 1, db: -3.0,
+    muted: false, solo: false, focus: false, corsCap: false, vuLevel: 0, vuPeak: 0, firstSeenAt: 5,
+    sortOrder: 5, normTrimDb: 0.0,
+    fx: { normMode: "off", normTargetLufs: -18, normSpeed: "slow", pan: 0, gateEnabled: false, gateThresholdDb: -48, compEnabled: false, compRatio: 4 },
+  },
+];
+
 const scenarios = [
   { name: "empty_popup", w: 800, h: 600, isWindow: false, openPop: false, snap: { settings: { ...BASE_SETTINGS }, channels: [] } },
   { name: "onboarding_and_spotlight_tour", w: 800, h: 600, isWindow: false, openPop: false, testOnboardingTour: true, snap: { settings: { ...BASE_SETTINGS, onboardingDone: false }, channels: [] } },
@@ -580,6 +633,12 @@ const scenarios = [
   { name: "window_popover_light", w: 680, h: 460, isWindow: true, openPop: true, snap: { settings: { ...BASE_SETTINGS, theme: "emerald", modePref: "light" }, channels: SAMPLE_CHANNELS } },
   { name: "window_inline_edit", w: 680, h: 460, isWindow: true, openPop: false, inlineEdit: true, snap: { settings: { ...BASE_SETTINGS, domainDefaults: PINNED_DEFAULTS }, channels: SAMPLE_CHANNELS } },
   { name: "window_help_modal", w: 680, h: 480, isWindow: true, openPop: false, testHelpModal: true, snap: { settings: { ...BASE_SETTINGS, domainDefaults: PINNED_DEFAULTS }, channels: SAMPLE_CHANNELS } },
+  { name: "en_empty_popup", lang: "en", w: 800, h: 600, isWindow: false, openPop: false, snap: { settings: { ...BASE_SETTINGS }, channels: [] } },
+  { name: "en_onboarding_tour", lang: "en", w: 800, h: 600, isWindow: false, openPop: false, testOnboardingTour: true, snap: { settings: { ...BASE_SETTINGS, onboardingDone: false }, channels: [] } },
+  { name: "en_norm_popover", lang: "en", w: 800, h: 600, isWindow: false, openPop: false, testNormPopover: true, snap: { settings: { ...BASE_SETTINGS, autoNormEnabled: true }, channels: SAMPLE_CHANNELS_EN } },
+  { name: "en_adv_rack", lang: "en", w: 800, h: 600, isWindow: false, openPop: false, selectTabId: 2, snap: { settings: { ...BASE_SETTINGS, autoNormEnabled: true, advRackOpen: true, domainDefaults: { "audio.example": -6 } }, channels: SAMPLE_CHANNELS_EN } },
+  { name: "en_window_popover", lang: "en", w: 680, h: 460, isWindow: true, openPop: true, snap: { settings: { ...BASE_SETTINGS, theme: "cobalt", modePref: "dark" }, channels: SAMPLE_CHANNELS_EN } },
+  { name: "en_help_modal", lang: "en", w: 680, h: 480, isWindow: true, openPop: false, testHelpModal: true, snap: { settings: { ...BASE_SETTINGS, domainDefaults: { "live.example": 0, "audio.example": -6 } }, channels: SAMPLE_CHANNELS_EN } },
 ];
 
 let failed = false;
@@ -590,7 +649,10 @@ try {
       fs.mkdirSync(scProfile, { recursive: true });
       const htmlFile = path.join(TMP_DIR, `audit_${sc.name}.html`);
       fs.writeFileSync(htmlFile, buildAuditHtml(sc), "utf8");
-      const query = sc.isWindow ? "?view=window" : "";
+      const params = new URLSearchParams();
+      if (sc.isWindow) params.set("view", "window");
+      if (sc.lang) params.set("lang", sc.lang);
+      const query = params.toString() ? `?${params.toString()}` : "";
       const fileUrl = "file:///" + htmlFile.replace(/\\/g, "/") + query;
       const { stdout } = await execFileAsync(
         CHROME_BIN,

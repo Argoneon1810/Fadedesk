@@ -72,8 +72,13 @@ def render_icon(size: int) -> bytes:
             r_sum = g_sum = b_sum = a_sum = 0
             for sy in range(ss):
                 for sx in range(ss):
-                    u = (px + (sx + 0.5) / ss) / size
-                    v = (py + (sy + 0.5) / ss) / size
+                    if size == 128:
+                        # Chrome 웹 스토어 128x128 규격: 내부 96x96 영역 + 사방 16px 투명 여백
+                        u = 0.04 + ((px + (sx + 0.5) / ss) - 16.0) / 96.0 * 0.92
+                        v = 0.04 + ((py + (sy + 0.5) / ss) - 16.0) / 96.0 * 0.92
+                    else:
+                        u = (px + (sx + 0.5) / ss) / size
+                        v = (py + (sy + 0.5) / ss) / size
                     r, g, b, a = sample_console_pixel(u, v)
                     r_sum += r * a
                     g_sum += g * a

@@ -1,3 +1,4 @@
+import { getThemeLabel, ui } from "../shared/i18n";
 import { PALETTES } from "../shared/palettes";
 import type { ModePref, PersistedSettings, ThemeKey, ThemeTokens } from "../shared/types";
 
@@ -12,6 +13,7 @@ export function renderThemePopoverDom(
   t: ThemeTokens,
   onSelectThemeAndMode: (theme: ThemeKey, modePref: ModePref) => void,
 ): void {
+  const copy = ui();
   const pop = document.getElementById("theme-popover")!;
   const dotBtn = document.getElementById("theme-dot-btn")!;
   const brandDot = document.getElementById("brand-dot")!;
@@ -25,9 +27,9 @@ export function renderThemePopoverDom(
 
   const pref = settings.modePref;
   const modeName =
-    pref === "system" ? `시스템(${isDark ? "다크" : "라이트"})` : pref === "dark" ? "다크" : "라이트";
+    pref === "system" ? copy.systemResolvedLabel(isDark) : copy.modeLabels[pref];
   const curSum = document.getElementById("pop-cur-summary")!;
-  curSum.textContent = `${PALETTES[settings.theme].label} · ${modeName}`;
+  curSum.textContent = `${getThemeLabel(settings.theme)} · ${modeName}`;
   curSum.style.color = t.primary;
 
   const effMode = isDark ? "dark" : "light";
@@ -44,7 +46,7 @@ export function renderThemePopoverDom(
     btn.style.borderColor = active ? sw.primary : t.border;
     btn.style.color = t.text;
     btn.style.fontWeight = active ? "700" : "500";
-    btn.innerHTML = `<span class="swatch-main" style="background:${sw.primary}"><span class="swatch-sub" style="background:${sw.accent};border-color:${active ? t.raised : t.bg}"></span></span><span>${entry.label}</span>`;
+    btn.innerHTML = `<span class="swatch-main" style="background:${sw.primary}"><span class="swatch-sub" style="background:${sw.accent};border-color:${active ? t.raised : t.bg}"></span></span><span>${getThemeLabel(key)}</span>`;
     btn.onclick = (ev) => {
       ev.stopPropagation();
       onSelectThemeAndMode(key, settings.modePref);
@@ -55,9 +57,9 @@ export function renderThemePopoverDom(
   const seg = document.getElementById("pop-mode-seg")!;
   seg.innerHTML = "";
   const modes: Array<[ModePref, string]> = [
-    ["dark", "다크"],
-    ["light", "라이트"],
-    ["system", "시스템"],
+    ["dark", copy.modeLabels.dark],
+    ["light", copy.modeLabels.light],
+    ["system", copy.modeLabels.system],
   ];
   for (const [mKey, label] of modes) {
     const active = settings.modePref === mKey;

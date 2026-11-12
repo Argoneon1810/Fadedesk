@@ -1,3 +1,4 @@
+import { ui } from "../shared/i18n";
 import type { PopupActionMessage } from "../shared/types";
 import { ICONS } from "./icons";
 
@@ -44,7 +45,7 @@ export function initViewModeAndPopout(sendAction: (msg: PopupActionMessage) => v
   const popoutBtn = document.getElementById("popout-btn") as HTMLButtonElement | null;
   if (standalone) {
     if (popoutBtn) popoutBtn.classList.add("hidden");
-    document.title = "Sound Manager — 독립 콘솔";
+    document.title = ui().pageTitleWindow;
 
     let clampCooldownUntil = 0;
     let clampTimer: ReturnType<typeof setTimeout> | null = null;

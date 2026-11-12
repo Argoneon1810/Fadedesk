@@ -1,8 +1,9 @@
 import { DEFAULT_CHANNEL_FX } from "../shared/mixer-math";
 import type { TabChannelState, ThemeTokens } from "../shared/types";
+import { helpCopy } from "./help-copy";
 
 /**
- * Sound Manager 실화면 스포트라이트 투어 모듈.
+ * Fadedesk 실화면 스포트라이트 투어 모듈.
  * SVG evenodd 다중 홀 마스크를 사용해 한 단계에서 연관된 여러 조작부(예: 하단 M·S·F 스위치와 상단 Focus α)를
  * 동시에 또렷하게 비추고, 안내 카드가 어떤 하이라이트 영역도 가리지 않도록 배치한다.
  */
@@ -10,13 +11,14 @@ import type { TabChannelState, ThemeTokens } from "../shared/types";
 export const DEMO_TOUR_TAB_IDS = [-901, -902] as const;
 
 export function createDemoTourChannels(): TabChannelState[] {
+  const copy = helpCopy();
   return [
     {
       tabId: -901,
       windowId: -1,
-      title: "예시 · Kiminoshigusamo (음악 탭)",
-      domain: "music.youtube.com",
-      shortHost: "music",
+      title: copy.demoTrackTitle,
+      domain: "audio.example",
+      shortHost: "audio",
       favIconUrl: "",
       playing: true,
       audible: true,
@@ -36,9 +38,9 @@ export function createDemoTourChannels(): TabChannelState[] {
     {
       tabId: -902,
       windowId: -1,
-      title: "예시 · 라이브 토크 방송 (대기)",
-      domain: "chzzk.naver.com",
-      shortHost: "chzzk",
+      title: copy.demoStreamTitle,
+      domain: "live.example",
+      shortHost: "live",
       favIconUrl: "",
       playing: false,
       audible: false,
@@ -58,10 +60,8 @@ export function createDemoTourChannels(): TabChannelState[] {
   ];
 }
 
-interface TourStepDef {
+interface TourHoleSpec {
   step: number;
-  title: string;
-  desc: string;
   /** 각 내부 배열은 인접 요소를 하나의 스포트라이트 홀로 묶고, 외부 배열은 동시에 뚫을 다중 홀 목록을 뜻한다. */
   holeGroups: string[][];
   fallbackSelector?: string;
@@ -74,53 +74,39 @@ interface HoleBox {
   height: number;
 }
 
-const TOUR_STEPS: TourStepDef[] = [
+const TOUR_HOLE_SPECS: TourHoleSpec[] = [
   {
     step: 1,
-    title: "상단 테마 · 독립 창 분리(↗)",
-    desc: "좌측 색상 점(●)에서 테마·모드를 바꾸고, 창 분리(↗) 버튼으로 콘솔을 별도 창으로 떼어내 항상 띄워 둘 수 있습니다.",
     holeGroups: [["#theme-dot-btn", "#help-btn", "#popout-btn"]],
     fallbackSelector: ".deck-left",
   },
   {
     step: 2,
-    title: "채널 헤더 클릭 → 해당 탭 바로 이동(↗)",
-    desc: "파비콘·사이트명·↗ 영역을 클릭(또는 Enter)하면 수많은 탭 중에서 소리가 나는 해당 탭·창으로 즉시 이동합니다.",
     holeGroups: [['.channel-strip [data-ref="header"]']],
     fallbackSelector: ".channel-strip",
   },
   {
     step: 3,
-    title: "페이더 노브 드래그 & dB 직접 입력",
-    desc: "사각 노브를 끌어 -60dB~+12dB까지 조절하고, 아래 숫자창을 클릭해 원하는 데시벨을 직접 타이핑할 수 있습니다.",
     holeGroups: [['.channel-strip [data-ref="faderWell"]', '.channel-strip [data-ref="readoutBtn"]']],
     fallbackSelector: ".channel-strip",
   },
   {
     step: 4,
-    title: "재생 전환 · 도메인 핀(📌) · 드래그 정렬(⠿)",
-    desc: "재생 옆 압정(📌)을 켜면 사이트 기본 볼륨으로 기억되며, 맨 위 6점 핸들(⠿)을 우측 대기 구역에 놓으면 즉시 일시정지됩니다.",
     holeGroups: [[".channel-strip .transport-row"], [".channel-strip .grip-bar"]],
     fallbackSelector: ".channel-strip",
   },
   {
     step: 5,
-    title: "집중 청취(M · S · F)와 상단 Focus α",
-    desc: "F(Focus)를 켜면 이 탭만 또렷하게 두고 다른 탭들은 상단 Focus α 비율만큼 줄입니다. Focus α 우측 데시벨 수치도 클릭해 직접 입력할 수 있습니다.",
     holeGroups: [[".channel-strip .switch-bank"], ["#alpha-box", "#reset-modes-btn"]],
     fallbackSelector: ".channel-strip",
   },
   {
     step: 6,
-    title: "이지 노멀라이저(균일 N ▾) 3종 프리셋",
-    desc: "본체는 자동 음압 정렬 ON/OFF이며, 우측 ▾에서 표준 EBU 계측 창 기반의 '음악(9s)' · '표준(3s)' · '야간(0.4s)' 프리셋을 고릅니다.",
     holeGroups: [["#norm-split-group", "#auto-norm-btn"]],
     fallbackSelector: ".deck-right",
   },
   {
     step: 7,
-    title: "마스터 버스와 고급 FX 사이드 랙",
-    desc: "우측 마스터 버스에서 전체 볼륨·일괄 정지·음소거를 제어하고, 상단 '고급 FX ▸'로 채널별 LUFS·패닝·게이트·컴프레서를 세밀하게 다룹니다.",
     holeGroups: [["#master-dock"], ["#adv-rack-btn"]],
     fallbackSelector: "#console-root",
   },
@@ -161,6 +147,7 @@ export function buildTourOverlayDom(
   container: HTMLElement,
   onFinishOrSkip: () => void,
 ): TourOverlayRefs {
+  const copy = helpCopy();
   let active = false;
   let currentStep = 0;
   let lastDemoMode = false;
@@ -171,21 +158,21 @@ export function buildTourOverlayDom(
       <path data-ref="dimPath" fill="rgba(4, 9, 11, 0.74)" fill-rule="evenodd"></path>
     </svg>
     <div class="tour-rings-layer" data-ref="ringsLayer"></div>
-    <div class="tour-card c-surface" data-ref="card" role="dialog" aria-modal="true" aria-label="콘솔 기능 실화면 투어">
+    <div class="tour-card c-surface" data-ref="card" role="dialog" aria-modal="true" aria-label="${copy.tourDialogAria}">
       <div class="tour-card-header">
         <div class="tour-card-tags">
           <span class="tour-step-badge tabular" data-ref="stepBadge">STEP 1 / 7</span>
-          <span class="tour-demo-pill hidden" data-ref="demoPill">예시 채널 표시 중</span>
+          <span class="tour-demo-pill hidden" data-ref="demoPill">${copy.tourDemoPill}</span>
         </div>
-        <button type="button" class="tour-skip-btn" data-tour-skip>투어 건너뛰기</button>
+        <button type="button" class="tour-skip-btn" data-tour-skip>${copy.tourSkipLabel}</button>
       </div>
       <h3 class="tour-card-title allow-wrap" data-ref="title"></h3>
       <p class="tour-card-desc allow-wrap" data-ref="desc"></p>
       <div class="tour-card-footer">
         <div class="tour-step-dots" data-ref="dots"></div>
         <div class="tour-nav-actions">
-          <button type="button" class="tour-prev-btn" data-tour-prev disabled>이전</button>
-          <button type="button" class="tour-next-btn" data-tour-next>다음</button>
+          <button type="button" class="tour-prev-btn" data-tour-prev disabled>${copy.tourPrevLabel}</button>
+          <button type="button" class="tour-next-btn" data-tour-next>${copy.tourNextLabel}</button>
         </div>
       </div>
     </div>
@@ -210,7 +197,7 @@ export function buildTourOverlayDom(
     dot.type = "button";
     dot.className = "tour-step-dot";
     dot.dataset.step = String(i);
-    dot.setAttribute("aria-label", `${i + 1}단계`);
+    dot.setAttribute("aria-label", copy.stepAria(i));
     dot.addEventListener("click", () => {
       currentStep = i;
       syncPosition(lastDemoMode);
@@ -242,7 +229,7 @@ export function buildTourOverlayDom(
     return new DOMRect(minX, minY, Math.max(16, maxX - minX), Math.max(16, maxY - minY));
   }
 
-  function resolveHoleBoxes(stepDef: TourStepDef, rootRect: DOMRect): HoleBox[] {
+  function resolveHoleBoxes(stepDef: TourHoleSpec, rootRect: DOMRect): HoleBox[] {
     const pad = 4;
     const rawRects: DOMRect[] = [];
     for (const group of stepDef.holeGroups) {
@@ -275,14 +262,15 @@ export function buildTourOverlayDom(
     if (!active) return;
     lastDemoMode = demoMode;
 
-    const stepDef = TOUR_STEPS[currentStep] ?? TOUR_STEPS[0]!;
+    const stepDef = TOUR_HOLE_SPECS[currentStep] ?? TOUR_HOLE_SPECS[0]!;
+    const stepCopy = copy.tourSteps[currentStep] ?? copy.tourSteps[0]!;
     stepBadge.textContent = `STEP ${currentStep + 1} / 7`;
     demoPill.classList.toggle("hidden", !demoMode);
-    titleEl.textContent = stepDef.title;
-    descEl.textContent = stepDef.desc;
+    titleEl.textContent = stepCopy.title;
+    descEl.textContent = stepCopy.desc;
 
     prevBtn.disabled = currentStep === 0;
-    nextBtn.textContent = currentStep === 6 ? "완료" : "다음";
+    nextBtn.textContent = currentStep === 6 ? copy.tourDoneLabel : copy.tourNextLabel;
 
     const dots = dotsWrap.querySelectorAll<HTMLButtonElement>(".tour-step-dot");
     dots.forEach((d, idx) => {

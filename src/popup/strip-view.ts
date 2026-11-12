@@ -1,5 +1,5 @@
+import { getLocalizedPresetMeta, ui } from "../shared/i18n";
 import {
-  AUTO_NORM_PRESET_META,
   clampDb,
   computeDisplayedEffectiveDb,
   dbToRatio,
@@ -7,7 +7,6 @@ import {
   isChannelPinned,
   LED_COUNT,
   MAX_DB,
-  MIN_DB,
   ratioToDb,
   resolveEffectiveNormalizer,
   SCALE_TICKS,
@@ -213,13 +212,14 @@ export function buildChannelStripDom(
   getLatestCh: () => TabChannelState | undefined,
   cb: StripCallbacks,
 ): ChannelStripRefs {
+  const copy = ui();
   const zeroPct = dbToRatio(0) * 100;
   const el = document.createElement("section");
   el.className = "channel-strip";
   el.dataset.tabId = String(initialCh.tabId);
   el.innerHTML = `
     <div data-ref="topAccent" class="strip-top-accent"></div>
-    <div data-ref="grip" class="grip-bar" title="드래그하여 채널 순서 변경 · 재생↔일시정지 구역 이동 시 즉시 전환">
+    <div data-ref="grip" class="grip-bar" title="${copy.gripTitle}">
       <span class="grip-dots">${ICONS.grip}</span>
       <span data-ref="normBadge" class="norm-badge hidden">N</span>
     </div>
@@ -233,7 +233,7 @@ export function buildChannelStripDom(
     </button>
 
     <div data-ref="faderWell" class="fader-well">
-      <div data-ref="track" class="fader-track" title="노브 드래그 · 휠 조절 (Shift+휠 미세) · 더블클릭 0.0dB 복귀">
+      <div data-ref="track" class="fader-track" title="${copy.faderTrackTitle}">
         <span class="unity-wing-l" style="bottom:${zeroPct}%"></span>
         <span class="unity-wing-r" style="bottom:${zeroPct}%"></span>
         <div class="fader-slot">
@@ -241,7 +241,7 @@ export function buildChannelStripDom(
           <div data-ref="attenBand" class="attenuated-band hidden"></div>
           <div data-ref="corsZone" class="cors-zone hidden" style="height:${100 - zeroPct}%"></div>
         </div>
-        <div data-ref="knob" class="fader-cap" title="노브를 잡아 위아래로 드래그 · 더블클릭 시 0.0dB 복귀">
+        <div data-ref="knob" class="fader-cap" title="${copy.faderKnobTitle}">
           <span class="cap-groove-sub"></span>
           <span data-ref="knobLine" class="cap-groove-main"></span>
           <span class="cap-groove-sub"></span>
@@ -249,20 +249,20 @@ export function buildChannelStripDom(
       </div>
     </div>
 
-    <div data-ref="readoutBtn" role="button" tabindex="0" title="클릭하여 dB 직접 입력 (Enter 적용 · Esc 취소)" class="readout-btn c-recessed">
+    <div data-ref="readoutBtn" role="button" tabindex="0" title="${copy.readoutTitle}" class="readout-btn c-recessed">
       <div data-ref="displayRow" class="readout-row1">
         <span data-ref="dbText" class="readout-db tabular"></span>
         <span class="readout-unit">dB</span>
       </div>
       <div data-ref="editRow" class="readout-edit-row hidden">
-        <input data-ref="dbInput" type="text" inputmode="decimal" spellcheck="false" autocomplete="off" class="readout-input tabular" aria-label="채널 데시벨 직접 입력" />
+        <input data-ref="dbInput" type="text" inputmode="decimal" spellcheck="false" autocomplete="off" class="readout-input tabular" aria-label="${copy.channelDbAria}" />
         <span class="readout-unit">dB</span>
       </div>
       <div data-ref="subText" class="readout-sub truncate tabular"></div>
     </div>
 
     <div class="transport-row">
-      <button data-ref="playBtn" type="button" class="console-btn play-btn" title="재생 / 일시정지">
+      <button data-ref="playBtn" type="button" class="console-btn play-btn" title="${copy.playToggleTitle}">
         <span data-ref="playIcon"></span><span data-ref="playLabel"></span>
       </button>
       <button data-ref="pinBtn" type="button" class="console-btn pin-btn">
@@ -272,13 +272,13 @@ export function buildChannelStripDom(
     </div>
 
     <div class="switch-bank c-recessed">
-      <button data-ref="muteBtn" type="button" class="console-btn switch-btn" title="음소거 (Mute)">
+      <button data-ref="muteBtn" type="button" class="console-btn switch-btn" title="${copy.muteTitle}">
         <span data-ref="mutePip" class="switch-pip"></span><span class="switch-lbl">M</span>
       </button>
-      <button data-ref="soloBtn" type="button" class="console-btn switch-btn" title="Solo (클릭: 단독 전환/해제 · Shift+클릭: 다중 · Focus와 상호 배타)">
+      <button data-ref="soloBtn" type="button" class="console-btn switch-btn" title="${copy.soloTitle}">
         <span data-ref="soloPip" class="switch-pip"></span><span class="switch-lbl">S</span>
       </button>
-      <button data-ref="focusBtn" type="button" class="console-btn switch-btn" title="Focus (클릭: 단독 전환/해제 · Shift+클릭: 다중 · Solo와 상호 배타)">
+      <button data-ref="focusBtn" type="button" class="console-btn switch-btn" title="${copy.focusTitle}">
         <span data-ref="focusPip" class="switch-pip"></span><span class="switch-lbl">F</span>
       </button>
     </div>
@@ -403,24 +403,25 @@ export function syncChannelReadoutSub(
     settings.autoNormPreset,
   );
 
+  const copy = ui();
   if (ch.corsCap) {
-    r.subText.textContent = "보안 0dB 상한";
+    r.subText.textContent = copy.subCorsCap;
     r.subText.style.color = t.muted;
   } else if (!ch.playing) {
-    r.subText.textContent = "일시정지";
+    r.subText.textContent = copy.subPaused;
     r.subText.style.color = t.muted;
   } else if (ch.muted) {
-    r.subText.textContent = "음소거";
+    r.subText.textContent = copy.subMuted;
     r.subText.style.color = t.states.danger;
   } else if (attenuated) {
-    r.subText.textContent = `실효 ${formatDb(effDb)}dB`;
+    r.subText.textContent = copy.subAttenuated(formatDb(effDb));
     r.subText.style.color = t.primary;
   } else if (norm.active) {
     const sign = ch.normTrimDb >= 0 ? "+" : "";
-    r.subText.textContent = `균일 ${sign}${ch.normTrimDb.toFixed(1)}dB`;
+    r.subText.textContent = copy.subNormTrim(`${sign}${ch.normTrimDb.toFixed(1)}`);
     r.subText.style.color = norm.source === "custom-on" ? t.accent : t.primary;
   } else {
-    r.subText.textContent = pinned ? "도메인 고정" : "개별 볼륨";
+    r.subText.textContent = pinned ? copy.subPinned : copy.subIndividual;
     r.subText.style.color = pinned ? t.accent : t.muted;
   }
 }
@@ -458,27 +459,28 @@ export function syncChannelStripDom(
         ? t.states.danger
         : "transparent";
 
+  const copy = ui();
   const showCustomOff = !ch.corsCap && ch.fx.normMode === "off" && settings.autoNormEnabled;
   r.normBadge.classList.toggle("hidden", !(norm.active || showCustomOff));
   if (norm.source === "custom-on") {
     r.normBadge.textContent = "N*";
     r.normBadge.style.backgroundColor = t.accent;
     r.normBadge.style.color = t.onAccent;
-    r.normBadge.title = "개별 노멀라이저 고정 ON";
+    r.normBadge.title = copy.normBadgeCustomOn;
   } else if (showCustomOff) {
     r.normBadge.textContent = "N×";
     r.normBadge.style.backgroundColor = t.surface;
     r.normBadge.style.color = t.muted;
-    r.normBadge.title = "전역 균일 N 개별 제외됨";
+    r.normBadge.title = copy.normBadgeCustomOff;
   } else {
-    const presetShort = (AUTO_NORM_PRESET_META[settings.autoNormPreset] ?? AUTO_NORM_PRESET_META.standard).shortLabel;
+    const presetShort = getLocalizedPresetMeta(settings.autoNormPreset).shortLabel;
     r.normBadge.textContent = "N";
     r.normBadge.style.backgroundColor = t.primary;
     r.normBadge.style.color = t.onPrimary;
-    r.normBadge.title = `전역 균일 N 적용 중 (${presetShort})`;
+    r.normBadge.title = copy.normBadgeGlobal(presetShort);
   }
 
-  r.header.title = `${ch.title}${ch.domain ? ` (${ch.domain})` : ""} — 클릭 시 해당 탭·창으로 이동`;
+  r.header.title = copy.headerJumpTitle(ch.title, ch.domain);
   r.faviconBox.style.borderColor = ch.focus ? t.primary : t.border;
   r.faviconBox.style.color = ch.focus ? t.primary : ch.solo ? t.accent : t.text;
   if (r.renderedFavIcon !== ch.favIconUrl) {
@@ -529,7 +531,7 @@ export function syncChannelStripDom(
   if (r.renderedPlaying !== ch.playing) {
     r.renderedPlaying = ch.playing;
     r.playIcon.innerHTML = ch.playing ? ICONS.pause : ICONS.play;
-    r.playLabel.textContent = ch.playing ? "재생" : "대기";
+    r.playLabel.textContent = ch.playing ? copy.playActiveLabel : copy.playIdleLabel;
   }
   r.playBtn.style.backgroundColor = ch.playing ? t.surface : t.bg;
   r.playBtn.style.borderColor = ch.playing ? t.primary : t.border;
@@ -538,10 +540,10 @@ export function syncChannelStripDom(
   const savedDomainDb = ch.domain ? settings.domainDefaults[ch.domain] : undefined;
   r.pinBtn.disabled = !ch.domain;
   r.pinBtn.title = !ch.domain
-    ? "도메인 정보를 사용할 수 없는 탭입니다"
+    ? copy.pinDisabledTitle
     : savedDomainDb !== undefined
-      ? `${ch.domain} 기본값 (${formatDb(savedDomainDb)} dB) · 클릭하여 고정/해제`
-      : `현재 볼륨(${formatDb(ch.db)} dB)을 ${ch.domain} 새 탭 기본값으로 고정`;
+      ? copy.pinSavedTitle(ch.domain, formatDb(savedDomainDb))
+      : copy.pinSetTitle(formatDb(ch.db), ch.domain);
   r.pinBtn.style.backgroundColor = pinned ? t.accent : t.surface;
   r.pinBtn.style.borderColor = pinned ? t.accent : t.border;
   r.pinBtn.style.color = pinned ? t.onAccent : t.muted;

@@ -1,3 +1,4 @@
+import { ui } from "../shared/i18n";
 import {
   clampDb,
   computeMasterStereoVu,
@@ -48,6 +49,7 @@ export function buildMasterStripDom(
   getMasterDb: () => number,
   cb: StripCallbacks,
 ): MasterStripRefs {
+  const copy = ui();
   const zeroPct = dbToRatio(0) * 100;
   const el = document.createElement("section");
   el.className = "master-strip";
@@ -55,38 +57,38 @@ export function buildMasterStripDom(
     <div data-ref="topAccent" class="strip-top-accent"></div>
     <div class="master-header">
       <div class="master-kicker">MASTER BUS</div>
-      <div class="strip-title" style="white-space:nowrap">전체 출력</div>
+      <div class="strip-title" style="white-space:nowrap">${copy.masterTitle}</div>
     </div>
     <div data-ref="faderWell" class="fader-well">
-      <div data-ref="track" class="fader-track" title="노브 드래그 · 휠 조절 · 더블클릭 0.0dB 복귀">
+      <div data-ref="track" class="fader-track" title="${copy.masterTrackTitle}">
         <span class="unity-wing-l" style="bottom:${zeroPct}%"></span>
         <span class="unity-wing-r" style="bottom:${zeroPct}%"></span>
         <div class="fader-slot">
           <div data-ref="fill" class="fader-fill"></div>
         </div>
-        <div data-ref="knob" class="fader-cap c-raised" title="노브를 잡아 위아래로 드래그 · 더블클릭 시 0.0dB 복귀">
+        <div data-ref="knob" class="fader-cap c-raised" title="${copy.faderKnobTitle}">
           <span class="cap-groove-sub" style="width:11px"></span>
           <span data-ref="knobLine" class="cap-groove-main" style="width:14px"></span>
           <span class="cap-groove-sub" style="width:11px"></span>
         </div>
       </div>
     </div>
-    <div data-ref="readoutBtn" role="button" tabindex="0" title="클릭하여 마스터 dB 직접 입력 (Enter 적용 · Esc 취소)" class="readout-btn c-recessed">
+    <div data-ref="readoutBtn" role="button" tabindex="0" title="${copy.masterReadoutTitle}" class="readout-btn c-recessed">
       <div data-ref="displayRow" class="readout-row1">
         <span data-ref="dbText" class="readout-db tabular"></span>
         <span data-ref="dbUnit" class="readout-unit">dB</span>
       </div>
       <div data-ref="editRow" class="readout-edit-row hidden">
-        <input data-ref="dbInput" type="text" inputmode="decimal" spellcheck="false" autocomplete="off" class="readout-input tabular" aria-label="마스터 데시벨 직접 입력" />
+        <input data-ref="dbInput" type="text" inputmode="decimal" spellcheck="false" autocomplete="off" class="readout-input tabular" aria-label="${copy.masterInputAria}" />
         <span class="readout-unit">dB</span>
       </div>
-      <div data-ref="subText" class="readout-sub truncate c-muted">마스터 게인</div>
+      <div data-ref="subText" class="readout-sub truncate c-muted">${copy.masterSub}</div>
     </div>
     <button data-ref="pauseAllBtn" type="button" class="console-btn master-action-btn c-raised">
       <span data-ref="pauseAllIcon"></span><span data-ref="pauseAllLabel"></span>
     </button>
     <button data-ref="muteAllBtn" type="button" class="console-btn master-mute-btn">
-      <span>${ICONS.speakerOff}</span><span>전체 음소거</span>
+      <span>${ICONS.speakerOff}</span><span>${copy.masterMuteAll}</span>
     </button>
   `;
 
@@ -176,12 +178,13 @@ export function syncMasterStripDom(
   paintLedColumn(m.vuL.segs, m.vuCurL, m.vuPeakL, t);
   paintLedColumn(m.vuR.segs, m.vuCurR, m.vuPeakR, t);
 
+  const copy = ui();
   if (m.readoutBtn.dataset.editing === "true") {
     m.readoutBtn.style.borderColor = t.primary;
     m.subText.style.color = t.primary;
   } else {
     m.readoutBtn.style.borderColor = t.border;
-    m.subText.textContent = "마스터 게인";
+    m.subText.textContent = copy.masterSub;
     m.subText.style.color = t.muted;
     m.dbText.textContent = settings.masterMuted ? "MUTE" : formatDb(settings.masterDb);
     m.dbText.style.color = settings.masterMuted
@@ -196,7 +199,7 @@ export function syncMasterStripDom(
   if (m.renderedAnyPlaying !== anyPlaying) {
     m.renderedAnyPlaying = anyPlaying;
     m.pauseAllIcon.innerHTML = anyPlaying ? ICONS.pause : ICONS.play;
-    m.pauseAllLabel.textContent = anyPlaying ? "전체 정지" : "전체 재생";
+    m.pauseAllLabel.textContent = anyPlaying ? copy.masterPauseAll : copy.masterPlayAll;
   }
 
   m.muteAllBtn.style.backgroundColor = settings.masterMuted ? t.states.danger : t.raised;

@@ -1,8 +1,9 @@
 {
-  "name": "sound-manager",
+  "name": "fadedesk",
   "private": true,
+  "license": "GPL-3.0-or-later",
   "type": "module",
-  "description": "다중 탭·창 미디어 중앙 재생 및 dB 로그 볼륨·Focus 모드 콘솔 Chrome 확장",
+  "description": "Fadedesk — 다중 탭·창 미디어 중앙 재생 및 dB 로그 볼륨·Focus 모드 오디오 콘솔 Chrome 확장",
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build": "node scripts/build.mjs",

@@ -71,15 +71,36 @@ function computeBuildId(version) {
   return `${version}-${hash12}`;
 }
 
+function assertLocaleParity() {
+  const enRaw = fs.readFileSync(path.join(STATIC_DIR, "_locales/en/messages.json"), "utf8");
+  const koRaw = fs.readFileSync(path.join(STATIC_DIR, "_locales/ko/messages.json"), "utf8");
+  const enObj = JSON.parse(enRaw);
+  const koObj = JSON.parse(koRaw);
+  const enKeys = Object.keys(enObj).sort();
+  const koKeys = Object.keys(koObj).sort();
+  if (JSON.stringify(enKeys) !== JSON.stringify(koKeys)) {
+    throw new Error(`_locales 키 불일치: en=[${enKeys.join(",")}] vs ko=[${koKeys.join(",")}]`);
+  }
+  for (const [lang, obj] of [["en", enObj], ["ko", koObj]]) {
+    const desc = obj.extDescription?.message || "";
+    if (desc.length === 0 || desc.length > 132) {
+      throw new Error(`_locales/${lang} extDescription 길이 제한(1~132자) 위반: ${desc.length}자`);
+    }
+  }
+}
+
 async function buildExtension() {
   const manifestRaw = fs.readFileSync(path.join(STATIC_DIR, "manifest.json"), "utf8");
   const manifest = JSON.parse(manifestRaw);
   assertManifestPolicy(manifest);
+  assertLocaleParity();
 
   const buildId = computeBuildId(manifest.version);
 
   fs.rmSync(UNPACKED_DIR, { recursive: true, force: true });
   fs.mkdirSync(path.join(UNPACKED_DIR, "icons"), { recursive: true });
+  fs.mkdirSync(path.join(UNPACKED_DIR, "_locales/en"), { recursive: true });
+  fs.mkdirSync(path.join(UNPACKED_DIR, "_locales/ko"), { recursive: true });
 
   // 1. 화이트리스트 정적 런타임 자산만 복사
   const staticWhitelist = [
@@ -93,6 +114,8 @@ async function buildExtension() {
     ["icons/icon32.png", "icons/icon32.png"],
     ["icons/icon48.png", "icons/icon48.png"],
     ["icons/icon128.png", "icons/icon128.png"],
+    ["_locales/en/messages.json", "_locales/en/messages.json"],
+    ["_locales/ko/messages.json", "_locales/ko/messages.json"],
   ];
 
   for (const [srcRel, destRel] of staticWhitelist) {
@@ -151,13 +174,13 @@ async function buildExtension() {
   walk(UNPACKED_DIR);
   builtFiles.sort();
 
-  const zipName = `sound-manager-${manifest.version}.zip`;
+  const zipName = `fadedesk-${manifest.version}.zip`;
   const zipPath = path.join(DIST_DIR, zipName);
   if (fs.existsSync(zipPath)) fs.unlinkSync(zipPath);
   writeZipArchive(UNPACKED_DIR, builtFiles, zipPath);
 
   console.log(
-    `[PASS] Built Sound Manager v${manifest.version} (buildId: ${buildId}, ${builtFiles.length} runtime files):`,
+    `[PASS] Built Fadedesk v${manifest.version} (buildId: ${buildId}, ${builtFiles.length} runtime files):`,
   );
   console.log(`  - Unpacked: ${UNPACKED_DIR}`);
   console.log(`  - Archive : ${zipPath}`);

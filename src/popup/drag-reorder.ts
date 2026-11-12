@@ -1,3 +1,4 @@
+import { ui } from "../shared/i18n";
 import type { TabChannelState, ThemeTokens } from "../shared/types";
 
 /**
@@ -73,16 +74,17 @@ export function startChannelReorderDrag(opts: DragReorderOptions): void {
 
   activeDragCount++;
 
+  const copy = ui();
   const slotIndicator = document.createElement("div");
   slotIndicator.className = "drop-slot-indicator";
 
   const emptyPlayZone = document.createElement("div");
   emptyPlayZone.className = "drop-zone-empty";
-  emptyPlayZone.textContent = "여기에 놓아 재생";
+  emptyPlayZone.textContent = copy.dropToPlay;
 
   const emptyPauseZone = document.createElement("div");
   emptyPauseZone.className = "drop-zone-empty";
-  emptyPauseZone.textContent = "여기에 놓아 일시정지";
+  emptyPauseZone.textContent = copy.dropToPause;
 
   const draggedEl = scrollRow.querySelector<HTMLElement>(
     `.channel-strip[data-tab-id="${movedTabId}"]`,
@@ -159,9 +161,9 @@ export function startChannelReorderDrag(opts: DragReorderOptions): void {
     slotIndicator.textContent =
       targetZone !== origZone
         ? targetZone === "paused"
-          ? "여기에 놓아 일시정지"
-          : "여기에 놓아 재생"
-        : "여기에 배치";
+          ? copy.dropToPause
+          : copy.dropToPlay
+        : copy.dropHere;
 
     const refNode =
       targetIdx < zoneCards.length

@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { MixerStateStore } from "../src/background/state-store";
 import { clampStandaloneWindowBounds } from "../src/popup/popout-window";
+import { createDemoTourChannels } from "../src/popup/tour-overlay";
+import { resetUiLocaleCache, resolveUiLocale } from "../src/shared/i18n";
 import {
   buildDspConfigPayload,
   clampDb,
@@ -577,4 +579,66 @@ test("0.8.0 상단 Focus α 수치창 직접 입력 파서(parseFocusInput · 0.
   assert.equal(parseFocusInput("0.75"), 0.75);
   assert.equal(focusDimDbToAlpha(-20), 0.5);
   assert.equal(parseFocusInput("abc"), null);
+});
+
+test("0.9.0 마지막 Solo 탭 종료 감지(releasedLastSolo), 다국어 로케일 해석, 중립 투어 데모 채널 검증", () => {
+  const store = new MixerStateStore();
+  const baseReport = {
+    hasMedia: true,
+    playingCount: 1,
+    pausedCount: 0,
+    corsRestricted: false,
+    mediaTitle: "",
+    vuLevel: 0.4,
+    vuPeak: 0.5,
+    normTrimDb: 0,
+  };
+
+  store.updateFrameReport({ tabId: 1, windowId: 1, url: "https://audio.example/a", title: "A" }, 0, baseReport);
+  store.updateFrameReport({ tabId: 2, windowId: 1, url: "https://live.example/b", title: "B" }, 0, baseReport);
+  store.updateFrameReport({ tabId: 3, windowId: 1, url: "https://video.example/c", title: "C" }, 0, baseReport);
+
+  // 탭 1과 탭 2 동시 Solo 상태에서 탭 1 종료 -> 아직 탭 2가 Solo이므로 releasedLastSolo === false
+  store.toggleTabMode(1, "solo", false);
+  store.toggleTabMode(2, "solo", true);
+  assert.deepEqual(store.removeTab(1), { releasedLastSolo: false });
+
+  // 마지막 남은 Solo 탭 2 종료 -> 나머지 탭들의 급작스러운 폭음 복귀를 막기 위해 releasedLastSolo === true 반환
+  assert.deepEqual(store.removeTab(2), { releasedLastSolo: true });
+
+  // 일반 탭 3 종료 및 미존재 탭 종료
+  assert.deepEqual(store.removeTab(3), { releasedLastSolo: false });
+  assert.deepEqual(store.removeTab(999), { releasedLastSolo: false });
+
+  // 다국어 로케일 우선순위 검증 (?lang -> chrome.i18n.getUILanguage -> <html lang>)
+  const g = globalThis as Record<string, unknown>;
+  const prevLocation = g.location;
+  const prevChrome = g.chrome;
+  try {
+    g.location = { search: "?lang=en" };
+    resetUiLocaleCache();
+    assert.equal(resolveUiLocale(), "en");
+
+    g.location = { search: "?lang=ko" };
+    resetUiLocaleCache();
+    assert.equal(resolveUiLocale(), "ko");
+
+    g.location = { search: "" };
+    g.chrome = { i18n: { getUILanguage: () => "en-US" } };
+    resetUiLocaleCache();
+    assert.equal(resolveUiLocale(), "en");
+
+    const enDemo = createDemoTourChannels();
+    assert.equal(enDemo[0]?.domain, "audio.example");
+    assert.equal(enDemo[1]?.domain, "live.example");
+    assert.ok(!enDemo.some((c) => /youtube|naver|chzzk|kiminoshigusamo/i.test(`${c.title} ${c.domain}`)));
+
+    g.chrome = { i18n: { getUILanguage: () => "ko-KR" } };
+    resetUiLocaleCache();
+    assert.equal(resolveUiLocale(), "ko");
+  } finally {
+    g.location = prevLocation;
+    g.chrome = prevChrome;
+    resetUiLocaleCache();
+  }
 });

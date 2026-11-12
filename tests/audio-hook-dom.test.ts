@@ -10,7 +10,7 @@ import { installAudioHook } from "../src/content/audio-hook";
 function createMockAudioEnvironment() {
   let mediaElementSourceCalls = 0;
   let sampleAmplitude = 0.25;
-  const createdGains: Array<{ value: number }> = [];
+  const createdGains: Array<{ value: number; lastTau: number }> = [];
   const createdPanners: Array<{ value: number }> = [];
 
   class FakeMediaElement {
@@ -76,11 +76,11 @@ function createMockAudioEnvironment() {
     gain: {
       value: number;
       cancelScheduledValues: () => void;
-      setTargetAtTime: (target: number) => void;
+      setTargetAtTime: (target: number, startTime?: number, timeConstant?: number) => void;
     };
     constructor(ctx: FakeAudioContext) {
       super(ctx);
-      const state = { value: 1.0 };
+      const state = { value: 1.0, lastTau: 0 };
       createdGains.push(state);
       this.gain = {
         get value() {
@@ -90,8 +90,9 @@ function createMockAudioEnvironment() {
           state.value = v;
         },
         cancelScheduledValues: () => {},
-        setTargetAtTime: (target: number) => {
+        setTargetAtTime: (target: number, _startTime = 0, timeConstant = 0) => {
           state.value = target;
+          state.lastTau = timeConstant;
         },
       };
     }
@@ -532,5 +533,50 @@ test("BS.1770/EBU 3341 노멀라이저: 완만(9s) 창은 후렴 다이내믹을
     controller.stepTick();
     assert.ok(controller.getSnapshot().normTrimDb <= beforeFreezeTrim);
     controller.dispose();
+  }
+});
+
+test("0.9.0 보안 0dB 폴백 탭 결정론적 레벨 표시(가짜 난수 미터 제거) 및 Solo 해제 완만 복귀(rampSec: 0.3) 검증", async () => {
+  // 1) CORS 폴백 미디어의 연속 실행 레벨이 난수 흔들림 없이 완전히 동일한 결정론적 수열을 내는지 검증
+  const runCorsVu = async (): Promise<number[]> => {
+    const envCors = createMockAudioEnvironment();
+    const ctrlCors = installAudioHook(envCors.win);
+    try {
+      const corsVideo = new envCors.FakeMediaElement();
+      corsVideo.currentSrc = "https://cdn.external-host.example/stream.mp4";
+      corsVideo.crossOrigin = null;
+      corsVideo.volume = 0.75;
+      await corsVideo.play();
+
+      ctrlCors.dispatchCommand({ type: "SET_METERING", active: true });
+      ctrlCors.dispatchCommand({ type: "APPLY_GAIN", targetGain: 0.8 });
+      const seq: number[] = [];
+      for (let i = 0; i < 6; i++) {
+        ctrlCors.stepTick();
+        seq.push(ctrlCors.getSnapshot().vuLevel);
+      }
+      return seq;
+    } finally {
+      ctrlCors.dispose();
+    }
+  };
+
+  const seqA = await runCorsVu();
+  const seqB = await runCorsVu();
+  assert.ok(seqA[5]! > 0);
+  assert.deepEqual(seqA, seqB, "CORS fallback VU sequence must be 100% deterministic without Math.random()");
+
+  // 2) 마지막 Solo 탭이 닫힐 때 전달되는 rampSec: 0.3 이 시정수 tau = 0.1s 로 스케줄링되는지 검증
+  const envWebAudio = createMockAudioEnvironment();
+  const ctrlWebAudio = installAudioHook(envWebAudio.win);
+  try {
+    const mseAudio = new envWebAudio.FakeMediaElement();
+    mseAudio.currentSrc = "blob:https://www.youtube.com/solo-release";
+    await mseAudio.play();
+
+    ctrlWebAudio.dispatchCommand({ type: "APPLY_GAIN", targetGain: 1.0, rampSec: 0.3 });
+    assert.ok(Math.abs((envWebAudio.createdGains[0]?.lastTau ?? 0) - 0.1) < 1e-6);
+  } finally {
+    ctrlWebAudio.dispose();
   }
 });

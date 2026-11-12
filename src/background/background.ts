@@ -112,9 +112,13 @@ function sendCommandToTab(tabId: number, command: HookCommand, frameId?: number)
   }
 }
 
-function pushGainToTab(tabId: number, frameId?: number): void {
+function pushGainToTab(tabId: number, frameId?: number, rampSec?: number): void {
   const targetGain = store.computeTargetGainForTab(tabId);
-  sendCommandToTab(tabId, { type: "APPLY_GAIN", targetGain }, frameId);
+  const cmd: HookCommand =
+    typeof rampSec === "number" && rampSec > 0
+      ? { type: "APPLY_GAIN", targetGain, rampSec }
+      : { type: "APPLY_GAIN", targetGain };
+  sendCommandToTab(tabId, cmd, frameId);
 }
 
 function pushDspToTab(tabId: number, frameId?: number): void {
@@ -122,9 +126,9 @@ function pushDspToTab(tabId: number, frameId?: number): void {
   sendCommandToTab(tabId, { type: "APPLY_DSP", dsp }, frameId);
 }
 
-function pushGainsToAllTabs(): void {
+function pushGainsToAllTabs(rampSec?: number): void {
   for (const tabId of store.getTrackedTabIds()) {
-    pushGainToTab(tabId);
+    pushGainToTab(tabId, undefined, rampSec);
   }
 }
 
@@ -302,7 +306,8 @@ async function handlePopupAction(msg: PopupActionMessage): Promise<void> {
         await chrome.tabs.update(msg.tabId, { active: true });
         await chrome.windows.update(msg.windowId, { focused: true });
       } catch {
-        store.removeTab(msg.tabId);
+        const { releasedLastSolo } = store.removeTab(msg.tabId);
+        if (releasedLastSolo) pushGainsToAllTabs(0.3);
         broadcastSnapshotAndBadge();
       }
       break;
@@ -524,8 +529,8 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 chrome.tabs.onRemoved.addListener((tabId) => {
   void ensureHydrated().then(() => {
     if (!store.hasKnownTab(tabId)) return;
-    store.removeTab(tabId);
-    pushGainsToAllTabs();
+    const { releasedLastSolo } = store.removeTab(tabId);
+    pushGainsToAllTabs(releasedLastSolo ? 0.3 : undefined);
     broadcastSnapshotAndBadge();
   });
 });

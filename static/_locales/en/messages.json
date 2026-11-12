@@ -1,0 +1,20 @@
+{
+  "extName": {
+    "message": "Fadedesk"
+  },
+  "extDescription": {
+    "message": "Per-tab audio mixer console with dB faders, Focus ducking, Solo, stereo pan, loudness normalizer, compressor, and domain pins."
+  },
+  "actionTitle": {
+    "message": "Fadedesk — Per-Tab Audio Mixer"
+  },
+  "cmdOpenConsole": {
+    "message": "Open Fadedesk mixer console"
+  },
+  "cmdToggleMasterMute": {
+    "message": "Toggle Master Mute"
+  },
+  "cmdCycleFocus": {
+    "message": "Cycle Focus across playing media tabs"
+  }
+}

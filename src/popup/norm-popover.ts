@@ -1,10 +1,9 @@
-import { AUTO_NORM_PRESET_META } from "../shared/mixer-math";
+import { getLocalizedPresetMeta, ui } from "../shared/i18n";
 import type { AutoNormPreset, PersistedSettings, ThemeTokens } from "../shared/types";
 
 /**
  * 전역 이지 노멀라이저 스플릿 버튼(#auto-norm-btn, #auto-norm-preset-btn) 및
  * 플로팅 프리셋 선택 팝오버(#norm-popover) 뷰 모듈.
- * - 음악(강약 보존) / 표준(균형) / 야간(야간 보호) 3종 프리셋을 전환한다.
  */
 
 export function renderNormPopoverDom(
@@ -13,16 +12,17 @@ export function renderNormPopoverDom(
   t: ThemeTokens,
   onSelectPreset: (preset: AutoNormPreset) => void,
 ): void {
+  const copy = ui();
   const curPreset: AutoNormPreset = settings.autoNormPreset ?? "standard";
-  const curMeta = AUTO_NORM_PRESET_META[curPreset] ?? AUTO_NORM_PRESET_META.standard;
+  const curMeta = getLocalizedPresetMeta(curPreset);
   const badgeDetail = curMeta.badge.split("·")[1]?.trim() ?? "";
   const presetDesc = badgeDetail ? `${curMeta.shortLabel} · ${badgeDetail}` : curMeta.shortLabel;
 
   // 1. #auto-norm-btn 동기화 (폭 변화 0px 보장)
   const normBtn = document.getElementById("auto-norm-btn") as HTMLButtonElement | null;
   if (normBtn) {
-    normBtn.textContent = "균일 N";
-    normBtn.title = `전역 자동 노멀라이저 (현재 프리셋: ${presetDesc}) — 클릭 시 ON/OFF`;
+    normBtn.textContent = copy.autoNormLabel;
+    normBtn.title = copy.autoNormBtnTitle(presetDesc);
     if (settings.autoNormEnabled) {
       normBtn.style.backgroundColor = t.primary;
       normBtn.style.color = t.onPrimary;
@@ -42,7 +42,7 @@ export function renderNormPopoverDom(
     presetBtn.textContent = open ? "▴" : "▾";
     presetBtn.setAttribute("aria-expanded", String(open));
     presetBtn.setAttribute("aria-haspopup", "dialog");
-    presetBtn.title = `자동 노멀라이저 프리셋 선택 (현재: ${presetDesc})`;
+    presetBtn.title = copy.autoNormPresetTitle(presetDesc);
     if (open) {
       presetBtn.style.backgroundColor = t.raised;
       presetBtn.style.color = t.primary;
@@ -89,7 +89,7 @@ export function renderNormPopoverDom(
 
   const titleEl = document.createElement("span");
   titleEl.className = "c-muted pop-label";
-  titleEl.textContent = "이지 노멀라이저 프리셋";
+  titleEl.textContent = copy.normHeader;
   headEl.appendChild(titleEl);
 
   const sumEl = document.createElement("span");
@@ -104,11 +104,11 @@ export function renderNormPopoverDom(
   const listEl = document.createElement("div");
   listEl.className = "norm-preset-list";
   listEl.setAttribute("role", "radiogroup");
-  listEl.setAttribute("aria-label", "이지 노멀라이저 프리셋 목록");
+  listEl.setAttribute("aria-label", copy.normListAria);
 
   const presetKeys: AutoNormPreset[] = ["music", "standard", "night"];
   for (const key of presetKeys) {
-    const meta = AUTO_NORM_PRESET_META[key];
+    const meta = getLocalizedPresetMeta(key);
     const active = curPreset === key;
     const btn = document.createElement("button");
     btn.type = "button";

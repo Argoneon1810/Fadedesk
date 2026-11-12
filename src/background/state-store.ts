@@ -259,8 +259,11 @@ export class MixerStateStore {
     rec.frameVu.delete(frameId);
   }
 
-  removeTab(tabId: number): void {
+  removeTab(tabId: number): { releasedLastSolo: boolean } {
+    const hadSolo = this.getVisibleRecords().some((r) => r.solo);
     this.tabs.delete(tabId);
+    const hasSoloNow = this.getVisibleRecords().some((r) => r.solo);
+    return { releasedLastSolo: hadSolo && !hasSoloNow };
   }
 
   updateFrameVu(
@@ -602,10 +605,22 @@ export class MixerStateStore {
         }
       }
 
+      const fallbackTitle = (() => {
+        try {
+          const lang = (globalThis as { chrome?: typeof chrome }).chrome?.i18n?.getUILanguage?.();
+          if (typeof lang === "string" && lang.length > 0 && !lang.toLowerCase().startsWith("ko")) {
+            return "Media Tab";
+          }
+        } catch {
+          // 단위 테스트 등 i18n 비활성 환경
+        }
+        return "미디어 탭";
+      })();
+
       return {
         tabId: rec.tabId,
         windowId: rec.windowId,
-        title: richTitle || rec.tabTitle || rec.shortHost || "미디어 탭",
+        title: richTitle || rec.tabTitle || rec.shortHost || fallbackTitle,
         domain: rec.domain,
         shortHost: rec.shortHost || "tab",
         favIconUrl: rec.favIconUrl,

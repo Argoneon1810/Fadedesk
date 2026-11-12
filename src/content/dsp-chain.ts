@@ -66,8 +66,8 @@ export interface DspChainInstance {
   /** 최종 출력 파형 피크를 측정하는 Post-Fader AnalyserNode */
   postAnalyser: AnalyserNode;
   postBuffer: Float32Array<ArrayBuffer>;
-  /** 사용자 목표 선형 게인을 스무딩 적용 */
-  applyFaderGain: (targetGain: number) => void;
+  /** 사용자 목표 선형 게인을 스무딩 적용 (rampSec 지정 시 완만한 복귀 시정수 사용) */
+  applyFaderGain: (targetGain: number, rampSec?: number) => void;
   /** 정적 DSP 파라미터(패닝·컴프레서) 즉시 반영 */
   syncStaticDsp: (dsp: DspConfigPayload) => void;
   /** 75ms 주기로 노이즈 게이트와 BS.1770-4 게이팅 라우드니스 노멀라이저 이득을 갱신하고 현재 보정 dB를 반환 */
@@ -389,8 +389,9 @@ export function createDspChain(
     faderGain,
     postAnalyser,
     postBuffer,
-    applyFaderGain: (targetGain: number) => {
-      setAudioParamSmooth(faderGain.gain, ctx, Math.max(0, targetGain), GAIN_SMOOTH_TAU_SEC);
+    applyFaderGain: (targetGain: number, rampSec?: number) => {
+      const tau = typeof rampSec === "number" && rampSec > 0 ? rampSec / 3 : GAIN_SMOOTH_TAU_SEC;
+      setAudioParamSmooth(faderGain.gain, ctx, Math.max(0, targetGain), tau);
     },
     syncStaticDsp,
     tickDynamicDsp,
