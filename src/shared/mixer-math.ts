@@ -44,26 +44,26 @@ export const AUTO_NORM_PRESET_META: Record<
   music: {
     label: "음악 (강약 보존)",
     shortLabel: "음악",
-    badge: "-16 LUFS · 강약 보존",
+    badge: "-16 LUFS · 완만(9s)",
     targetLufs: -16,
-    speed: "music",
-    summary: "곡 안의 조용한 도입부~강렬한 후렴 대비는 살리고 곡·탭 간 평균 음량만 천천히 맞춥니다.",
+    speed: "slow",
+    summary: "BS.1770 게이팅 9초 장기 계측으로 곡 안의 후렴·프리즈 대비는 살리고 곡 간 평균 음압만 맞춥니다.",
   },
   standard: {
     label: "표준 (영상·방송)",
     shortLabel: "표준",
-    badge: "-16 LUFS · 균형",
+    badge: "-16 LUFS · 표준(3s)",
     targetLufs: -16,
     speed: "std",
-    summary: "유튜브·스트리밍·강의 등 탭 간 볼륨 편차를 자연스럽게 균일화합니다.",
+    summary: "EBU 3341 3초 단기(Short-Term) 계측으로 유튜브·스트리밍·강의 탭 간 음압 편차를 정렬합니다.",
   },
   night: {
     label: "야간 (강한 균일)",
     shortLabel: "야간",
-    badge: "-18 LUFS · 야간 보호",
+    badge: "-18 LUFS · 민감(0.4s)",
     targetLufs: -18,
     speed: "fast",
-    summary: "작은 말소리는 또렷하게, 갑작스러운 효과음·폭음은 즉시 눌러 밤 시간 청취를 돕습니다.",
+    summary: "EBU 3341 0.4초 순간(Momentary) 계측으로 갑작스러운 큰 소리는 빠르게 누르고 대사를 유지합니다.",
   },
 };
 
@@ -118,11 +118,64 @@ export function parseDbInput(raw: string, corsCap = false): number | null {
   return clampDb(parsed, corsCap);
 }
 
-/** Focus 스무딩 계수 α를 0.05 단위로 정규화한다 (0 <= α <= 1). */
+/**
+ * Focus 스무딩 계수 α를 0.0025 단위로 정규화한다 (0 <= α <= 1, 감쇠량 0.1dB 해상도와 1:1 대응).
+ */
 export function clampAlpha(alpha: number): number {
   if (!Number.isFinite(alpha)) return 0.7;
   const clamped = Math.max(0, Math.min(1, alpha));
+  return Math.round(clamped * 400) / 400;
+}
+
+/** 슬라이더 드래그·마우스 휠 조작 시 0.05(2dB) 단위로 정돈한다. */
+export function clampAlphaStep(alpha: number): number {
+  if (!Number.isFinite(alpha)) return 0.7;
+  const clamped = Math.max(0, Math.min(1, alpha));
   return Math.round(clamped * 20) / 20;
+}
+
+/** Focus 목표 감쇠량(dB, -40..0)을 α 계수(0..1)로 역변환한다 (-40dB 이하는 Solo 0으로 스냅). */
+export function focusDimDbToAlpha(dimDb: number): number {
+  if (!Number.isFinite(dimDb) || dimDb <= -MAX_FOCUS_DIM_DB) return 0;
+  if (dimDb >= 0) return 1;
+  return clampAlpha(1 + dimDb / MAX_FOCUS_DIM_DB);
+}
+
+/**
+ * 상단 Focus α 수치창 직접 입력 문자열을 α(0..1)로 파싱한다.
+ * - 음수 또는 dB 접미사 입력(예: "-12", "-15.5", "-18dB", "0", "-40", "-inf"): 감쇠 dB로 해석
+ * - 부호·단위 없는 0 초과 1 이하 소수 입력(예: "0.7", "0.65", "1.0"): α 비율로 해석
+ */
+export function parseFocusInput(raw: string): number | null {
+  const trimmed = raw.trim().replace(/\u2212/g, "-");
+  if (!trimmed) return null;
+
+  const hasDbSuffix = /\s*d[bB]$/i.test(trimmed);
+  const hasAlphaPrefix = /^[\u03b1aA]\s*[:=]?\s*/.test(trimmed);
+  const body = trimmed
+    .replace(/\s*d[bB]$/i, "")
+    .replace(/^[\u03b1aA]\s*[:=]?\s*/, "")
+    .trim();
+  if (!body) return null;
+
+  const lower = body.toLowerCase();
+  if (lower === "-inf" || lower === "-infinity" || lower === "-∞" || lower === "∞") {
+    return 0;
+  }
+
+  if (!/^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(body)) {
+    return null;
+  }
+  const parsed = Number(body);
+  if (!Number.isFinite(parsed)) return null;
+
+  if (hasAlphaPrefix) {
+    return clampAlpha(parsed);
+  }
+  if (!hasDbSuffix && !body.startsWith("-") && !body.startsWith("+") && parsed > 0 && parsed <= 1 && body.includes(".")) {
+    return clampAlpha(parsed);
+  }
+  return focusDimDbToAlpha(parsed);
 }
 
 /** dB 값을 선형 배율(Linear Gain)로 변환한다 (-60dB 이하는 완전 무음 0으로 스냅). */
@@ -209,6 +262,19 @@ export function getFocusDimDb(alpha: number): number {
   return dim === 0 ? 0 : dim;
 }
 
+/** 상단 Focus α 표시창 문자열("0.70 · -12dB", "0.61 · -15.5dB", "0.00 · -∞")을 생성한다. */
+export function formatFocusReadout(alpha: number): string {
+  const dim = getFocusDimDb(alpha);
+  const dimStr = !Number.isFinite(dim)
+    ? "-∞"
+    : dim === 0
+      ? "0dB"
+      : Number.isInteger(dim)
+        ? `${dim.toFixed(0)}dB`
+        : `${dim.toFixed(1)}dB`;
+  return `${alpha.toFixed(2)} · ${dimStr}`;
+}
+
 /** 화면 표시용 dB 문자열 포맷 ("+4.5", "0.0", "-6.0", "-∞") */
 export function formatDb(db: number): string {
   if (!Number.isFinite(db) || db <= MIN_DB) return "-∞";
@@ -230,14 +296,20 @@ export function sanitizeChannelFx(
 ): ChannelFxState {
   const merged = { ...DEFAULT_CHANNEL_FX, ...(base ?? {}), ...(patch ?? {}) };
   const validModes: ChannelNormMode[] = ["follow", "on", "off"];
-  const validSpeeds: NormSpeedPreset[] = ["music", "slow", "std", "fast"];
+  const validSpeeds: NormSpeedPreset[] = ["slow", "std", "fast"];
   const validRatios: CompRatioPreset[] = [2, 4, 8];
 
   const normMode = validModes.includes(merged.normMode) ? merged.normMode : "follow";
   const normTargetLufs = Number.isFinite(merged.normTargetLufs)
     ? Math.max(-20, Math.min(-12, Math.round(merged.normTargetLufs)))
     : -16;
-  const normSpeed = validSpeeds.includes(merged.normSpeed) ? merged.normSpeed : "std";
+  const rawSpeed = merged.normSpeed as string;
+  const normSpeed: NormSpeedPreset =
+    rawSpeed === "music"
+      ? "slow"
+      : validSpeeds.includes(rawSpeed as NormSpeedPreset)
+        ? (rawSpeed as NormSpeedPreset)
+        : "std";
   const pan = Number.isFinite(merged.pan)
     ? Math.max(-100, Math.min(100, Math.round(merged.pan)))
     : 0;

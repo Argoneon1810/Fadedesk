@@ -12,10 +12,14 @@ import {
   dbToRatio,
   DEFAULT_CHANNEL_FX,
   extractDomainInfo,
+  focusDimDbToAlpha,
+  formatFocusReadout,
   getFocusDimDb,
   linearToDb,
   parseDbInput,
+  parseFocusInput,
   resolveEffectiveNormalizer,
+  sanitizeChannelFx,
   toggleExclusiveFlags,
 } from "../src/shared/mixer-math";
 
@@ -527,11 +531,11 @@ test("0.7.0 이지 노멀라이저 3종 프리셋(음악·표준·야간) 합성
   assert.equal(store.getSettings().onboardingDone, true);
   assert.equal(store.completeOnboarding(), false);
 
-  // 전역 따름("follow") 채널에 대한 프리셋별 목표 음압·반응 속도 해석
+  // 전역 따름("follow") 채널에 대한 프리셋별 목표 음압·EBU 계측 창(slow:9s / std:3s / fast:0.4s) 해석
   assert.deepEqual(resolveEffectiveNormalizer(true, DEFAULT_CHANNEL_FX, false, "music"), {
     active: true,
     targetLufs: -16,
-    speed: "music",
+    speed: "slow",
     source: "auto",
   });
   assert.deepEqual(resolveEffectiveNormalizer(true, DEFAULT_CHANNEL_FX, false, "standard"), {
@@ -547,15 +551,30 @@ test("0.7.0 이지 노멀라이저 3종 프리셋(음악·표준·야간) 합성
     source: "auto",
   });
 
-  // 프리셋 선택과 동시에 전역 노멀라이저 활성화 및 탭 DSP 페이로드 반영 검증
+  // 프리셋 선택과 동시에 전역 노멀라이저 활성화 및 탭 DSP 페이로드 반영 검증(이지 프리셋 = 고급 FX 동일 파라미터)
   store.setAutoNormPreset("music", true);
   assert.equal(store.getSettings().autoNormPreset, "music");
   assert.equal(store.getSettings().autoNormEnabled, true);
-  assert.equal(store.computeDspForTab(999).normSpeed, "music");
+  assert.equal(store.computeDspForTab(999).normSpeed, "slow");
+  assert.equal(sanitizeChannelFx(undefined, { normSpeed: "music" as never }).normSpeed, "slow");
 
   // 개별 고정("on") 채널은 전역 프리셋을 바꿔도 자신의 설정(-14 LUFS, "slow")을 보존
   const customOnFx = { ...DEFAULT_CHANNEL_FX, normMode: "on" as const, normTargetLufs: -14, normSpeed: "slow" as const };
   const dspCustom = buildDspConfigPayload(true, customOnFx, false, "night");
   assert.equal(dspCustom.normTargetLufs, -14);
   assert.equal(dspCustom.normSpeed, "slow");
+});
+
+test("0.8.0 상단 Focus α 수치창 직접 입력 파서(parseFocusInput · 0.1dB 해상도) 검증", () => {
+  assert.equal(parseFocusInput("-12"), 0.7);
+  assert.equal(parseFocusInput("-12dB"), 0.7);
+  assert.equal(parseFocusInput("-15.5"), 0.6125);
+  assert.equal(getFocusDimDb(0.6125), -15.5);
+  assert.equal(formatFocusReadout(0.6125), "0.61 · -15.5dB");
+  assert.equal(parseFocusInput("0"), 1);
+  assert.equal(parseFocusInput("-40"), 0);
+  assert.equal(parseFocusInput("-inf"), 0);
+  assert.equal(parseFocusInput("0.75"), 0.75);
+  assert.equal(focusDimDbToAlpha(-20), 0.5);
+  assert.equal(parseFocusInput("abc"), null);
 });

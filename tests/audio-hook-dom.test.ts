@@ -455,8 +455,8 @@ test("SET_PLAYING(true): 분리된 더미 오디오 요소를 건너뛰고 최�
   controller.dispose();
 });
 
-test("0.7.0 음악(강약 보존, normSpeed='music') 모드는 곡 내부 후렴구 음압 상승 시 급감쇠하지 않고 다이내믹 대비를 보존한다", async () => {
-  const runScenario = async (normSpeed: "music" | "fast"): Promise<{ introTrim: number; chorusTrim: number }> => {
+test("BS.1770/EBU 3341 노멀라이저: 완만(9s) 창은 후렴 다이내믹을 보존하고, 상대 게이트(-10 LU)는 프리즈 구간 과증폭을 차단한다", async () => {
+  const runChorusScenario = async (normSpeed: "slow" | "fast"): Promise<{ introTrim: number; chorusTrim: number }> => {
     const env = createMockAudioEnvironment();
     const controller = installAudioHook(env.win);
     const audio = new env.FakeMediaElement();
@@ -482,7 +482,7 @@ test("0.7.0 음악(강약 보존, normSpeed='music') 모드는 곡 내부 후렴
     for (let i = 0; i < 20; i++) controller.stepTick();
     const introTrim = controller.getSnapshot().normTrimDb;
 
-    // 의도된 후렴구 폭발(-11 dBFS 수준, 진폭 ~0.28 — 클리핑 임계치 -0.5dBFS 미만) 4틱 직후 비교
+    // 의도된 후렴구 폭발(-11 dBFS 수준, 진폭 ~0.28) 4틱 직후 비교
     env.setSampleAmplitude(0.28);
     for (let i = 0; i < 4; i++) controller.stepTick();
     const chorusTrim = controller.getSnapshot().normTrimDb;
@@ -491,13 +491,46 @@ test("0.7.0 음악(강약 보존, normSpeed='music') 모드는 곡 내부 후렴
     return { introTrim, chorusTrim };
   };
 
-  const musicRes = await runScenario("music");
-  const nightFastRes = await runScenario("fast");
+  const slowMusicRes = await runChorusScenario("slow");
+  const fastNightRes = await runChorusScenario("fast");
 
-  // 음악 모드는 도입부 과증폭을 +5dB 이하로 억제하고, 후렴 진입 직후 급격히 볼륨을 깎지 않아(변화폭 1.2dB 미만) 원곡의 후렴 쾌감을 보존
-  assert.ok(musicRes.introTrim <= 5.0);
-  assert.ok(Math.abs(musicRes.introTrim - musicRes.chorusTrim) < 1.2);
+  assert.ok(slowMusicRes.introTrim <= 6.0);
+  assert.ok(Math.abs(slowMusicRes.introTrim - slowMusicRes.chorusTrim) < 1.2);
+  assert.ok(fastNightRes.introTrim - fastNightRes.chorusTrim > 3.5);
 
-  // 반면 야간(fast) 모드는 갑작스러운 음압 상승을 즉시 감지해 큰 폭(> 3.5dB)으로 눌러 청각을 보호
-  assert.ok(nightFastRes.introTrim - nightFastRes.chorusTrim > 3.5);
+  // 곡 중간 프리즈(잔향 -32 dBFS, 24틱 ≈ 1.8초) 후 드럼 강타(-6 dBFS) 시나리오:
+  // ITU-R BS.1770-4 -10 LU 상대 게이트에 의해 프리즈 동안 게인이 단 0.1dB도 치솟지 않아 직후 드럼이 폭음으로 튀지 않음
+  for (const speed of ["slow", "std", "fast"] as const) {
+    const env = createMockAudioEnvironment();
+    const controller = installAudioHook(env.win);
+    const audio = new env.FakeMediaElement();
+    audio.currentSrc = `blob:https://music.youtube.com/freeze-${speed}`;
+    await audio.play();
+    env.setSampleAmplitude(0.224); // -13 dBFS 일반 연주 구간
+    controller.dispatchCommand({
+      type: "APPLY_DSP",
+      dsp: {
+        normActive: true,
+        normTargetLufs: -16,
+        normSpeed: speed,
+        pan: 0,
+        gateEnabled: false,
+        gateThresholdDb: -48,
+        compEnabled: false,
+        compRatio: 4,
+      },
+    });
+    for (let i = 0; i < 20; i++) controller.stepTick();
+    const beforeFreezeTrim = controller.getSnapshot().normTrimDb;
+
+    env.setSampleAmplitude(0.025); // -32 dBFS 프리즈·리버브 잔향 (절대 무음 게이트보다 크지만 -10 LU 상대 게이트 미만)
+    for (let i = 0; i < 24; i++) controller.stepTick();
+    const endOfFreezeTrim = controller.getSnapshot().normTrimDb;
+    assert.equal(endOfFreezeTrim, beforeFreezeTrim, `Freeze must not boost gain in mode=${speed}`);
+
+    env.setSampleAmplitude(0.5); // -6 dBFS 드럼 강타 복귀 -> 증폭 없이 즉시 감쇠 방향으로 반응
+    controller.stepTick();
+    assert.ok(controller.getSnapshot().normTrimDb <= beforeFreezeTrim);
+    controller.dispose();
+  }
 });

@@ -206,10 +206,19 @@
   pointer-events: auto;
 }
 
+.tour-backdrop-svg {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  display: block; pointer-events: none; z-index: 1;
+}
+
+.tour-rings-layer {
+  position: absolute; inset: 0; pointer-events: none; z-index: 2;
+}
+
 .tour-spotlight-hole {
   position: absolute; border-radius: 7px;
   border: 2px solid var(--c-primary);
-  box-shadow: 0 0 0 9999px rgba(4, 9, 11, 0.74);
+  box-shadow: 0 0 12px rgba(20, 184, 166, 0.28);
   pointer-events: none; transition: all 140ms ease;
 }
 
@@ -218,7 +227,7 @@
   border-radius: 9px; border: 1px solid var(--c-primary);
   background: var(--c-surface); padding: 10px 12px;
   box-shadow: 0 16px 34px rgba(0, 0, 0, 0.58);
-  display: flex; flex-direction: column; gap: 8px; z-index: 2;
+  display: flex; flex-direction: column; gap: 8px; z-index: 3;
   transition: left 140ms ease, top 140ms ease;
   box-sizing: border-box;
 }

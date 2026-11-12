@@ -1,5 +1,5 @@
 import {
-  AUTO_NORM_PRESET_META, clampAlpha, clampDb, formatDb, getFocusDimDb,
+  AUTO_NORM_PRESET_META, clampAlpha, clampAlphaStep, clampDb, formatDb, formatFocusReadout,
   isChannelPinned, sanitizeChannelFx, toggleExclusiveFlags, type MixerContextInput,
 } from "../shared/mixer-math";
 import { DEFAULT_SETTINGS, PALETTES } from "../shared/palettes";
@@ -8,6 +8,7 @@ import {
   type ConsoleSnapshot, type ModePref, type PopupActionMessage,
   type TabChannelState, type ThemeKey, type ThemeTokens,
 } from "../shared/types";
+import { attachAlphaInlineEditor } from "./db-inline-editor";
 import { isChannelReorderDragging, startChannelReorderDrag } from "./drag-reorder";
 import { buildFxRackDom, syncFxRackDom, syncFxRackTrimBadge, type FxRackRefs } from "./fx-rack-view";
 import { buildHelpModalDom, syncHelpModalDom, type HelpModalRefs } from "./help-modal";
@@ -188,10 +189,7 @@ function renderAll(): void {
   alphaThumb.style.left = `calc(${snapshot.settings.alpha * 100}% - 5px)`;
   alphaThumb.style.borderColor = t.primary;
 
-  const dim = getFocusDimDb(snapshot.settings.alpha);
-  alphaReadout.textContent = `${snapshot.settings.alpha.toFixed(2)} · ${
-    Number.isFinite(dim) ? (dim === 0 ? "0dB" : `${dim.toFixed(0)}dB`) : "-∞"
-  }`;
+  alphaReadout.textContent = formatFocusReadout(snapshot.settings.alpha);
   resetModesBtn.disabled = !(anySolo || anyFocus);
 
   const advRackBtn = document.getElementById("adv-rack-btn");
@@ -359,18 +357,30 @@ function startSpotlightTour(): void {
 
 function setupTopDeckAndKeyboard(): void {
   const alphaBox = document.getElementById("alpha-box")!, alphaThumb = document.getElementById("alpha-thumb")!, alphaTrack = document.getElementById("alpha-track")!;
+  const alphaReadoutBtn = document.getElementById("alpha-readout-btn")!;
 
-  const applyAlpha = (next: number): void => {
-    snapshot.settings.alpha = clampAlpha(next);
+  const applyAlpha = (next: number, coarse = false): void => {
+    snapshot.settings.alpha = coarse ? clampAlphaStep(next) : clampAlpha(next);
     sendAction({ source: "popup", type: "SET_ALPHA", alpha: snapshot.settings.alpha });
     renderAll();
   };
 
   alphaBox.addEventListener("wheel", (ev) => {
+    if (alphaReadoutBtn.dataset.editing === "true") return;
     ev.preventDefault();
-    applyAlpha(snapshot.settings.alpha + (ev.deltaY < 0 ? 0.05 : -0.05));
+    const step = ev.shiftKey ? 0.0125 : 0.05;
+    applyAlpha(snapshot.settings.alpha + (ev.deltaY < 0 ? step : -step), !ev.shiftKey);
   }, { passive: false });
-  attachKnobDrag(alphaThumb, alphaTrack, "x", (ratio) => applyAlpha(ratio), () => applyAlpha(0.7));
+  attachKnobDrag(alphaThumb, alphaTrack, "x", (ratio) => applyAlpha(ratio, true), () => applyAlpha(0.7));
+  attachAlphaInlineEditor({
+    box: alphaReadoutBtn,
+    displayEl: document.getElementById("alpha-readout")!,
+    editRow: document.getElementById("alpha-edit-row")!,
+    input: document.getElementById("alpha-input") as HTMLInputElement,
+    getCurrentAlpha: () => snapshot.settings.alpha,
+    onCommitAlpha: (nextAlpha) => applyAlpha(nextAlpha, false),
+    onAfterExit: () => renderAll(),
+  });
 
   const resetBtn = document.getElementById("reset-modes-btn");
   if (resetBtn) resetBtn.onclick = () => {

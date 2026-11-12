@@ -7,7 +7,7 @@ export type ModePref = "dark" | "light" | "system";
 export type ExclusiveMode = "solo" | "focus";
 export type ChannelNormMode = "follow" | "on" | "off";
 export type AutoNormPreset = "music" | "standard" | "night";
-export type NormSpeedPreset = "music" | "slow" | "std" | "fast";
+export type NormSpeedPreset = "slow" | "std" | "fast";
 export type CompRatioPreset = 2 | 4 | 8;
 export type EffectiveNormSource = "off" | "auto" | "custom-on" | "custom-off";
 
@@ -46,7 +46,7 @@ export interface ChannelFxState {
   normMode: ChannelNormMode;
   /** 개별 모드("on")에서 사용할 목표 기준 음압 (-20 .. -12 LUFS, 기본 -16) */
   normTargetLufs: number;
-  /** 개별 모드("on")에서 사용할 추종 반응 속도 ("music" | "slow" | "std" | "fast") */
+  /** 개별 모드("on")에서 사용할 EBU 3341 계측 창·응답 속도 ("slow": 9s | "std": 3s | "fast": 0.4s) */
   normSpeed: NormSpeedPreset;
   /** 스테레오 패닝 (-100 좌측 끝 .. 0 중앙 .. +100 우측 끝) */
   pan: number;

@@ -37,16 +37,37 @@
         <div
           id="alpha-box"
           class="alpha-box c-recessed"
-          title="Focus 스무딩(α): 드래그·휠 조절 · 더블클릭 시 0.70(-12dB) 복귀"
+          title="Focus 감쇠(α): 노브 드래그·휠 조절 · 우측 수치 클릭 시 직접 입력"
         >
           <span id="alpha-label" class="alpha-label">Focus <i class="alpha-sym">α</i></span>
-          <div id="alpha-track" class="alpha-track">
+          <div id="alpha-track" class="alpha-track" title="노브 드래그로 조절 · 더블클릭 시 0.70(-12dB) 복귀">
             <div class="alpha-slot c-surface">
               <div id="alpha-fill" class="alpha-fill"></div>
             </div>
             <div id="alpha-thumb" class="alpha-thumb c-raised"></div>
           </div>
-          <span id="alpha-readout" class="alpha-readout tabular">0.70 · -12dB</span>
+          <div
+            id="alpha-readout-btn"
+            role="button"
+            tabindex="0"
+            aria-label="Focus 감쇠 데시벨 직접 입력"
+            title="클릭하여 Focus 감쇠 dB(예: -12, -15.5, 0) 또는 비율(예: 0.75) 직접 입력"
+            class="alpha-readout-btn"
+          >
+            <span id="alpha-readout" class="alpha-readout tabular">0.70 · -12dB</span>
+            <span id="alpha-edit-row" class="alpha-edit-row hidden">
+              <input
+                id="alpha-input"
+                type="text"
+                inputmode="decimal"
+                spellcheck="false"
+                autocomplete="off"
+                aria-label="Focus 감쇠 dB 입력"
+                class="alpha-inline-input tabular"
+              />
+              <span class="alpha-edit-unit">dB</span>
+            </span>
+          </div>
         </div>
         <button
           id="reset-modes-btn"

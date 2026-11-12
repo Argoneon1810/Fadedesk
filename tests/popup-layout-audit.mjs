@@ -130,6 +130,15 @@ function buildAuditHtml(sc) {
               ch2Input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
               if (ch2DbText?.textContent !== "-10.3") window.__AUDIT_ERRORS__.push("COMMIT_DB_MISMATCH:" + ch2DbText?.textContent);
 
+              const alphaBtn = document.getElementById("alpha-readout-btn");
+              const alphaInput = document.getElementById("alpha-input");
+              alphaBtn?.click();
+              if (alphaBtn?.dataset.editing !== "true") window.__AUDIT_ERRORS__.push("ALPHA_INLINE_NOT_OPENED");
+              alphaInput.value = "-15.5";
+              alphaInput.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+              if (document.getElementById("alpha-readout")?.textContent !== "0.61 · -15.5dB") {
+                window.__AUDIT_ERRORS__.push("ALPHA_COMMIT_MISMATCH:" + document.getElementById("alpha-readout")?.textContent);
+              }
               strips[2]?.querySelector('[data-ref="readoutBtn"]')?.click();
             }
           }, 10);
@@ -190,13 +199,20 @@ function buildAuditHtml(sc) {
           if (!document.querySelector('.channel-strip[data-tab-id="-901"]') || !document.querySelector('.channel-strip[data-tab-id="-902"]')) {
             issues.push("DEMO_TOUR_CHANNELS_MISSING");
           }
-          const hole = overlay?.querySelector('[data-ref="hole"]');
           const card = overlay?.querySelector('[data-ref="card"]');
           const nextBtn = overlay?.querySelector("[data-tour-next]");
           for (let step = 0; step < 7; step++) {
-            const hr = hole?.getBoundingClientRect();
+            const holes = overlay?.querySelectorAll(".tour-spotlight-hole") ?? [];
+            const hr = holes[0]?.getBoundingClientRect();
             const cr = card?.getBoundingClientRect();
             if (!hr || hr.width < 16 || hr.height < 16) issues.push("TOUR_HOLE_INVALID_STEP_" + step);
+            if (step === 4) {
+              const ar = document.getElementById("alpha-box")?.getBoundingClientRect();
+              const hr2 = holes[1]?.getBoundingClientRect();
+              if (holes.length < 2 || !hr2 || !ar || hr2.left > ar.left || hr2.right < ar.right) {
+                issues.push("TOUR_STEP5_ALPHA_NOT_SPOTLIGHTED");
+              }
+            }
             if (!cr || cr.width < 200 || cr.height < 80) issues.push("TOUR_CARD_INVALID_STEP_" + step);
             if (cr && (cr.left < rr.left - 1 || cr.right > rr.right + 1 || cr.top < rr.top - 1 || cr.bottom > rr.bottom + 1)) {
               issues.push("TOUR_CARD_OUT_OF_BOUNDS_STEP_" + step);
@@ -550,75 +566,20 @@ const BASE_SETTINGS = {
   popoutWidth: 780, popoutHeight: 480, domainDefaults: {},
 };
 
+const PINNED_DEFAULTS = { "chzzk.naver.com": 0, "youtube.com": -6 };
+
 const scenarios = [
-  {
-    name: "empty_popup", w: 800, h: 600, isWindow: false, openPop: false,
-    snap: { settings: { ...BASE_SETTINGS }, channels: [] },
-  },
-  {
-    name: "onboarding_and_spotlight_tour", w: 800, h: 600, isWindow: false, openPop: false, testOnboardingTour: true,
-    snap: { settings: { ...BASE_SETTINGS, onboardingDone: false }, channels: [] },
-  },
-  {
-    name: "popup_norm_popover", w: 800, h: 600, isWindow: false, openPop: false, testNormPopover: true,
-    snap: { settings: { ...BASE_SETTINGS, autoNormEnabled: true }, channels: SAMPLE_CHANNELS },
-  },
-  {
-    name: "active_popup_051", w: 800, h: 600, isWindow: false, openPop: false, test051Ux: true,
-    snap: {
-      settings: { ...BASE_SETTINGS, domainDefaults: { "chzzk.naver.com": 0, "youtube.com": -6 } },
-      channels: SAMPLE_CHANNELS,
-    },
-  },
-  {
-    name: "adv_rack_normal", w: 800, h: 600, isWindow: false, openPop: false, selectTabId: 2,
-    snap: {
-      settings: { ...BASE_SETTINGS, autoNormEnabled: true, advRackOpen: true, domainDefaults: { "youtube.com": -6 } },
-      channels: SAMPLE_CHANNELS,
-    },
-  },
-  {
-    name: "adv_rack_cors", w: 800, h: 600, isWindow: false, openPop: false, selectTabId: 4,
-    snap: {
-      settings: { ...BASE_SETTINGS, autoNormEnabled: true, advRackOpen: true },
-      channels: SAMPLE_CHANNELS,
-    },
-  },
-  {
-    name: "window_narrow_520", w: 520, h: 420, isWindow: true, openPop: false,
-    snap: {
-      settings: { ...BASE_SETTINGS, domainDefaults: { "chzzk.naver.com": 0 } },
-      channels: SAMPLE_CHANNELS,
-    },
-  },
-  {
-    name: "window_popover_dark", w: 680, h: 460, isWindow: true, openPop: true,
-    snap: {
-      settings: { ...BASE_SETTINGS, theme: "cobalt", modePref: "dark" },
-      channels: SAMPLE_CHANNELS,
-    },
-  },
-  {
-    name: "window_popover_light", w: 680, h: 460, isWindow: true, openPop: true,
-    snap: {
-      settings: { ...BASE_SETTINGS, theme: "emerald", modePref: "light" },
-      channels: SAMPLE_CHANNELS,
-    },
-  },
-  {
-    name: "window_inline_edit", w: 680, h: 460, isWindow: true, openPop: false, inlineEdit: true,
-    snap: {
-      settings: { ...BASE_SETTINGS, domainDefaults: { "chzzk.naver.com": 0, "youtube.com": -6 } },
-      channels: SAMPLE_CHANNELS,
-    },
-  },
-  {
-    name: "window_help_modal", w: 680, h: 480, isWindow: true, openPop: false, testHelpModal: true,
-    snap: {
-      settings: { ...BASE_SETTINGS, domainDefaults: { "chzzk.naver.com": 0, "youtube.com": -6 } },
-      channels: SAMPLE_CHANNELS,
-    },
-  },
+  { name: "empty_popup", w: 800, h: 600, isWindow: false, openPop: false, snap: { settings: { ...BASE_SETTINGS }, channels: [] } },
+  { name: "onboarding_and_spotlight_tour", w: 800, h: 600, isWindow: false, openPop: false, testOnboardingTour: true, snap: { settings: { ...BASE_SETTINGS, onboardingDone: false }, channels: [] } },
+  { name: "popup_norm_popover", w: 800, h: 600, isWindow: false, openPop: false, testNormPopover: true, snap: { settings: { ...BASE_SETTINGS, autoNormEnabled: true }, channels: SAMPLE_CHANNELS } },
+  { name: "active_popup_051", w: 800, h: 600, isWindow: false, openPop: false, test051Ux: true, snap: { settings: { ...BASE_SETTINGS, domainDefaults: PINNED_DEFAULTS }, channels: SAMPLE_CHANNELS } },
+  { name: "adv_rack_normal", w: 800, h: 600, isWindow: false, openPop: false, selectTabId: 2, snap: { settings: { ...BASE_SETTINGS, autoNormEnabled: true, advRackOpen: true, domainDefaults: { "youtube.com": -6 } }, channels: SAMPLE_CHANNELS } },
+  { name: "adv_rack_cors", w: 800, h: 600, isWindow: false, openPop: false, selectTabId: 4, snap: { settings: { ...BASE_SETTINGS, autoNormEnabled: true, advRackOpen: true }, channels: SAMPLE_CHANNELS } },
+  { name: "window_narrow_520", w: 520, h: 420, isWindow: true, openPop: false, snap: { settings: { ...BASE_SETTINGS, domainDefaults: { "chzzk.naver.com": 0 } }, channels: SAMPLE_CHANNELS } },
+  { name: "window_popover_dark", w: 680, h: 460, isWindow: true, openPop: true, snap: { settings: { ...BASE_SETTINGS, theme: "cobalt", modePref: "dark" }, channels: SAMPLE_CHANNELS } },
+  { name: "window_popover_light", w: 680, h: 460, isWindow: true, openPop: true, snap: { settings: { ...BASE_SETTINGS, theme: "emerald", modePref: "light" }, channels: SAMPLE_CHANNELS } },
+  { name: "window_inline_edit", w: 680, h: 460, isWindow: true, openPop: false, inlineEdit: true, snap: { settings: { ...BASE_SETTINGS, domainDefaults: PINNED_DEFAULTS }, channels: SAMPLE_CHANNELS } },
+  { name: "window_help_modal", w: 680, h: 480, isWindow: true, openPop: false, testHelpModal: true, snap: { settings: { ...BASE_SETTINGS, domainDefaults: PINNED_DEFAULTS }, channels: SAMPLE_CHANNELS } },
 ];
 
 let failed = false;
