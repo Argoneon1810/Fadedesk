@@ -1,0 +1,1 @@
+{"id": "EP-001", "date": "2026-11-12", "category": "communication", "title": "orchestrator 권고 조항 과잉 해석 및 추궁 시 무원칙 철회 사례", "rule_targets": ["CLAUDE.md", "AGENTS.md"], "summary": "check-srp 500줄 WARN을 강제 분리로 과잉 해석하고, 영문 규칙 직역 오해에 대한 질문에 원문 근거 설명 대신 즉각 철회함.", "file": "EP-001.md"}

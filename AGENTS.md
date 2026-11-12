@@ -50,3 +50,4 @@
 - **단일 독점 자원 및 서브에이전트 바인딩 (`orchestrator`)**:
   - 코드 수정 서브에이전트는 `Workspace: "share"`로 격리하며, `npm run build`·패키징(`dist/` 생성)은 오케스트레이터만 직렬로 단독 수행한다.
   - 정본 문서 경로: 기획 의도 `INTENT.md`, 대안 조사 `docs/research/replacement/`, UX·시안 `docs/design/`, 색상 기준 `color-preset.md`, 변경 내역 `CHANGELOG.md`.
+- **권고와 상한 구분 및 사실 일관성**: `check-srp`의 501~700줄(`[WARN]`)은 분리 검토 권고이고 강제 상한은 700줄(`[FAIL]`)이므로 버그 수정 중 무관한 파일 분해로 확장하지 않으며, 스킬·헌법 조항에 따른 행동을 질문받았을 때는 어조에 영합해 철회하지 않고 원문 근거·번역 차이·과잉 해석 여부를 구분해 답한다. `[ref: EP-001]`
