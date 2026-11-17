@@ -10,6 +10,15 @@ import { fileURLToPath } from "node:url";
  * 외부 --window-size 고정 탭이 놓치는 확장 팝업 초기 뷰포트(100vw) 수축 및 우측 잘림을 실측·캡처한다.
  */
 
+/** 1.2.0 "모든 채널" 고급 FX 층 (노멀라이저는 음악 프리셋 값) */
+function globalFx(normOn) {
+  return {
+    norm: { enabled: normOn, presetId: "music", modified: false, targetLufs: -16, speed: "slow", rangeLowLufs: -32, rangeHighLufs: -10, zeroReturnRate: 0.35, minDwellBlocks: 16, maxBoostDb: 6 },
+    gate: { enabled: false, thresholdDb: -48 },
+    comp: { enabled: false, ratio: 4 },
+  };
+}
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 const UNPACKED = path.join(ROOT, "dist", "unpacked");
@@ -72,7 +81,7 @@ class CdpSession {
 const SAMPLE_SNAP = {
   settings: {
     theme: "teal", modePref: "dark", alpha: 0.25,
-    masterDb: 0, masterMuted: false, autoNormEnabled: false, advRackOpen: false,
+    masterDb: 0, masterMuted: false, globalFx: globalFx(false), globalPan: 0, userPresets: [], advRackOpen: false,
     domainDefaults: { "music.youtube.com": 0, "youtube.com": 0 },
   },
   channels: [
@@ -80,19 +89,19 @@ const SAMPLE_SNAP = {
       tabId: 1, windowId: 1, title: "청혼", domain: "music.youtube.com", favIconUrl: "",
       audible: true, playing: true, mediaCount: 1, db: 0, muted: false, solo: false, focus: false,
       vuLevel: 0.35, vuPeak: 0.40, ampBlocked: false, pinned: true, normTrimDb: 0,
-      fx: { normMode: "follow", normTargetLufs: -16, normSpeed: "mid", pan: 0, gateEnabled: false, gateThresholdDb: -50, compEnabled: false, compRatio: 4 },
+      fx: { own: { gate: { enabled: false, thresholdDb: -50 } }, pan: 0 },
     },
     {
       tabId: 2, windowId: 1, title: "(PAPER CREW) 라이브", domain: "youtube.com", favIconUrl: "",
       audible: true, playing: true, mediaCount: 1, db: 0, muted: false, solo: false, focus: false,
       vuLevel: 0.50, vuPeak: 0.55, ampBlocked: false, pinned: true, normTrimDb: 0,
-      fx: { normMode: "follow", normTargetLufs: -16, normSpeed: "mid", pan: 0, gateEnabled: false, gateThresholdDb: -50, compEnabled: false, compRatio: 4 },
+      fx: { own: { gate: { enabled: false, thresholdDb: -50 } }, pan: 0 },
     },
     {
       tabId: 3, windowId: 1, title: "[16기] 11월 공지", domain: "job.ssafy.com", favIconUrl: "",
       audible: false, playing: false, mediaCount: 1, db: 0, muted: false, solo: false, focus: false,
       vuLevel: 0, vuPeak: 0, ampBlocked: false, pinned: false, normTrimDb: 0,
-      fx: { normMode: "follow", normTargetLufs: -16, normSpeed: "mid", pan: 0, gateEnabled: false, gateThresholdDb: -50, compEnabled: false, compRatio: 4 },
+      fx: { own: { gate: { enabled: false, thresholdDb: -50 } }, pan: 0 },
     },
   ],
 };

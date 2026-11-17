@@ -1,4 +1,6 @@
 import { ui } from "../shared/i18n";
+import { fxUi } from "../shared/i18n-fx";
+import { effectivePan } from "../shared/fx-model";
 import {
   clampDb,
   computeMasterStereoVu,
@@ -13,6 +15,7 @@ import {
   attachKnobDrag,
   buildScaleDom,
   createLedColumn,
+  isStripControl,
   paintLedColumn,
   type LedColumnRef,
   type StripCallbacks,
@@ -40,6 +43,7 @@ export interface MasterStripRefs {
   pauseAllIcon: HTMLElement;
   pauseAllLabel: HTMLElement;
   muteAllBtn: HTMLButtonElement;
+  fxBtn: HTMLButtonElement;
   renderedAnyPlaying: boolean | null;
   vuCurL: number;
   vuPeakL: number;
@@ -61,6 +65,7 @@ export function buildMasterStripDom(
       <div class="master-kicker">MASTER BUS</div>
       <div class="strip-title" style="white-space:nowrap">${copy.masterTitle}</div>
     </div>
+    <button data-ref="fxBtn" type="button" class="console-btn master-fx-btn" title="${fxUi().masterFxTitle}">${fxUi().masterFxBtn}</button>
     <div data-ref="faderWell" class="fader-well">
       <div data-ref="track" class="fader-track" title="${copy.masterTrackTitle}">
         <span class="unity-wing-l" style="bottom:${zeroPct}%"></span>
@@ -124,6 +129,7 @@ export function buildMasterStripDom(
     pauseAllIcon: q("pauseAllIcon"),
     pauseAllLabel: q("pauseAllLabel"),
     muteAllBtn: q("muteAllBtn"),
+    fxBtn: q("fxBtn"),
     renderedAnyPlaying: null,
     vuCurL: 0,
     vuPeakL: 0,
@@ -161,6 +167,16 @@ export function buildMasterStripDom(
   });
   refs.pauseAllBtn.onclick = () => cb.onToggleAllPlaying();
   refs.muteAllBtn.onclick = () => cb.onToggleMasterMute();
+  // 마스터 빈 곳을 누르면 "모든 채널"을 고르고, 조작부(전체 FX 버튼 제외)는 범위를 바꾸지 않는다
+  el.addEventListener(
+    "pointerdown",
+    (ev) => {
+      if (isStripControl(ev.target) && !(ev.target as Element).closest(".master-fx-btn")) return;
+      cb.onSelectFxGlobal(false);
+    },
+    { passive: true },
+  );
+  refs.fxBtn.onclick = () => cb.onSelectFxGlobal(true);
 
   return refs;
 }
@@ -170,8 +186,15 @@ export function syncMasterStripDom(
   settings: PersistedSettings,
   channels: TabChannelState[],
   t: ThemeTokens,
+  fxGlobalSelected = false,
 ): void {
   const mPct = dbToRatio(settings.masterDb) * 100;
+  const fxSel = fxGlobalSelected && settings.advRackOpen;
+  m.el.dataset.selected = String(fxSel);
+  m.fxBtn.style.backgroundColor = fxSel ? t.primary : "transparent";
+  m.fxBtn.style.color = fxSel ? t.onPrimary : t.primary;
+  m.fxBtn.style.borderColor = t.primary;
+  m.fxBtn.setAttribute("aria-pressed", String(fxSel));
   const anyPlaying = channels.some((c) => c.playing);
 
   m.topAccent.style.backgroundColor = settings.masterMuted ? t.states.danger : t.primary;
@@ -227,7 +250,10 @@ export function updateMasterBusVu(
   channels: TabChannelState[],
   t: ThemeTokens,
 ): void {
-  const { left: tgtL, right: tgtR } = computeMasterStereoVu(channels, settings.masterMuted);
+  const { left: tgtL, right: tgtR } = computeMasterStereoVu(
+    channels.map((c) => ({ ...c, pan: effectivePan(settings.globalPan, c.fx, c.corsCap) })),
+    settings.masterMuted,
+  );
   m.vuCurL = tgtL > m.vuCurL ? m.vuCurL + (tgtL - m.vuCurL) * 0.65 : Math.max(0, m.vuCurL - 0.05);
   m.vuCurR = tgtR > m.vuCurR ? m.vuCurR + (tgtR - m.vuCurR) * 0.65 : Math.max(0, m.vuCurR - 0.05);
   m.vuPeakL = m.vuCurL >= m.vuPeakL ? m.vuCurL : Math.max(m.vuCurL, m.vuPeakL - 0.016);

@@ -6,6 +6,15 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import zlib from "node:zlib";
 
+/** 1.2.0 "모든 채널" 고급 FX 층 (노멀라이저는 음악 프리셋 값) */
+function globalFx(normOn) {
+  return {
+    norm: { enabled: normOn, presetId: "music", modified: false, targetLufs: -16, speed: "slow", rangeLowLufs: -32, rangeHighLufs: -10, zeroReturnRate: 0.35, minDwellBlocks: 16, maxBoostDb: 6 },
+    gate: { enabled: false, thresholdDb: -48 },
+    comp: { enabled: false, ratio: 4 },
+  };
+}
+
 const execFileAsync = promisify(execFile);
 
 /**
@@ -193,7 +202,7 @@ const DEMO_CHANNELS_EN = [
     playing: true, audible: true, mediaCount: 1, db: 0.0,
     muted: false, solo: false, focus: true, corsCap: false, vuLevel: 0.72, vuPeak: 0.81, firstSeenAt: 1,
     sortOrder: 1, normTrimDb: -1.4,
-    fx: { normMode: "follow", normTargetLufs: -16, normSpeed: "slow", pan: 0, gateEnabled: false, gateThresholdDb: -48, compEnabled: false, compRatio: 4 },
+    fx: { own: {}, pan: 0 },
   },
   {
     tabId: 2, windowId: 1, title: "Live Dev Talk Stream", domain: "live.example", shortHost: "live",
@@ -201,7 +210,7 @@ const DEMO_CHANNELS_EN = [
     playing: true, audible: true, mediaCount: 1, db: -3.5,
     muted: false, solo: false, focus: false, corsCap: false, vuLevel: 0.46, vuPeak: 0.56, firstSeenAt: 2,
     sortOrder: 2, normTrimDb: 2.3,
-    fx: { normMode: "on", normTargetLufs: -14, normSpeed: "fast", pan: -25, gateEnabled: true, gateThresholdDb: -46, compEnabled: true, compRatio: 4 },
+    fx: { own: { norm: { enabled: true, presetId: "", modified: false, targetLufs: -14, speed: "fast", rangeLowLufs: -32, rangeHighLufs: -10, zeroReturnRate: 0.35, minDwellBlocks: 2, maxBoostDb: 9 }, gate: { enabled: true, thresholdDb: -46 }, comp: { enabled: true, ratio: 4 } }, pan: -25 },
   },
   {
     tabId: 3, windowId: 1, title: "Architecture Lecture 04", domain: "video.example", shortHost: "video",
@@ -209,7 +218,7 @@ const DEMO_CHANNELS_EN = [
     playing: true, audible: true, mediaCount: 1, db: 4.5,
     muted: false, solo: false, focus: false, corsCap: false, vuLevel: 0.58, vuPeak: 0.68, firstSeenAt: 3,
     sortOrder: 3, normTrimDb: 1.8,
-    fx: { normMode: "follow", normTargetLufs: -16, normSpeed: "std", pan: 20, gateEnabled: false, gateThresholdDb: -48, compEnabled: false, compRatio: 4 },
+    fx: { own: {}, pan: 20 },
   },
   {
     tabId: 4, windowId: 2, title: "Protected Cinema Stream", domain: "cinema.example", shortHost: "cinema",
@@ -217,7 +226,7 @@ const DEMO_CHANNELS_EN = [
     playing: true, audible: true, mediaCount: 1, db: 0.0,
     muted: false, solo: false, focus: false, corsCap: true, vuLevel: 0.51, vuPeak: 0.51, firstSeenAt: 4,
     sortOrder: 4, normTrimDb: 0.0,
-    fx: { normMode: "follow", normTargetLufs: -16, normSpeed: "std", pan: 0, gateEnabled: false, gateThresholdDb: -48, compEnabled: false, compRatio: 4 },
+    fx: { own: {}, pan: 0 },
   },
   {
     tabId: 5, windowId: 2, title: "Evening Synth Podcast", domain: "podcast.example", shortHost: "podcast",
@@ -225,7 +234,7 @@ const DEMO_CHANNELS_EN = [
     playing: false, audible: false, mediaCount: 1, db: -6.0,
     muted: false, solo: false, focus: false, corsCap: false, vuLevel: 0, vuPeak: 0, firstSeenAt: 5,
     sortOrder: 5, normTrimDb: 0.0,
-    fx: { normMode: "off", normTargetLufs: -18, normSpeed: "slow", pan: 0, gateEnabled: false, gateThresholdDb: -48, compEnabled: false, compRatio: 4 },
+    fx: { own: { norm: { enabled: false, presetId: "", modified: false, targetLufs: -18, speed: "slow", rangeLowLufs: -32, rangeHighLufs: -10, zeroReturnRate: 0.35, minDwellBlocks: 16, maxBoostDb: 6 } }, pan: 0 },
   },
 ];
 
@@ -543,8 +552,7 @@ const BASE_SETTINGS = {
   alpha: 0.7,
   masterDb: 0,
   masterMuted: false,
-  autoNormEnabled: true,
-  autoNormPreset: "music",
+  globalFx: globalFx(true), globalPan: 0, userPresets: [],
   advRackOpen: false,
   onboardingDone: true,
   popoutWidth: 780,
@@ -562,7 +570,7 @@ const SCREENSHOT_SPECS = [
     headline: "Control Volume, Focus Ducking & Playback Across Every Tab",
     subtitle: "-60 to +12 dB logarithmic faders · Mute / Solo / Focus (α) · Domain Volume Pin · Zero data collection",
     snap: {
-      settings: { ...BASE_SETTINGS, theme: "teal", modePref: "dark", autoNormEnabled: true, autoNormPreset: "music" },
+      settings: { ...BASE_SETTINGS, theme: "teal", modePref: "dark", globalFx: globalFx(true), globalPan: 0, userPresets: [] },
       channels: DEMO_CHANNELS_EN,
     },
     afterActionJs: "",
@@ -576,7 +584,7 @@ const SCREENSHOT_SPECS = [
     headline: "Shape Each Tab with Loudness Target, Stereo Pan, Gate & Compressor",
     subtitle: "2-tier ITU-R BS.1770-4 gated normalizer (Music 9s · Std 3s · Night 0.4s) + non-destructive per-strip FX",
     snap: {
-      settings: { ...BASE_SETTINGS, theme: "cobalt", modePref: "dark", advRackOpen: true, autoNormEnabled: true },
+      settings: { ...BASE_SETTINGS, theme: "cobalt", modePref: "dark", advRackOpen: true, globalFx: globalFx(true), globalPan: 0, userPresets: [] },
       channels: DEMO_CHANNELS_EN,
     },
     afterActionJs: `
@@ -624,7 +632,7 @@ const SCREENSHOT_SPECS = [
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "fadedesk-store-assets-"));
 try {
-  for (const name of ["popup.html", "popup.css", "popup-strips.css", "popup-fx.css", "popup-help.css", "popup.js"]) {
+  for (const name of ["popup.html", "popup.css", "popup-strips.css", "popup-fx.css", "popup-fx-scope.css", "popup-help.css", "popup.js"]) {
     fs.copyFileSync(path.join(UNPACKED_DIR, name), path.join(tmpDir, name));
   }
   const basePopupHtml = fs.readFileSync(path.join(tmpDir, "popup.html"), "utf8");

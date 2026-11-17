@@ -1,13 +1,18 @@
 import {
-  buildDspConfigPayload, clampAlpha, clampDb, computeAppliedLinearGain, DEFAULT_CHANNEL_FX,
-  extractDomainInfo, isChannelPinned, resolveEffectiveNormalizer, sanitizeChannelFx,
+  applyChannelFxEdit, applyGlobalFxEdit, buildDspConfigPayload, defaultChannelFx, detachSlotFromPreset,
+  overwriteUserPreset, renameUserPreset, resolveEffectiveNormalizer, sanitizeChannelFx, saveUserPreset,
+  settingsEditContext, type FxEditContext,
+} from "../shared/fx-model";
+import {
+  clampAlpha, clampDb, computeAppliedLinearGain, extractDomainInfo, isChannelPinned,
   toggleExclusiveFlags, type MixerContextInput,
 } from "../shared/mixer-math";
 import { DEFAULT_SETTINGS } from "../shared/palettes";
 import type {
-  AutoNormPreset, ChannelFxState, ConsoleSnapshot, DspConfigPayload, ExclusiveMode,
-  FrameMediaPayload, ModePref, PersistedSettings, TabChannelState, ThemeKey,
+  ChannelFxState, ConsoleSnapshot, DspConfigPayload, ExclusiveMode, FrameMediaPayload, FxEdit,
+  FxTarget, ModePref, NormSlot, PersistedSettings, TabChannelState, ThemeKey,
 } from "../shared/types";
+import { cloneSettings, hydrateSettingsInto } from "./settings-hydrate";
 
 /**
  * 백그라운드 믹서 상태 저장소.
@@ -77,56 +82,17 @@ interface InternalTabRecord {
 }
 
 export class MixerStateStore {
-  private settings: PersistedSettings = {
-    ...DEFAULT_SETTINGS,
-    domainDefaults: { ...DEFAULT_SETTINGS.domainDefaults },
-  };
+  private settings: PersistedSettings = cloneSettings(DEFAULT_SETTINGS);
 
   private tabs = new Map<number, InternalTabRecord>();
   private seqCounter = 1;
 
   getSettings(): PersistedSettings {
-    return {
-      ...this.settings,
-      domainDefaults: { ...this.settings.domainDefaults },
-    };
+    return cloneSettings(this.settings);
   }
 
-  hydrateSettings(raw?: Partial<PersistedSettings> | null): void {
-    if (!raw) return;
-    const validThemes: ThemeKey[] = ["teal", "amber", "cobalt", "emerald"];
-    const validModes: ModePref[] = ["dark", "light", "system"];
-    const validNormPresets: AutoNormPreset[] = ["classical", "music", "standard", "night"];
-
-    if (raw.theme && validThemes.includes(raw.theme)) this.settings.theme = raw.theme;
-    if (raw.modePref && validModes.includes(raw.modePref)) this.settings.modePref = raw.modePref;
-    if (raw.autoNormPreset && validNormPresets.includes(raw.autoNormPreset)) {
-      this.settings.autoNormPreset = raw.autoNormPreset;
-    }
-    if (raw.normVizMode === "spectrum2d" || raw.normVizMode === "bar1d") {
-      this.settings.normVizMode = raw.normVizMode;
-    }
-    if (typeof raw.onboardingDone === "boolean") this.settings.onboardingDone = raw.onboardingDone;
-    if (typeof raw.alpha === "number") this.settings.alpha = clampAlpha(raw.alpha);
-    if (typeof raw.masterDb === "number") this.settings.masterDb = clampDb(raw.masterDb, false);
-    if (typeof raw.masterMuted === "boolean") this.settings.masterMuted = raw.masterMuted;
-    if (typeof raw.autoNormEnabled === "boolean") this.settings.autoNormEnabled = raw.autoNormEnabled;
-    if (typeof raw.advRackOpen === "boolean") this.settings.advRackOpen = raw.advRackOpen;
-    if (typeof raw.popoutWidth === "number" && Number.isFinite(raw.popoutWidth)) {
-      this.settings.popoutWidth = Math.round(Math.max(520, Math.min(2560, raw.popoutWidth)));
-    }
-    if (typeof raw.popoutHeight === "number" && Number.isFinite(raw.popoutHeight)) {
-      this.settings.popoutHeight = Math.round(Math.max(420, Math.min(1600, raw.popoutHeight)));
-    }
-    if (raw.domainDefaults && typeof raw.domainDefaults === "object") {
-      const cleaned: Record<string, number> = {};
-      for (const [domain, val] of Object.entries(raw.domainDefaults)) {
-        if (domain && typeof val === "number" && Number.isFinite(val)) {
-          cleaned[domain] = clampDb(val, false);
-        }
-      }
-      this.settings.domainDefaults = cleaned;
-    }
+  hydrateSettings(raw?: Record<string, unknown> | null): void {
+    hydrateSettingsInto(this.settings, raw);
   }
 
   exportSession(): SerializedTabSession[] {
@@ -147,7 +113,7 @@ export class MixerStateStore {
         muted: rec.muted,
         solo: rec.solo,
         focus: rec.focus,
-        fx: { ...rec.fx },
+        fx: sanitizeChannelFx(rec.fx),
         firstSeenAt: rec.firstSeenAt,
         sortOrder: rec.sortOrder,
         frames: Array.from(rec.frames.entries()),
@@ -201,7 +167,7 @@ export class MixerStateStore {
         muted: false,
         solo: false,
         focus: false,
-        fx: sanitizeChannelFx(),
+        fx: defaultChannelFx(),
         firstSeenAt: seq,
         sortOrder: seq,
         frames: new Map(),
@@ -348,17 +314,17 @@ export class MixerStateStore {
     return { domain: rec.domain, pinned: true, db: rec.db };
   }
 
-  /** 전역 Easy 노멀라이저(`균일 N`) 토글 — 채널별 `fx` 상세 설정은 절대 건드리지 않는다. */
+  /** 상단 `균일 N` — "모든 채널" 노멀라이저 켜기/끄기. 채널별 따로 값은 건드리지 않는다. */
   toggleAutoNorm(): boolean {
-    this.settings.autoNormEnabled = !this.settings.autoNormEnabled;
-    return this.settings.autoNormEnabled;
+    this.settings.globalFx.norm.enabled = !this.settings.globalFx.norm.enabled;
+    return this.settings.globalFx.norm.enabled;
   }
 
-  setAutoNormPreset(preset: AutoNormPreset, enable?: boolean): void {
-    const valid: AutoNormPreset[] = ["classical", "music", "standard", "night"];
-    if (!valid.includes(preset)) return;
-    this.settings.autoNormPreset = preset;
-    if (typeof enable === "boolean") this.settings.autoNormEnabled = enable;
+  /** 상단 `균일 N ▾`에서 고른 프리셋(기본 또는 내 프리셋)을 "모든 채널" 노멀라이저에 복사한다. */
+  setAutoNormPreset(presetId: string, enable?: boolean): boolean {
+    const ok = applyGlobalFxEdit(this.editContext(), { kind: "pickPreset", presetId });
+    if (ok && typeof enable === "boolean") this.settings.globalFx.norm.enabled = enable;
+    return ok;
   }
 
   setNormVizMode(mode: "spectrum2d" | "bar1d"): void {
@@ -387,10 +353,71 @@ export class MixerStateStore {
     return true;
   }
 
-  updateTabFx(tabId: number, patch: Partial<ChannelFxState>): boolean {
-    const rec = this.tabs.get(tabId);
-    if (!rec) return false;
-    rec.fx = sanitizeChannelFx(rec.fx, patch);
+  private editContext(): FxEditContext {
+    return settingsEditContext(this.settings);
+  }
+
+  /** 고급 FX 편집을 적용한다. 바뀐 범위("global"이면 모든 탭 DSP·설정 저장, 숫자면 그 탭)를 돌려준다. */
+  editFx(target: FxTarget, edit: FxEdit): FxTarget | null {
+    if (target === "global") {
+      return applyGlobalFxEdit(this.editContext(), edit) ? "global" : null;
+    }
+    const rec = this.tabs.get(target);
+    if (!rec) return null;
+    const next = applyChannelFxEdit(rec.fx, this.editContext(), edit);
+    if (!next) return null;
+    rec.fx = next;
+    return target;
+  }
+
+  private normSlotOf(target: FxTarget): NormSlot | null {
+    if (target === "global") return this.settings.globalFx.norm;
+    return this.tabs.get(target)?.fx.own.norm ?? null;
+  }
+
+  private setNormSlot(target: FxTarget, slot: NormSlot): void {
+    if (target === "global") this.settings.globalFx.norm = slot;
+    else {
+      const rec = this.tabs.get(target);
+      if (rec) rec.fx = { ...rec.fx, own: { ...rec.fx.own, norm: slot } };
+    }
+  }
+
+  saveUserPreset(target: FxTarget, id: string, name: string): boolean {
+    const slot = this.normSlotOf(target);
+    if (!slot) return false;
+    const res = saveUserPreset(this.settings.userPresets, slot, id, name);
+    if (!res) return false;
+    this.settings.userPresets = res.presets;
+    this.setNormSlot(target, res.slot);
+    return true;
+  }
+
+  overwriteUserPreset(target: FxTarget): boolean {
+    const slot = this.normSlotOf(target);
+    if (!slot) return false;
+    const res = overwriteUserPreset(this.settings.userPresets, slot);
+    if (!res) return false;
+    this.settings.userPresets = res.presets;
+    this.setNormSlot(target, res.slot);
+    return true;
+  }
+
+  renameUserPreset(id: string, name: string): boolean {
+    const next = renameUserPreset(this.settings.userPresets, id, name);
+    if (!next) return false;
+    this.settings.userPresets = next;
+    return true;
+  }
+
+  /** 내 프리셋을 지운다. 가리키던 자리(전역·채널)는 값을 유지하고 "사용자 지정"이 된다. */
+  deleteUserPreset(id: string): boolean {
+    if (!this.settings.userPresets.some((p) => p.id === id)) return false;
+    this.settings.userPresets = this.settings.userPresets.filter((p) => p.id !== id);
+    this.settings.globalFx.norm = detachSlotFromPreset(this.settings.globalFx.norm, id);
+    for (const rec of this.tabs.values()) {
+      if (rec.fx.own.norm) rec.fx.own.norm = detachSlotFromPreset(rec.fx.own.norm, id);
+    }
     return true;
   }
 
@@ -538,29 +565,13 @@ export class MixerStateStore {
 
   computeDspForTab(tabId: number): DspConfigPayload {
     const rec = this.tabs.get(tabId);
-    if (!rec) {
-      return buildDspConfigPayload(
-        this.settings.autoNormEnabled,
-        DEFAULT_CHANNEL_FX,
-        false,
-        this.settings.autoNormPreset,
-      );
-    }
-    return buildDspConfigPayload(
-      this.settings.autoNormEnabled,
-      rec.fx,
-      this.isRecordCorsCapped(rec),
-      this.settings.autoNormPreset,
-    );
+    const { globalFx, globalPan } = this.settings;
+    if (!rec) return buildDspConfigPayload(globalFx, globalPan, defaultChannelFx(), false);
+    return buildDspConfigPayload(globalFx, globalPan, rec.fx, this.isRecordCorsCapped(rec));
   }
 
   private readRecordNormTrimDb(rec: InternalTabRecord, corsCap: boolean): number {
-    const norm = resolveEffectiveNormalizer(
-      this.settings.autoNormEnabled,
-      rec.fx,
-      corsCap,
-      this.settings.autoNormPreset,
-    );
+    const norm = resolveEffectiveNormalizer(this.settings.globalFx, rec.fx, corsCap);
     if (!norm.active) return 0;
     for (const v of rec.frameVu.values()) {
       if (v.normTrimDb !== 0) return v.normTrimDb;
@@ -647,7 +658,7 @@ export class MixerStateStore {
         solo: rec.solo,
         focus: rec.focus,
         corsCap,
-        fx: { ...rec.fx },
+        fx: { own: { ...rec.fx.own }, pan: rec.fx.pan },
         normTrimDb: vu.normTrimDb,
         inputLufs: vu.inputLufs,
         spectrumBins: vu.spectrumBins,

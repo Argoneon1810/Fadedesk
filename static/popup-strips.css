@@ -22,8 +22,47 @@
   padding-top: 4px;
 }
 
-.channel-strip[data-selected="true"] {
-  box-shadow: inset 0 0 0 1px var(--c-primary);
+/* 떠오른 칸 = 고급 FX 랙이 지금 고치는 채널 (1.2.0 · 질문 7 가). 테두리는 Focus·Solo 몫으로 남긴다 */
+.channel-strip,
+.master-strip {
+  transition: background-color 160ms ease, border-color 100ms ease, opacity 100ms ease,
+    box-shadow 160ms ease, transform 160ms ease;
+}
+
+#console-root[data-dark="true"] .channel-strip[data-selected="true"]:not([data-dragging="true"]),
+#console-root[data-dark="true"] .master-strip[data-selected="true"] {
+  background-color: color-mix(in srgb, #ffffff 9%, var(--c-raised)) !important;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.6);
+  transform: translateY(-4px);
+  opacity: 1 !important;
+}
+
+#console-root[data-dark="false"] .channel-strip[data-selected="true"]:not([data-dragging="true"]),
+#console-root[data-dark="false"] .master-strip[data-selected="true"] {
+  background-color: #ffffff !important;
+  box-shadow: 0 8px 18px rgba(15, 23, 30, 0.22);
+  transform: translateY(-4px);
+  opacity: 1 !important;
+}
+
+/* grip 줄의 고급 FX 칩: 청록 = 모든 채널 따름, 글자색 채움 = 이 채널만, 흐림 = 꺼짐 */
+.fx-chips {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.fx-chips i {
+  font-style: normal;
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  border: 1px solid var(--c-border);
+  font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+  font-size: 8.5px;
+  font-weight: 800;
+  line-height: 10px;
+  text-align: center;
 }
 
 .channel-strip[data-dragging="true"] {
@@ -248,8 +287,8 @@
   opacity: 0.52;
   background-image: repeating-linear-gradient(
     -45deg,
-    var(--c-primary),
-    var(--c-primary) 1.5px,
+    var(--hc, var(--c-primary)),
+    var(--hc, var(--c-primary)) 1.5px,
     transparent 1.5px,
     transparent 4px
   );

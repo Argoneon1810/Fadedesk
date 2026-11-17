@@ -1,4 +1,6 @@
-import { getLocalizedPresetMeta, ui } from "../shared/i18n";
+import { ui } from "../shared/i18n";
+import { fxUi } from "../shared/i18n-fx";
+import { effectiveModule, effectivePan, resolveEffectiveNormalizer } from "../shared/fx-model";
 import {
   clampDb,
   computeDisplayedEffectiveDb,
@@ -7,8 +9,8 @@ import {
   isChannelPinned,
   LED_COUNT,
   MAX_DB,
+  formatPan,
   ratioToDb,
-  resolveEffectiveNormalizer,
   SCALE_TICKS,
   type MixerContextInput,
 } from "../shared/mixer-math";
@@ -21,7 +23,10 @@ import { ICONS } from "./icons";
  */
 
 export interface StripCallbacks {
-  onSelectChannel: (tabId: number) => void;
+  /** keepScope면 선택만 옮기고 고급 FX 범위("모든 채널")는 바꾸지 않는다 (휠·버튼·페이더 조작) */
+  onSelectChannel: (tabId: number, keepScope?: boolean) => void;
+  /** MASTER BUS를 눌러 고급 FX를 "모든 채널" 범위로 고른다. openRack이면 닫힌 랙도 연다 */
+  onSelectFxGlobal: (openRack: boolean) => void;
   onBeginDragChannel: (ev: PointerEvent, tabId: number) => void;
   onSetTabDb: (tabId: number, db: number) => void;
   onToggleMute: (tabId: number) => void;
@@ -45,7 +50,7 @@ export interface ChannelStripRefs {
   el: HTMLElement;
   topAccent: HTMLElement;
   grip: HTMLElement;
-  normBadge: HTMLElement;
+  fxChips: HTMLElement[];
   header: HTMLButtonElement;
   faviconBox: HTMLElement;
   hostLabel: HTMLElement;
@@ -82,6 +87,11 @@ export interface ChannelStripRefs {
  * 빈 트랙이나 실효 볼륨 게이지 클릭 시 의도치 않게 노브가 점프하던 미스디렉션을 차단하고,
  * 더블클릭(0.0dB / 기본값 복귀)만 노브와 트랙 모두에서 허용한다.
  */
+/** 누른 곳이 스트립의 조작부(버튼·입력·수치창·페이더·grip)인가 */
+export function isStripControl(target: EventTarget | null): boolean {
+  return target instanceof Element && Boolean(target.closest("button, input, .readout-btn, .fader-track, .fader-cap, .grip-bar"));
+}
+
 export function attachKnobDrag(
   knobEl: HTMLElement,
   trackEl: HTMLElement,
@@ -222,7 +232,7 @@ export function buildChannelStripDom(
     <div data-ref="topAccent" class="strip-top-accent"></div>
     <div data-ref="grip" class="grip-bar" title="${copy.gripTitle}">
       <span class="grip-dots">${ICONS.grip}</span>
-      <span data-ref="normBadge" class="norm-badge hidden">N</span>
+      <span class="fx-chips"><i data-chip="norm">N</i><i data-chip="gate">G</i><i data-chip="comp">C</i><i data-chip="pan">P</i></span>
     </div>
     <button data-ref="header" type="button" class="strip-header">
       <div class="strip-header-row1">
@@ -302,7 +312,7 @@ export function buildChannelStripDom(
     el,
     topAccent: q("topAccent"),
     grip: q("grip"),
-    normBadge: q("normBadge"),
+    fxChips: Array.from(el.querySelectorAll<HTMLElement>(".fx-chips i")),
     header: q("header"),
     faviconBox: q("faviconBox"),
     hostLabel: q("hostLabel"),
@@ -334,7 +344,12 @@ export function buildChannelStripDom(
     renderedPlaying: null,
   };
 
-  el.addEventListener("pointerdown", () => cb.onSelectChannel(initialCh.tabId), { passive: true });
+  // 스트립 빈 곳을 누르면 그 채널을 고급 FX 대상으로 고르고, 조작부(버튼·페이더·수치창·grip)는 범위를 바꾸지 않는다
+  el.addEventListener(
+    "pointerdown",
+    (ev) => cb.onSelectChannel(initialCh.tabId, isStripControl(ev.target)),
+    { passive: true },
+  );
   refs.grip.addEventListener("pointerdown", (ev) => cb.onBeginDragChannel(ev, initialCh.tabId));
   el.addEventListener(
     "wheel",
@@ -342,7 +357,7 @@ export function buildChannelStripDom(
       ev.preventDefault();
       const ch = getLatestCh();
       if (!ch) return;
-      cb.onSelectChannel(ch.tabId);
+      cb.onSelectChannel(ch.tabId, true);
       const step = ev.shiftKey ? 0.5 : 1.5;
       const next = clampDb(ch.db + (ev.deltaY < 0 ? step : -step), ch.corsCap);
       cb.onSetTabDb(ch.tabId, next);
@@ -370,7 +385,7 @@ export function buildChannelStripDom(
     subEl: refs.subText,
     getCurrentDb: () => getLatestCh()?.db ?? initialCh.db,
     isCorsCapped: () => Boolean(getLatestCh()?.corsCap),
-    onSelect: () => cb.onSelectChannel(initialCh.tabId),
+    onSelect: () => cb.onSelectChannel(initialCh.tabId, true),
     onCommitDb: (nextDb) => cb.onSetTabDb(initialCh.tabId, nextDb),
     onAfterExit: () => cb.onRefreshUi(),
   });
@@ -394,7 +409,9 @@ export function paintChannelStereoVu(
   r: ChannelStripRefs,
   ch: TabChannelState,
   t: ThemeTokens,
+  globalPan = 0,
 ): void {
+  const pan = effectivePan(globalPan, ch.fx, ch.corsCap);
   const hasExplicit =
     !ch.corsCap &&
     typeof ch.vuLevelL === "number" &&
@@ -405,8 +422,7 @@ export function paintChannelStereoVu(
   if (hasExplicit) {
     lvlL = ch.vuLevelL!;
     lvlR = ch.vuLevelR!;
-  } else if (!ch.corsCap && ch.vuLevel > 0 && ch.fx.pan !== 0) {
-    const pan = Math.max(-100, Math.min(100, ch.fx.pan));
+  } else if (!ch.corsCap && ch.vuLevel > 0 && pan !== 0) {
     const amp = Math.pow(10, (-60 + ch.vuLevel * 72) / 20);
     const gL = pan <= 0 ? 1 : Math.cos((pan / 100) * (Math.PI / 2));
     const gR = pan >= 0 ? 1 : Math.cos((-pan / 100) * (Math.PI / 2));
@@ -432,12 +448,7 @@ export function syncChannelReadoutSub(
   const effPct = Number.isFinite(effDb) ? dbToRatio(Math.min(MAX_DB, effDb)) * 100 : 0;
   const attenuated = (ctx.anyFocus || ctx.anySolo) && ch.playing && !ch.muted && userPct - effPct > 0.5;
   const pinned = isChannelPinned(settings.domainDefaults, ch.domain, ch.db);
-  const norm = resolveEffectiveNormalizer(
-    settings.autoNormEnabled,
-    ch.fx,
-    ch.corsCap,
-    settings.autoNormPreset,
-  );
+  const norm = resolveEffectiveNormalizer(settings.globalFx, ch.fx, ch.corsCap);
 
   const copy = ui();
   if (ch.corsCap) {
@@ -451,11 +462,11 @@ export function syncChannelReadoutSub(
     r.subText.style.color = t.states.danger;
   } else if (attenuated) {
     r.subText.textContent = copy.subAttenuated(formatDb(effDb));
-    r.subText.style.color = t.primary;
+    r.subText.style.color = ctx.anySolo ? t.accent : t.focus;
   } else if (norm.active) {
     const sign = ch.normTrimDb >= 0 ? "+" : "";
     r.subText.textContent = copy.subNormTrim(`${sign}${ch.normTrimDb.toFixed(1)}`);
-    r.subText.style.color = norm.source === "custom-on" ? t.accent : t.primary;
+    r.subText.style.color = norm.source === "custom-on" ? t.text : t.primary;
   } else {
     r.subText.textContent = pinned ? copy.subPinned : copy.subIndividual;
     r.subText.style.color = pinned ? t.accent : t.muted;
@@ -473,22 +484,24 @@ export function syncChannelStripDom(
   const effDb = computeDisplayedEffectiveDb(ch, ctx);
   const userPct = dbToRatio(ch.db) * 100;
   const effPct = Number.isFinite(effDb) ? dbToRatio(Math.min(MAX_DB, effDb)) * 100 : 0;
-  const attenuated = (ctx.anyFocus || ctx.anySolo) && ch.playing && !ch.muted && userPct - effPct > 0.5;
+  // 페이더는 높지만 실제로 덜/안 들리는 몫(빗금). 빗금 색이 원인을 말한다: 음소거 = 빨강, Solo로 꺼짐 = Solo 색, Focus 감쇠 = Focus 색
+  const silencedByMute = ch.muted || settings.masterMuted;
+  const attenuated =
+    userPct - effPct > 0.5 && (silencedByMute || (ch.playing && (ctx.anySolo || ctx.anyFocus)));
+  const hatchColor = silencedByMute
+    ? t.states.danger
+    : ctx.anySolo && !ch.solo
+      ? t.accent
+      : t.focus;
   const pinned = isChannelPinned(settings.domainDefaults, ch.domain, ch.db);
-  const norm = resolveEffectiveNormalizer(
-    settings.autoNormEnabled,
-    ch.fx,
-    ch.corsCap,
-    settings.autoNormPreset,
-  );
 
   r.el.dataset.selected = String(selected);
   r.el.dataset.zone = ch.playing ? "playing" : "paused";
   r.el.style.backgroundColor = ch.playing ? t.raised : t.surface;
-  r.el.style.borderColor = ch.focus ? t.primary : ch.solo ? t.accent : t.border;
+  r.el.style.borderColor = ch.focus ? t.focus : ch.solo ? t.accent : t.border;
   r.el.style.opacity = ch.playing ? "1" : "0.74";
   r.topAccent.style.backgroundColor = ch.focus
-    ? t.primary
+    ? t.focus
     : ch.solo
       ? t.accent
       : ch.muted
@@ -496,29 +509,11 @@ export function syncChannelStripDom(
         : "transparent";
 
   const copy = ui();
-  const showCustomOff = !ch.corsCap && ch.fx.normMode === "off" && settings.autoNormEnabled;
-  r.normBadge.classList.toggle("hidden", !(norm.active || showCustomOff));
-  if (norm.source === "custom-on") {
-    r.normBadge.textContent = "N*";
-    r.normBadge.style.backgroundColor = t.accent;
-    r.normBadge.style.color = t.onAccent;
-    r.normBadge.title = copy.normBadgeCustomOn;
-  } else if (showCustomOff) {
-    r.normBadge.textContent = "N×";
-    r.normBadge.style.backgroundColor = t.surface;
-    r.normBadge.style.color = t.muted;
-    r.normBadge.title = copy.normBadgeCustomOff;
-  } else {
-    const presetShort = getLocalizedPresetMeta(settings.autoNormPreset).shortLabel;
-    r.normBadge.textContent = "N";
-    r.normBadge.style.backgroundColor = t.primary;
-    r.normBadge.style.color = t.onPrimary;
-    r.normBadge.title = copy.normBadgeGlobal(presetShort);
-  }
+  syncFxChips(r, ch, settings, t);
 
   r.header.title = copy.headerJumpTitle(ch.title, ch.domain);
-  r.faviconBox.style.borderColor = ch.focus ? t.primary : t.border;
-  r.faviconBox.style.color = ch.focus ? t.primary : ch.solo ? t.accent : t.text;
+  r.faviconBox.style.borderColor = ch.focus ? t.focus : t.border;
+  r.faviconBox.style.color = ch.focus ? t.focus : ch.solo ? t.accent : t.text;
   if (r.renderedFavIcon !== ch.favIconUrl) {
     r.renderedFavIcon = ch.favIconUrl;
     renderFaviconInto(r.faviconBox, ch.favIconUrl);
@@ -529,15 +524,16 @@ export function syncChannelStripDom(
   if (attenuated) {
     r.fill.style.height = `${effPct}%`;
     r.fill.style.opacity = "0.9";
+    r.attenBand.style.setProperty("--hc", hatchColor);
     r.attenBand.classList.remove("hidden");
     r.attenBand.style.bottom = `${effPct}%`;
     r.attenBand.style.height = `${userPct - effPct}%`;
   } else {
     r.fill.style.height = `${userPct}%`;
-    r.fill.style.opacity = ch.muted ? "0.25" : "0.85";
+    r.fill.style.opacity = "0.85";
     r.attenBand.classList.add("hidden");
   }
-  r.fill.style.backgroundColor = ch.muted ? t.muted : ch.solo ? t.accent : t.primary;
+  r.fill.style.backgroundColor = ch.solo ? t.accent : ch.focus ? t.focus : t.primary;
   r.corsZone.classList.toggle("hidden", !ch.corsCap);
 
   for (const { db, el: sEl } of r.scaleItems) {
@@ -547,12 +543,12 @@ export function syncChannelStripDom(
   }
 
   r.knob.style.bottom = `calc(${userPct}% - 7px)`;
-  r.knob.style.backgroundColor = ch.focus ? t.primary : ch.solo ? t.accent : t.surface;
-  r.knob.style.borderColor = ch.focus ? t.primary : ch.solo ? t.accent : t.muted;
-  r.knob.style.color = ch.focus ? t.onPrimary : ch.solo ? t.onAccent : t.text;
-  r.knobLine.style.backgroundColor = ch.focus ? t.onPrimary : ch.solo ? t.onAccent : t.text;
+  r.knob.style.backgroundColor = ch.focus ? t.focus : ch.solo ? t.accent : t.surface;
+  r.knob.style.borderColor = ch.focus ? t.focus : ch.solo ? t.accent : ch.muted ? t.states.danger : t.muted;
+  r.knob.style.color = ch.focus ? t.onFocus : ch.solo ? t.onAccent : t.text;
+  r.knobLine.style.backgroundColor = ch.focus ? t.onFocus : ch.solo ? t.onAccent : t.text;
 
-  paintChannelStereoVu(r, ch, t);
+  paintChannelStereoVu(r, ch, t, settings.globalPan);
 
   if (r.readoutBtn.dataset.editing === "true") {
     r.readoutBtn.style.borderColor = t.primary;
@@ -588,5 +584,34 @@ export function syncChannelStripDom(
 
   syncSwitchStyle(r.muteBtn, r.mutePip, ch.muted, t.states.danger, t.states.onDanger, t);
   syncSwitchStyle(r.soloBtn, r.soloPip, ch.solo, t.accent, t.onAccent, t);
-  syncSwitchStyle(r.focusBtn, r.focusPip, ch.focus, t.primary, t.onPrimary, t);
+  syncSwitchStyle(r.focusBtn, r.focusPip, ch.focus, t.focus, t.onFocus, t);
+}
+
+/** grip 줄의 N·G·C·P 칩: 청록 = 모든 채널 설정을 따라 켜짐, 글자색 칩 = 이 채널만 따로 켜짐, 흐림 = 꺼짐 */
+function syncFxChips(r: ChannelStripRefs, ch: TabChannelState, settings: PersistedSettings, t: ThemeTokens): void {
+  const copy = fxUi();
+  for (const chip of r.fxChips) {
+    const key = chip.dataset.chip as "norm" | "gate" | "comp" | "pan";
+    let on: boolean;
+    let own: boolean;
+    let title: string;
+    if (key === "pan") {
+      const p = effectivePan(settings.globalPan, ch.fx, ch.corsCap);
+      on = p !== 0;
+      own = ch.fx.pan !== 0;
+      title = copy.chipPan(formatPan(p));
+    } else {
+      const eff = effectiveModule(settings.globalFx, ch.fx, key);
+      on = !ch.corsCap && eff.slot.enabled;
+      own = eff.own;
+      const name = copy.modTitle[key];
+      title = on ? (own ? copy.chipOwn(name) : copy.chipFollow(name)) : copy.chipOff(name);
+    }
+    chip.title = title;
+    chip.dataset.state = on ? (own ? "own" : "follow") : "off";
+    chip.style.backgroundColor = on ? (own ? t.text : "transparent") : "transparent";
+    chip.style.color = on ? (own ? t.bg : t.primary) : t.muted;
+    chip.style.borderColor = on ? (own ? t.text : t.primary) : t.border;
+    chip.style.opacity = on ? "1" : "0.45";
+  }
 }

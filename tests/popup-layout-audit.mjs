@@ -38,7 +38,7 @@ const TMP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "sound-manager-ui-audit-")
 const PROFILE_DIR = path.join(TMP_DIR, "profile");
 fs.mkdirSync(PROFILE_DIR, { recursive: true });
 
-for (const name of ["popup.html", "popup.css", "popup-strips.css", "popup-fx.css", "popup-help.css", "popup.js"]) {
+for (const name of ["popup.html", "popup.css", "popup-strips.css", "popup-fx.css", "popup-fx-scope.css", "popup-help.css", "popup.js"]) {
   const unpackedPath = path.join(UNPACKED_DIR, name);
   const staticPath = path.join(ROOT, "static", name);
   if (fs.existsSync(unpackedPath)) {
@@ -58,35 +58,35 @@ const SAMPLE_CHANNELS = [
     favIconUrl: "", playing: true, audible: true, mediaCount: 1, db: 0.0,
     muted: false, solo: false, focus: true, corsCap: false, vuLevel: 0.66, vuPeak: 0.76, firstSeenAt: 1,
     sortOrder: 1, normTrimDb: 0.0,
-    fx: { normMode: "follow", normTargetLufs: -16, normSpeed: "std", pan: 0, gateEnabled: true, gateThresholdDb: -48, compEnabled: false, compRatio: 4 },
+    fx: { own: { gate: { enabled: true, thresholdDb: -48 } }, pan: 0 },
   },
   {
     tabId: 2, windowId: 1, title: "Lo-Fi 작업 브금", domain: "youtube.com", shortHost: "youtube",
     favIconUrl: "", playing: true, audible: true, mediaCount: 1, db: -6.0,
     muted: false, solo: false, focus: false, corsCap: false, vuLevel: 0.42, vuPeak: 0.52, firstSeenAt: 2,
     sortOrder: 2, normTrimDb: 2.1,
-    fx: { normMode: "on", normTargetLufs: -14, normSpeed: "fast", pan: -20, gateEnabled: false, gateThresholdDb: -48, compEnabled: true, compRatio: 2 },
+    fx: { own: { norm: { enabled: true, presetId: "", modified: false, targetLufs: -14, speed: "fast", rangeLowLufs: -32, rangeHighLufs: -10, zeroReturnRate: 0.35, minDwellBlocks: 2, maxBoostDb: 9 }, comp: { enabled: true, ratio: 2 } }, pan: -20 },
   },
   {
     tabId: 3, windowId: 1, title: "개발 컨퍼런스", domain: "youtube.com", shortHost: "youtube",
     favIconUrl: "", playing: true, audible: true, mediaCount: 1, db: 4.5,
     muted: false, solo: false, focus: false, corsCap: false, vuLevel: 0.54, vuPeak: 0.64, firstSeenAt: 3,
     sortOrder: 3, normTrimDb: 0.0,
-    fx: { normMode: "follow", normTargetLufs: -16, normSpeed: "std", pan: 15, gateEnabled: false, gateThresholdDb: -48, compEnabled: false, compRatio: 4 },
+    fx: { own: {}, pan: 15 },
   },
   {
     tabId: 4, windowId: 2, title: "넷플릭스 영화", domain: "netflix.com", shortHost: "netflix",
     favIconUrl: "", playing: true, audible: true, mediaCount: 1, db: 0.0,
     muted: false, solo: false, focus: false, corsCap: true, vuLevel: 0.48, vuPeak: 0.58, firstSeenAt: 4,
     sortOrder: 4, normTrimDb: 0.0,
-    fx: { normMode: "follow", normTargetLufs: -16, normSpeed: "std", pan: 0, gateEnabled: false, gateThresholdDb: -48, compEnabled: false, compRatio: 4 },
+    fx: { own: {}, pan: 0 },
   },
   {
     tabId: 5, windowId: 2, title: "오후 플레이리스트", domain: "soundcloud.com", shortHost: "soundcloud",
     favIconUrl: "", playing: false, audible: false, mediaCount: 1, db: -3.0,
     muted: false, solo: false, focus: false, corsCap: false, vuLevel: 0, vuPeak: 0, firstSeenAt: 5,
     sortOrder: 5, normTrimDb: 0.0,
-    fx: { normMode: "off", normTargetLufs: -18, normSpeed: "slow", pan: 0, gateEnabled: false, gateThresholdDb: -48, compEnabled: false, compRatio: 4 },
+    fx: { own: { norm: { enabled: false, presetId: "", modified: false, targetLufs: -18, speed: "slow", rangeLowLufs: -32, rangeHighLufs: -10, zeroReturnRate: 0.35, minDwellBlocks: 16, maxBoostDb: 6 } }, pan: 0 },
   },
 ];
 
@@ -261,6 +261,66 @@ function buildAuditHtml(sc) {
           }
         }
 
+        // 1.2.0 고급 FX 세부 창 · 범위 · 떠오름 검증
+        const fxSpec = ${JSON.stringify(sc.testFxDetail ?? null)};
+        if (fxSpec) {
+          if (fxSpec.global) document.querySelector(".master-fx-btn")?.click();
+          const card = document.querySelector('.fx-card[data-panel="' + fxSpec.panel + '"]');
+          card?.querySelector(".fx-more-btn")?.click();
+          const det = document.getElementById("fx-detail");
+          if (!det || det.classList.contains("hidden")) {
+            issues.push("FX_DETAIL_NOT_OPEN");
+          } else {
+            if (fxSpec.detach) {
+              det.querySelector(".fx-link-btn")?.click();
+              if (!window.__SENT_ACTIONS__.some((m) => m.type === "EDIT_FX" && m.edit && m.edit.kind === "detach")) issues.push("FX_DETACH_NOT_SENT");
+            }
+            if (fxSpec.tweak) {
+              const fast = det.querySelectorAll('[data-ref="speedGrid"] .fx-seg-btn')[2];
+              fast?.click();
+              const bar = det.querySelector('[data-ref="modBar"]');
+              if (!bar || bar.classList.contains("hidden")) issues.push("FX_MODIFIED_BAR_NOT_SHOWN");
+            }
+            if (fxSpec.manage) {
+              const mb = det.querySelector('[data-ref="manageBtn"]');
+              if (!mb || mb.classList.contains("hidden")) issues.push("FX_MANAGE_BTN_MISSING");
+              else mb.click();
+            }
+            const dr = det.getBoundingClientRect();
+            if (dr.left < rr.left - 1 || dr.right > rr.right + 1 || dr.top < rr.top - 1 || dr.bottom > rr.bottom + 1) {
+              issues.push("FX_DETAIL_OUT_OF_BOUNDS: " + [dr.left, dr.top, dr.right, dr.bottom].map(Math.round).join(","));
+            }
+            // 독립 창(window)은 사용자가 창을 작게 줄일 수 있어 세부 창도 안에서 스크롤한다
+            if (!isWin && dr.height < 220) issues.push("FX_DETAIL_TOO_SHORT: " + Math.round(dr.height));
+            if (det.scrollWidth > det.clientWidth + 1) issues.push("FX_DETAIL_X_OVERFLOW: " + det.scrollWidth + " > " + det.clientWidth);
+            for (const el of det.querySelectorAll(".fx-detail-title, .fx-link-state, .fx-small-btn, .fx-link-btn")) {
+              if (el.offsetParent && el.scrollWidth > el.clientWidth + 1) issues.push("FX_DETAIL_TEXT_CLIPPED: " + (el.textContent || "").trim());
+            }
+          }
+          if (fxSpec.stripMute) {
+            // "모든 채널" 상태에서 스트립의 M 버튼을 눌러도 범위·세부 창이 그대로여야 한다
+            const muteBtn = document.querySelector('.channel-strip [data-ref="muteBtn"]');
+            muteBtn?.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+            muteBtn?.click();
+            if (document.querySelector('.fx-scope-tab')?.dataset.on !== "true") issues.push("STRIP_MUTE_LEFT_GLOBAL_SCOPE");
+            if (document.getElementById("fx-detail")?.classList.contains("hidden")) issues.push("STRIP_MUTE_CLOSED_DETAIL");
+          }
+          const lifted = document.querySelector('.channel-strip[data-selected="true"]');
+          const masterLifted = document.querySelector(".master-strip")?.dataset.selected === "true";
+          if (fxSpec.global) {
+            if (!masterLifted) issues.push("MASTER_NOT_LIFTED_IN_GLOBAL");
+            if (lifted) issues.push("STRIP_LIFTED_IN_GLOBAL");
+          } else {
+            if (masterLifted) issues.push("MASTER_LIFTED_IN_CHANNEL_SCOPE");
+            if (!lifted) issues.push("NO_STRIP_LIFTED_IN_CHANNEL_SCOPE");
+          }
+          const rack = document.getElementById("side-fx-rack");
+          if (!isWin && rack && rack.scrollHeight > rack.clientHeight + 1) issues.push("FX_RACK_Y_OVERFLOW: " + rack.scrollHeight + " > " + rack.clientHeight);
+          for (const el of document.querySelectorAll(".fx-card-title, .fx-link-btn, .fx-more-btn, .fx-scope-tab")) {
+            if (el.offsetParent && el.scrollWidth > el.clientWidth + 1) issues.push("FX_RACK_TEXT_CLIPPED: " + (el.textContent || "").trim());
+          }
+        }
+
         const channelCount = document.querySelectorAll(".channel-strip").length;
         const expectedChannels = ${sc.testOnboardingTour ? 2 : sc.snap.channels.length};
         if (channelCount !== expectedChannels) issues.push("CHANNEL_COUNT_MISMATCH: " + channelCount + " !== " + expectedChannels);
@@ -418,9 +478,12 @@ function buildAuditHtml(sc) {
           ? Math.round(advRack.getBoundingClientRect().height) : 0;
 
         if (${JSON.stringify(sc.name)} === "adv_rack_normal" && advRack && !advRack.classList.contains("hidden")) {
-          const vizToggle = advRack.querySelector('[data-ref="modeToggleBtn"]');
-          const spec2d = advRack.querySelector('[data-ref="spec2dWrap"]');
-          const bar1d = advRack.querySelector('[data-ref="bar1dWrap"]');
+          // 1.2.0: 노멀라이저 시각화는 랙 카드의 "세부 ▸"로 여는 세부 창(#fx-detail)에 있다
+          advRack.querySelector('.fx-card[data-panel="norm"] .fx-more-btn')?.click();
+          const vizHost = document.getElementById("fx-detail");
+          const vizToggle = vizHost?.querySelector('[data-ref="modeToggleBtn"]');
+          const spec2d = vizHost?.querySelector('[data-ref="spec2dWrap"]');
+          const bar1d = vizHost?.querySelector('[data-ref="bar1dWrap"]');
           if (!vizToggle || !spec2d || !bar1d) {
             issues.push("MISSING_NORM_VISUALIZER_ELEMENTS");
           } else {
@@ -631,11 +694,24 @@ function buildAuditHtml(sc) {
   return baseHtml.replace("</head>", `${injectedScript}\n</head>`);
 }
 
+/** 1.2.0 "모든 채널" 고급 FX 층 (노멀라이저는 표준 프리셋 값) */
+function globalFx(normOn) {
+  return {
+    norm: { enabled: normOn, presetId: "standard", modified: false, targetLufs: -16, speed: "std", rangeLowLufs: -36, rangeHighLufs: -8, zeroReturnRate: 0.25, minDwellBlocks: 6, maxBoostDb: 7.5 },
+    gate: { enabled: false, thresholdDb: -48 },
+    comp: { enabled: false, ratio: 4 },
+  };
+}
+
 const BASE_SETTINGS = {
   theme: "teal", modePref: "dark", alpha: 0.7, masterDb: 0, masterMuted: false,
-  autoNormEnabled: false, autoNormPreset: "standard", advRackOpen: false, onboardingDone: true,
+  globalFx: globalFx(false), globalPan: 0, userPresets: [], advRackOpen: false, onboardingDone: true,
   popoutWidth: 780, popoutHeight: 480, domainDefaults: {},
 };
+
+const USER_PRESETS = [
+  { id: "u1", name: "심야 대사", targetLufs: -20, speed: "std", rangeLowLufs: -36, rangeHighLufs: -8, zeroReturnRate: 0.25, minDwellBlocks: 6, maxBoostDb: 7.5 },
+];
 
 const PINNED_DEFAULTS = { "chzzk.naver.com": 0, "youtube.com": -6 };
 
@@ -645,45 +721,45 @@ const SAMPLE_CHANNELS_EN = [
     favIconUrl: "", playing: true, audible: true, mediaCount: 1, db: 0.0,
     muted: false, solo: false, focus: true, corsCap: false, vuLevel: 0.66, vuPeak: 0.76, firstSeenAt: 1,
     sortOrder: 1, normTrimDb: 0.0,
-    fx: { normMode: "follow", normTargetLufs: -16, normSpeed: "std", pan: 0, gateEnabled: true, gateThresholdDb: -48, compEnabled: false, compRatio: 4 },
+    fx: { own: { gate: { enabled: true, thresholdDb: -48 } }, pan: 0 },
   },
   {
     tabId: 2, windowId: 1, title: "Acoustic Focus Session", domain: "audio.example", shortHost: "audio",
     favIconUrl: "", playing: true, audible: true, mediaCount: 1, db: -6.0,
     muted: false, solo: false, focus: false, corsCap: false, vuLevel: 0.42, vuPeak: 0.52, firstSeenAt: 2,
     sortOrder: 2, normTrimDb: 2.1,
-    fx: { normMode: "on", normTargetLufs: -14, normSpeed: "fast", pan: -20, gateEnabled: false, gateThresholdDb: -48, compEnabled: true, compRatio: 2 },
+    fx: { own: { norm: { enabled: true, presetId: "", modified: false, targetLufs: -14, speed: "fast", rangeLowLufs: -32, rangeHighLufs: -10, zeroReturnRate: 0.35, minDwellBlocks: 2, maxBoostDb: 9 }, comp: { enabled: true, ratio: 2 } }, pan: -20 },
   },
   {
     tabId: 3, windowId: 1, title: "Engineering Keynote", domain: "video.example", shortHost: "video",
     favIconUrl: "", playing: true, audible: true, mediaCount: 1, db: 4.5,
     muted: false, solo: false, focus: false, corsCap: false, vuLevel: 0.54, vuPeak: 0.64, firstSeenAt: 3,
     sortOrder: 3, normTrimDb: 0.0,
-    fx: { normMode: "follow", normTargetLufs: -16, normSpeed: "std", pan: 15, gateEnabled: false, gateThresholdDb: -48, compEnabled: false, compRatio: 4 },
+    fx: { own: {}, pan: 15 },
   },
   {
     tabId: 4, windowId: 2, title: "Feature Documentary", domain: "cinema.example", shortHost: "cinema",
     favIconUrl: "", playing: true, audible: true, mediaCount: 1, db: 0.0,
     muted: false, solo: false, focus: false, corsCap: true, vuLevel: 0.48, vuPeak: 0.58, firstSeenAt: 4,
     sortOrder: 4, normTrimDb: 0.0,
-    fx: { normMode: "follow", normTargetLufs: -16, normSpeed: "std", pan: 0, gateEnabled: false, gateThresholdDb: -48, compEnabled: false, compRatio: 4 },
+    fx: { own: {}, pan: 0 },
   },
   {
     tabId: 5, windowId: 2, title: "Evening Podcast Episode", domain: "podcast.example", shortHost: "podcast",
     favIconUrl: "", playing: false, audible: false, mediaCount: 1, db: -3.0,
     muted: false, solo: false, focus: false, corsCap: false, vuLevel: 0, vuPeak: 0, firstSeenAt: 5,
     sortOrder: 5, normTrimDb: 0.0,
-    fx: { normMode: "off", normTargetLufs: -18, normSpeed: "slow", pan: 0, gateEnabled: false, gateThresholdDb: -48, compEnabled: false, compRatio: 4 },
+    fx: { own: { norm: { enabled: false, presetId: "", modified: false, targetLufs: -18, speed: "slow", rangeLowLufs: -32, rangeHighLufs: -10, zeroReturnRate: 0.35, minDwellBlocks: 16, maxBoostDb: 6 } }, pan: 0 },
   },
 ];
 
 const scenarios = [
   { name: "empty_popup", w: 800, h: 600, isWindow: false, openPop: false, snap: { settings: { ...BASE_SETTINGS }, channels: [] } },
   { name: "onboarding_and_spotlight_tour", w: 800, h: 600, isWindow: false, openPop: false, testOnboardingTour: true, snap: { settings: { ...BASE_SETTINGS, onboardingDone: false }, channels: [] } },
-  { name: "popup_norm_popover", w: 800, h: 600, isWindow: false, openPop: false, testNormPopover: true, snap: { settings: { ...BASE_SETTINGS, autoNormEnabled: true }, channels: SAMPLE_CHANNELS } },
+  { name: "popup_norm_popover", w: 800, h: 600, isWindow: false, openPop: false, testNormPopover: true, snap: { settings: { ...BASE_SETTINGS, globalFx: globalFx(true) }, channels: SAMPLE_CHANNELS } },
   { name: "active_popup_051", w: 800, h: 600, isWindow: false, openPop: false, test051Ux: true, snap: { settings: { ...BASE_SETTINGS, domainDefaults: PINNED_DEFAULTS }, channels: SAMPLE_CHANNELS } },
-  { name: "adv_rack_normal", w: 800, h: 600, isWindow: false, openPop: false, selectTabId: 2, snap: { settings: { ...BASE_SETTINGS, autoNormEnabled: true, advRackOpen: true, domainDefaults: { "youtube.com": -6 } }, channels: SAMPLE_CHANNELS } },
-  { name: "adv_rack_cors", w: 800, h: 600, isWindow: false, openPop: false, selectTabId: 4, snap: { settings: { ...BASE_SETTINGS, autoNormEnabled: true, advRackOpen: true }, channels: SAMPLE_CHANNELS } },
+  { name: "adv_rack_normal", w: 800, h: 600, isWindow: false, openPop: false, selectTabId: 2, snap: { settings: { ...BASE_SETTINGS, globalFx: globalFx(true), advRackOpen: true, domainDefaults: { "youtube.com": -6 } }, channels: SAMPLE_CHANNELS } },
+  { name: "adv_rack_cors", w: 800, h: 600, isWindow: false, openPop: false, selectTabId: 4, snap: { settings: { ...BASE_SETTINGS, globalFx: globalFx(true), advRackOpen: true }, channels: SAMPLE_CHANNELS } },
   { name: "window_narrow_520", w: 520, h: 420, isWindow: true, openPop: false, snap: { settings: { ...BASE_SETTINGS, domainDefaults: { "chzzk.naver.com": 0 } }, channels: SAMPLE_CHANNELS } },
   { name: "window_popover_dark", w: 680, h: 460, isWindow: true, openPop: true, snap: { settings: { ...BASE_SETTINGS, theme: "cobalt", modePref: "dark" }, channels: SAMPLE_CHANNELS } },
   { name: "window_popover_light", w: 680, h: 460, isWindow: true, openPop: true, snap: { settings: { ...BASE_SETTINGS, theme: "emerald", modePref: "light" }, channels: SAMPLE_CHANNELS } },
@@ -691,8 +767,14 @@ const scenarios = [
   { name: "window_help_modal", w: 680, h: 480, isWindow: true, openPop: false, testHelpModal: true, snap: { settings: { ...BASE_SETTINGS, domainDefaults: PINNED_DEFAULTS }, channels: SAMPLE_CHANNELS } },
   { name: "en_empty_popup", lang: "en", w: 800, h: 600, isWindow: false, openPop: false, snap: { settings: { ...BASE_SETTINGS }, channels: [] } },
   { name: "en_onboarding_tour", lang: "en", w: 800, h: 600, isWindow: false, openPop: false, testOnboardingTour: true, snap: { settings: { ...BASE_SETTINGS, onboardingDone: false }, channels: [] } },
-  { name: "en_norm_popover", lang: "en", w: 800, h: 600, isWindow: false, openPop: false, testNormPopover: true, snap: { settings: { ...BASE_SETTINGS, autoNormEnabled: true }, channels: SAMPLE_CHANNELS_EN } },
-  { name: "en_adv_rack", lang: "en", w: 800, h: 600, isWindow: false, openPop: false, selectTabId: 2, snap: { settings: { ...BASE_SETTINGS, autoNormEnabled: true, advRackOpen: true, domainDefaults: { "audio.example": -6 } }, channels: SAMPLE_CHANNELS_EN } },
+  { name: "en_norm_popover", lang: "en", w: 800, h: 600, isWindow: false, openPop: false, testNormPopover: true, snap: { settings: { ...BASE_SETTINGS, globalFx: globalFx(true) }, channels: SAMPLE_CHANNELS_EN } },
+  { name: "fx_global_norm_detail", w: 800, h: 600, isWindow: false, openPop: false, testFxDetail: { global: true, panel: "norm", manage: true }, snap: { settings: { ...BASE_SETTINGS, globalFx: globalFx(true), userPresets: USER_PRESETS, advRackOpen: true }, channels: SAMPLE_CHANNELS } },
+  { name: "fx_light_detach_tweak", w: 800, h: 600, isWindow: false, openPop: false, selectTabId: 3, testFxDetail: { panel: "norm", detach: true, tweak: true }, snap: { settings: { ...BASE_SETTINGS, theme: "emerald", modePref: "light", globalFx: globalFx(true), advRackOpen: true }, channels: SAMPLE_CHANNELS } },
+  { name: "fx_rightmost_pan_detail", w: 800, h: 600, isWindow: false, openPop: false, selectTabId: 5, testFxDetail: { panel: "pan" }, snap: { settings: { ...BASE_SETTINGS, globalPan: 20, advRackOpen: true }, channels: SAMPLE_CHANNELS } },
+  { name: "fx_global_keep_on_strip_mute", w: 800, h: 600, isWindow: false, openPop: false, testFxDetail: { global: true, panel: "gate", stripMute: true }, snap: { settings: { ...BASE_SETTINGS, advRackOpen: true }, channels: SAMPLE_CHANNELS } },
+  { name: "window_narrow_fx_detail", w: 520, h: 420, isWindow: true, openPop: false, testFxDetail: { global: true, panel: "norm" }, snap: { settings: { ...BASE_SETTINGS, globalFx: globalFx(true), advRackOpen: true }, channels: SAMPLE_CHANNELS } },
+  { name: "en_fx_global_detail", lang: "en", w: 800, h: 600, isWindow: false, openPop: false, testFxDetail: { global: true, panel: "norm", manage: true }, snap: { settings: { ...BASE_SETTINGS, globalFx: globalFx(true), userPresets: USER_PRESETS, advRackOpen: true }, channels: SAMPLE_CHANNELS_EN } },
+  { name: "en_adv_rack", lang: "en", w: 800, h: 600, isWindow: false, openPop: false, selectTabId: 2, snap: { settings: { ...BASE_SETTINGS, globalFx: globalFx(true), advRackOpen: true, domainDefaults: { "audio.example": -6 } }, channels: SAMPLE_CHANNELS_EN } },
   { name: "en_window_popover", lang: "en", w: 680, h: 460, isWindow: true, openPop: true, snap: { settings: { ...BASE_SETTINGS, theme: "cobalt", modePref: "dark" }, channels: SAMPLE_CHANNELS_EN } },
   { name: "en_help_modal", lang: "en", w: 680, h: 480, isWindow: true, openPop: false, testHelpModal: true, snap: { settings: { ...BASE_SETTINGS, domainDefaults: { "live.example": 0, "audio.example": -6 } }, channels: SAMPLE_CHANNELS_EN } },
 ];
@@ -724,6 +806,17 @@ try {
         ],
         { encoding: "utf8", maxBuffer: 10 * 1024 * 1024 },
       );
+      // 선택: AUDIT_SHOTS=<폴더>를 주면 장면마다 화면을 찍어 남긴다 (눈으로 확인용)
+      if (process.env.AUDIT_SHOTS) {
+        fs.mkdirSync(process.env.AUDIT_SHOTS, { recursive: true });
+        await execFileAsync(CHROME_BIN, [
+          "--headless=new", "--no-sandbox", "--disable-gpu", "--hide-scrollbars",
+          `--user-data-dir=${scProfile}_shot`, `--window-size=${sc.w},${sc.h}`,
+          "--virtual-time-budget=350",
+          `--screenshot=${path.join(process.env.AUDIT_SHOTS, `${sc.name}.png`)}`,
+          fileUrl,
+        ]).catch(() => {});
+      }
       return { sc, stdout };
     }),
   );

@@ -1,4 +1,4 @@
-import { DEFAULT_CHANNEL_FX } from "../shared/mixer-math";
+import { defaultChannelFx } from "../shared/fx-model";
 import type { TabChannelState, ThemeTokens } from "../shared/types";
 import { helpCopy } from "./help-copy";
 
@@ -28,7 +28,7 @@ export function createDemoTourChannels(): TabChannelState[] {
       solo: false,
       focus: true,
       corsCap: false,
-      fx: { ...DEFAULT_CHANNEL_FX },
+      fx: defaultChannelFx(),
       normTrimDb: -1.8,
       vuLevel: 0.62,
       vuPeak: 0.74,
@@ -50,7 +50,7 @@ export function createDemoTourChannels(): TabChannelState[] {
       solo: false,
       focus: false,
       corsCap: false,
-      fx: { ...DEFAULT_CHANNEL_FX },
+      fx: defaultChannelFx(),
       normTrimDb: 0,
       vuLevel: 0,
       vuPeak: 0,

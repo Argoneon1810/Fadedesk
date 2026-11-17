@@ -640,6 +640,7 @@ html[data-view="window"] .side-fx-rack {
 
 /* 콘솔 스트립 베이 */
 .console-bay {
+  position: relative;
   display: flex;
   align-items: stretch;
   min-width: 0;

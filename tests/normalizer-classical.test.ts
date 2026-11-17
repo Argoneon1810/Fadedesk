@@ -2,7 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { MixerStateStore } from "../src/background/state-store";
 import { createDspChain, DEFAULT_DSP_CONFIG } from "../src/content/dsp-chain";
-import { buildDspConfigPayload, DEFAULT_CHANNEL_FX } from "../src/shared/mixer-math";
+import {
+  buildDspConfigPayload, builtinParams, defaultChannelFx, defaultGlobalFx, sanitizeChannelFx,
+} from "../src/shared/fx-model";
+import type { AutoNormPreset, FxLayer } from "../src/shared/types";
+
+/** "모든 채널" 노멀라이저를 기본 프리셋으로 맞춘 전역 층 */
+function globalWith(key: AutoNormPreset): FxLayer {
+  const g = defaultGlobalFx();
+  g.norm = { ...g.norm, ...builtinParams(key), presetId: key };
+  return g;
+}
 
 /**
  * 3-A 대표 음압 구간([하한, 상한] LUFS) · 0.0dB 회귀 텐션 · 스침 방지 체류(Dwell) ·
@@ -104,7 +114,7 @@ function createTestDspHarness() {
 
 test("시나리오 1: 클래식 교향곡(여린 도입부 20s -> 중위 주선율 15s -> 강주 폭발 12s -> 여린 독주 18s)에서 3-A 대표 구간과 0.0dB 회귀 텐션 검증", () => {
   const { chain, setLufs } = createTestDspHarness();
-  const classicalDsp = buildDspConfigPayload(true, DEFAULT_CHANNEL_FX, false, "classical");
+  const classicalDsp = buildDspConfigPayload(globalWith("classical"), 0, defaultChannelFx(), false);
 
   // 1) 여린 도입부 ppp (-38.0 LUFS, 20초 = 267틱): 대표 구간([-28..-13]) 하한 미달이므로 억지 증폭 없이 0.0dB 유지
   setLufs(-38.0);
@@ -141,7 +151,7 @@ test("시나리오 1: 클래식 교향곡(여린 도입부 20s -> 중위 주선�
 
 test("시나리오 2: 여린 소리(-38 LUFS) 15초 후 0.3초 만에 강주(-7 LUFS)로 급상승할 때 대표 구간 스침 방지(Minimum Dwell) 검증", () => {
   const { chain, setLufs } = createTestDspHarness();
-  const classicalDsp = buildDspConfigPayload(true, DEFAULT_CHANNEL_FX, false, "classical");
+  const classicalDsp = buildDspConfigPayload(globalWith("classical"), 0, defaultChannelFx(), false);
 
   // 1) 15초(200틱) 동안 -38 LUFS 여린 현악
   setLufs(-38.0);
@@ -172,8 +182,9 @@ test("시나리오 2: 여린 소리(-38 LUFS) 15초 후 0.3초 만에 강주(-7 
 
 test("시나리오 3: 목표 음압을 -20 LUFS로 낮춘 상태에서 평범한 음원(-14 LUFS) 재생 시 3-A 절대 대표 구간 정상 감쇠 검증", () => {
   const { chain, setLufs } = createTestDspHarness();
+  // 1.1.0 "개별 ON" 세션을 그대로 넣어 새 구조 변환까지 함께 확인한다
   const customQuietFx = {
-    ...DEFAULT_CHANNEL_FX,
+    pan: 0,
     normMode: "on" as const,
     normTargetLufs: -20,
     normSpeed: "std" as const,
@@ -181,7 +192,7 @@ test("시나리오 3: 목표 음압을 -20 LUFS로 낮춘 상태에서 평범한
     normRangeHighLufs: -10,
     normZeroReturnRate: 0.35,
   };
-  const dsp = buildDspConfigPayload(true, customQuietFx, false, "music");
+  const dsp = buildDspConfigPayload(defaultGlobalFx(), 0, sanitizeChannelFx(customQuietFx), false);
 
   // -14.0 LUFS 평범한 음원은 목표 음압이 -20 LUFS로 낮아져도 3-A 절대 구간([-32..-10]) 안에 정상 포함됨
   setLufs(-14.0);
@@ -197,7 +208,7 @@ test("시나리오 3: 목표 음압을 -20 LUFS로 낮춘 상태에서 평범한
 
 test("시나리오 4: 사이트 자체 볼륨(siteVolume=0.2, -14dB)을 낮춰 듣는 사용자에게 억지 부스트가 걸리지 않는 역보정 검증", () => {
   const { chain, setLufs } = createTestDspHarness();
-  const musicDsp = buildDspConfigPayload(true, DEFAULT_CHANNEL_FX, false, "music");
+  const musicDsp = buildDspConfigPayload(globalWith("music"), 0, defaultChannelFx(), false);
 
   // 원음은 -16.0 LUFS 정석 음원인데, 사용자가 사이트 플레이어 볼륨을 20%(0.2배, -14dB)로 줄여 놓아
   // 실제 WebAudio 입구(preAnalyser)에는 -30.0 LUFS로 줄어든 파형이 유입되는 상황
@@ -219,9 +230,9 @@ test("시나리오 4: 사이트 자체 볼륨(siteVolume=0.2, -14dB)을 낮춰 �
 
 test("시나리오 5: 기본 ON(음악 모드) 초기값, 4종 프리셋(클래식 포함), 2D/1D 시각화 모드 토글 및 스테레오 L/R 미터 검증", () => {
   const store = new MixerStateStore();
-  // 1-A: 기본 상태는 autoNormEnabled === true, autoNormPreset === "music", normVizMode === "spectrum2d"
-  assert.equal(store.getSettings().autoNormEnabled, true);
-  assert.equal(store.getSettings().autoNormPreset, "music");
+  // 1-A: 기본 상태는 모든 채널 노멀라이저 켜짐 · 음악 프리셋 · normVizMode === "spectrum2d"
+  assert.equal(store.getSettings().globalFx.norm.enabled, true);
+  assert.equal(store.getSettings().globalFx.norm.presetId, "music");
   assert.equal(store.getSettings().normVizMode, "spectrum2d");
 
   // 2D 스펙트럼 <-> 1D 수평 구간 토글 및 영속 복원 검증
@@ -229,7 +240,9 @@ test("시나리오 5: 기본 ON(음악 모드) 초기값, 4종 프리셋(클래�
   assert.equal(store.getSettings().normVizMode, "bar1d");
   store.hydrateSettings({ normVizMode: "spectrum2d", autoNormPreset: "classical" });
   assert.equal(store.getSettings().normVizMode, "spectrum2d");
-  assert.equal(store.getSettings().autoNormPreset, "classical");
+  // 1.1.0 설정(autoNormPreset)은 모든 채널 노멀라이저로 옮겨진다
+  assert.equal(store.getSettings().globalFx.norm.presetId, "classical");
+  assert.equal(store.getSettings().globalFx.norm.minDwellBlocks, 24);
 
   // 6-A: 패닝 적용 시 스테레오 L/R VU 비율 분리 검증
   const { chain, setAmplitude } = createTestDspHarness();

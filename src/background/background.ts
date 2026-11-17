@@ -5,7 +5,6 @@ import {
   type BgToPopupPortMessage,
   type BridgeToBgMessage,
   type HookCommand,
-  type PersistedSettings,
   type PopupActionMessage,
 } from "../shared/types";
 import { MixerStateStore, type SerializedTabSession } from "./state-store";
@@ -36,7 +35,7 @@ async function ensureHydrated(): Promise<void> {
     hydrationPromise = (async () => {
       try {
         const localData = await chrome.storage.local.get(SETTINGS_STORAGE_KEY);
-        store.hydrateSettings(localData[SETTINGS_STORAGE_KEY] as Partial<PersistedSettings> | undefined);
+        store.hydrateSettings(localData[SETTINGS_STORAGE_KEY] as Record<string, unknown> | undefined);
       } catch {
         // 기본 설정 유지
       }
@@ -341,7 +340,7 @@ async function handlePopupAction(msg: PopupActionMessage): Promise<void> {
       break;
 
     case "SET_AUTO_NORM_PRESET":
-      store.setAutoNormPreset(msg.preset, msg.enable);
+      if (!store.setAutoNormPreset(msg.preset, msg.enable)) break;
       pushDspToAllTabs();
       await persistSettings();
       broadcastSnapshotAndBadge();
@@ -366,9 +365,40 @@ async function handlePopupAction(msg: PopupActionMessage): Promise<void> {
       broadcastSnapshotAndBadge();
       break;
 
-    case "UPDATE_TAB_FX":
-      if (store.updateTabFx(msg.tabId, msg.patch)) {
-        pushDspToTab(msg.tabId);
+    case "EDIT_FX": {
+      const changed = store.editFx(msg.target, msg.edit);
+      if (changed === null) break;
+      if (changed === "global") {
+        pushDspToAllTabs();
+        await persistSettings();
+      } else {
+        pushDspToTab(changed);
+      }
+      broadcastSnapshotAndBadge();
+      break;
+    }
+
+    case "SAVE_USER_PRESET":
+    case "OVERWRITE_USER_PRESET": {
+      const ok = msg.type === "SAVE_USER_PRESET"
+        ? store.saveUserPreset(msg.target, msg.id, msg.name)
+        : store.overwriteUserPreset(msg.target);
+      if (!ok) break;
+      await persistSettings();
+      broadcastSnapshotAndBadge();
+      break;
+    }
+
+    case "RENAME_USER_PRESET":
+      if (store.renameUserPreset(msg.id, msg.name)) {
+        await persistSettings();
+        broadcastSnapshotAndBadge();
+      }
+      break;
+
+    case "DELETE_USER_PRESET":
+      if (store.deleteUserPreset(msg.id)) {
+        await persistSettings();
         broadcastSnapshotAndBadge();
       }
       break;

@@ -1,9 +1,8 @@
-import { getLocalizedPresetMeta, ui } from "../shared/i18n";
-import { resolveEffectiveNormalizer, resolveEffectiveNormalizerBounds } from "../shared/mixer-math";
+import { ui } from "../shared/i18n";
+import { findPresetParams, resolveEffectiveNormalizer } from "../shared/fx-model";
 import type {
-  AutoNormPreset,
-  ChannelFxState,
-  ChannelNormMode,
+  NormParams,
+  NormSlot,
   NormVizMode,
   PersistedSettings,
   TabChannelState,
@@ -13,6 +12,7 @@ import { ICONS } from "./icons";
 
 /**
  * 노멀라이저 음압 & 표적 대표 구간 시각화 모듈 (결정 3-A · 4-2).
+ * - 고급 FX 세부 창에서 지금 편집 중인 노멀라이저 슬롯(모든 채널 또는 이 채널)의 구간을 그리고, 잠긴 슬롯은 끌어도 바뀌지 않는다.
  * - 고급 FX 사이드 랙 내부에서 [2D 프리퀀시 스펙트럼(상·하 ↕ 임계선)]과 [1D 수평 구간(좌·우 ↔ 브래킷)] 뷰를 즉시 토글한다.
  * - 상단 `균일 N ▾` 팝오버 하단에도 읽기 전용 실시간 미니 음압·대표 구간 프리뷰 바를 렌더링한다.
  */
@@ -54,12 +54,17 @@ export function ratioToLufs(ratio: number): number {
   return Math.round(-60 + clamped * 60);
 }
 
-export function buildNormVisualizerDom(
-  getSelectedChannel: () => TabChannelState | undefined,
-  getSettings: () => PersistedSettings,
-  onUpdateFx: (tabId: number, patch: Partial<ChannelFxState>) => void,
-  onToggleVizMode: (nextMode: NormVizMode) => void,
-): NormVisualizerRefs {
+export interface NormVisualizerDeps {
+  getSlot: () => NormSlot;
+  isLocked: () => boolean;
+  onLocked: () => void;
+  onEditNorm: (patch: Partial<NormParams>) => void;
+  getSettings: () => PersistedSettings;
+  onToggleVizMode: (nextMode: NormVizMode) => void;
+}
+
+export function buildNormVisualizerDom(deps: NormVisualizerDeps): NormVisualizerRefs {
+  const { getSettings, onToggleVizMode } = deps;
   const copy = ui();
   const rootEl = document.createElement("div");
   rootEl.className = "norm-viz-deck";
@@ -128,19 +133,14 @@ export function buildNormVisualizerDom(
   };
 
   const commitBounds = (isHigh: boolean, nextLufs: number): void => {
-    const ch = getSelectedChannel();
-    if (!ch || ch.corsCap) return;
-    const settings = getSettings();
-    const curBounds = resolveEffectiveNormalizerBounds(ch.fx, settings.autoNormPreset);
-    const nextMode: ChannelNormMode = ch.fx.normMode === "follow" ? "on" : ch.fx.normMode;
+    if (deps.isLocked()) return deps.onLocked();
+    const cur = deps.getSlot();
     if (isHigh) {
-      const low = curBounds.rangeLowLufs;
-      const high = Math.max(low + 4, Math.min(-2, nextLufs));
-      onUpdateFx(ch.tabId, { normMode: nextMode, normRangeLowLufs: low, normRangeHighLufs: high });
+      const high = Math.max(cur.rangeLowLufs + 4, Math.min(-2, nextLufs));
+      if (high !== cur.rangeHighLufs) deps.onEditNorm({ rangeHighLufs: high });
     } else {
-      const high = curBounds.rangeHighLufs;
-      const low = Math.min(high - 4, Math.max(-56, nextLufs));
-      onUpdateFx(ch.tabId, { normMode: nextMode, normRangeLowLufs: low, normRangeHighLufs: high });
+      const low = Math.min(cur.rangeHighLufs - 4, Math.max(-56, nextLufs));
+      if (low !== cur.rangeLowLufs) deps.onEditNorm({ rangeLowLufs: low });
     }
   };
 
@@ -149,6 +149,7 @@ export function buildNormVisualizerDom(
       if (ev.button !== 0) return;
       ev.preventDefault();
       ev.stopPropagation();
+      if (deps.isLocked()) return deps.onLocked();
       const onMove = (me: PointerEvent): void => {
         const rect = containerEl.getBoundingClientRect();
         if (rect.width <= 0 || rect.height <= 0) return;
@@ -173,13 +174,11 @@ export function buildNormVisualizerDom(
   bindDrag(handleHigh1d, track1d, "x", true);
 
   tensionInput.oninput = () => {
-    const ch = getSelectedChannel();
-    if (!ch || ch.corsCap) return;
-    const nextMode: ChannelNormMode = ch.fx.normMode === "follow" ? "on" : ch.fx.normMode;
-    onUpdateFx(ch.tabId, {
-      normMode: nextMode,
-      normZeroReturnRate: Number(tensionInput.value),
-    });
+    if (deps.isLocked()) {
+      tensionInput.value = String(deps.getSlot().zeroReturnRate);
+      return deps.onLocked();
+    }
+    deps.onEditNorm({ zeroReturnRate: Number(tensionInput.value) });
   };
 
   return {
@@ -297,6 +296,7 @@ function drawSpectrum2dCanvas(
 export function syncNormVisualizerDom(
   v: NormVisualizerRefs,
   ch: TabChannelState | undefined,
+  slot: NormSlot,
   settings: PersistedSettings,
   t: ThemeTokens,
 ): void {
@@ -319,13 +319,8 @@ export function syncNormVisualizerDom(
   v.spec2dWrap.classList.toggle("hidden", !is2d);
   v.bar1dWrap.classList.toggle("hidden", is2d);
 
-  const fx = ch?.fx;
-  const resolved = fx
-    ? resolveEffectiveNormalizer(settings.autoNormEnabled, fx, Boolean(ch?.corsCap), settings.autoNormPreset)
-    : { active: false, targetLufs: -16, speed: "slow" as const, source: "off" as const };
-  const bounds = fx
-    ? resolveEffectiveNormalizerBounds(fx, settings.autoNormPreset)
-    : { rangeLowLufs: -32, rangeHighLufs: -10, zeroReturnRate: 0.35, minDwellBlocks: 16, maxBoostDb: 6 };
+  const resolved = { active: slot.enabled && !ch?.corsCap, targetLufs: slot.targetLufs };
+  const bounds = slot;
 
   const inputLufs =
     ch && ch.playing && !ch.corsCap
@@ -439,30 +434,19 @@ export function syncPopoverMiniVizDom(
   ch: TabChannelState | undefined,
   settings: PersistedSettings,
   t: ThemeTokens,
-  hoveredPreset?: AutoNormPreset | null,
+  hoveredPreset?: string | null,
 ): void {
   if (hoveredPreset !== undefined) {
     wrap.dataset.hoveredPreset = hoveredPreset ?? "";
   }
-  const activeHover = (wrap.dataset.hoveredPreset || "") as AutoNormPreset | "";
+  const activeHover = wrap.dataset.hoveredPreset || "";
   const copy = ui();
 
-  const bounds = resolveEffectiveNormalizerBounds(
-    ch?.fx ?? {
-      normMode: "follow",
-      normTargetLufs: -16,
-      normSpeed: "slow",
-      pan: 0,
-      gateEnabled: false,
-      gateThresholdDb: -48,
-      compEnabled: false,
-      compRatio: 4,
-    },
-    settings.autoNormPreset,
-  );
+  // 팝오버는 "모든 채널" 노멀라이저를 다루므로 구간은 전역 슬롯, 실시간 음압은 선택 채널에서 읽는다
+  const bounds = settings.globalFx.norm;
   const resolved = ch
-    ? resolveEffectiveNormalizer(settings.autoNormEnabled, ch.fx, ch.corsCap, settings.autoNormPreset)
-    : { active: settings.autoNormEnabled, targetLufs: -16, speed: "slow" as const, source: "auto" as const };
+    ? resolveEffectiveNormalizer(settings.globalFx, { own: {}, pan: 0 }, ch.corsCap)
+    : { active: settings.globalFx.norm.enabled, targetLufs: bounds.targetLufs };
 
   const inputLufs =
     ch && ch.playing && !ch.corsCap
@@ -508,10 +492,10 @@ export function syncPopoverMiniVizDom(
     miniTarget.style.left = `${targetPct}%`;
   }
 
-  const hoverMeta = activeHover ? getLocalizedPresetMeta(activeHover) : null;
+  const hoverMeta = activeHover ? findPresetParams(activeHover, settings.userPresets) : null;
   const showPreview =
     Boolean(hoverMeta) &&
-    (activeHover !== settings.autoNormPreset ||
+    (activeHover !== settings.globalFx.norm.presetId ||
       bounds.rangeLowLufs !== hoverMeta!.rangeLowLufs ||
       bounds.rangeHighLufs !== hoverMeta!.rangeHighLufs ||
       resolved.targetLufs !== hoverMeta!.targetLufs);

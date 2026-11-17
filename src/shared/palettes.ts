@@ -1,8 +1,10 @@
+import { defaultGlobalFx } from "./fx-model";
 import type { PaletteEntry, PersistedSettings, ThemeKey } from "./types";
 
 /**
  * color-preset.md에서 확정된 WCAG-AA 검증 완료 4종 스튜디오 콘솔 팔레트.
  * 임의의 색상값을 추가하지 않고 이 프리셋 토큰만 참조한다.
+ * `focus`·`onFocus`는 1.2.0에서 더한 Focus 전용색(주색과 같은 밝기·채도, 다른 색상, 시안 v9-10).
  */
 
 const STATES_DARK = {
@@ -27,6 +29,8 @@ export const PALETTES: Record<ThemeKey, PaletteEntry> = {
       onPrimary: "#000000",
       accent: "#e69732",
       onAccent: "#000000",
+      focus: "#a998ef",
+      onFocus: "#000000",
       bg: "#091112",
       surface: "#131d1e",
       raised: "#1d292a",
@@ -40,6 +44,8 @@ export const PALETTES: Record<ThemeKey, PaletteEntry> = {
       onPrimary: "#ffffff",
       accent: "#a05c00",
       onAccent: "#ffffff",
+      focus: "#7462b1",
+      onFocus: "#ffffff",
       bg: "#eff5f5",
       surface: "#fafcfd",
       raised: "#e3ebec",
@@ -56,6 +62,8 @@ export const PALETTES: Record<ThemeKey, PaletteEntry> = {
       onPrimary: "#000000",
       accent: "#00c4d6",
       onAccent: "#000000",
+      focus: "#bd96fe",
+      onFocus: "#000000",
       bg: "#130e0a",
       surface: "#1f1914",
       raised: "#2c251e",
@@ -69,6 +77,8 @@ export const PALETTES: Record<ThemeKey, PaletteEntry> = {
       onPrimary: "#000000",
       accent: "#007f8f",
       onAccent: "#ffffff",
+      focus: "#9972d7",
+      onFocus: "#000000",
       bg: "#f6f3ef",
       surface: "#fdfbfa",
       raised: "#eee8e3",
@@ -85,6 +95,8 @@ export const PALETTES: Record<ThemeKey, PaletteEntry> = {
       onPrimary: "#000000",
       accent: "#00c6c7",
       onAccent: "#000000",
+      focus: "#c970a4",
+      onFocus: "#000000",
       bg: "#0d0f15",
       surface: "#171b21",
       raised: "#22272e",
@@ -98,6 +110,8 @@ export const PALETTES: Record<ThemeKey, PaletteEntry> = {
       onPrimary: "#ffffff",
       accent: "#008183",
       onAccent: "#ffffff",
+      focus: "#ad3d84",
+      onFocus: "#ffffff",
       bg: "#f1f3f8",
       surface: "#fbfcfe",
       raised: "#e6eaf0",
@@ -114,6 +128,8 @@ export const PALETTES: Record<ThemeKey, PaletteEntry> = {
       onPrimary: "#000000",
       accent: "#e29a2c",
       onAccent: "#000000",
+      focus: "#ac90f6",
+      onFocus: "#000000",
       bg: "#0b110d",
       surface: "#161d18",
       raised: "#202923",
@@ -127,6 +143,8 @@ export const PALETTES: Record<ThemeKey, PaletteEntry> = {
       onPrimary: "#ffffff",
       accent: "#9d5e00",
       onAccent: "#ffffff",
+      focus: "#775db5",
+      onFocus: "#ffffff",
       bg: "#f0f5f2",
       surface: "#fafcfb",
       raised: "#e5ebe7",
@@ -144,8 +162,9 @@ export const DEFAULT_SETTINGS: PersistedSettings = {
   alpha: 0.7,
   masterDb: 0.0,
   masterMuted: false,
-  autoNormEnabled: true,
-  autoNormPreset: "music",
+  globalFx: defaultGlobalFx(),
+  globalPan: 0,
+  userPresets: [],
   normVizMode: "spectrum2d",
   onboardingDone: false,
   advRackOpen: false,

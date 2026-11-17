@@ -5,8 +5,14 @@
 export type ThemeKey = "teal" | "amber" | "cobalt" | "emerald";
 export type ModePref = "dark" | "light" | "system";
 export type ExclusiveMode = "solo" | "focus";
-export type ChannelNormMode = "follow" | "on" | "off";
+/** 1.1.0 이하 저장 세션 변환에만 쓰는 옛 노멀라이저 모드 */
+export type LegacyChannelNormMode = "follow" | "on" | "off";
+/** 기본 제공 노멀라이저 프리셋 키 */
 export type AutoNormPreset = "classical" | "music" | "standard" | "night";
+/** 고급 FX에서 "모든 채널" 값을 따르거나 채널별로 따로 둘 수 있는 모듈 */
+export type FxModuleKey = "norm" | "gate" | "comp";
+/** 고급 FX 편집 대상: 모든 채널(전역) 또는 특정 탭 채널 */
+export type FxTarget = "global" | number;
 export type NormSpeedPreset = "slow" | "std" | "fast";
 export type NormVizMode = "spectrum2d" | "bar1d";
 export type CompRatioPreset = 2 | 4 | 8;
@@ -18,6 +24,9 @@ export interface ThemeTokens {
   onPrimary: string;
   accent: string;
   onAccent: string;
+  /** Focus 상태 전용색 (테마 주색과 같은 밝기·채도, 다른 색상) */
+  focus: string;
+  onFocus: string;
   bg: string;
   surface: string;
   raised: string;
@@ -38,34 +47,78 @@ export interface PaletteEntry {
   light: ThemeTokens;
 }
 
+/** 노멀라이저 프리셋 한 벌이 담는 신호 처리 값 */
+export interface NormParams {
+  /** 목표 기준 음압 (-20 .. -12 LUFS) */
+  targetLufs: number;
+  /** EBU 3341 계측 창·응답 속도 ("slow": 9s | "std": 3s | "fast": 0.4s) */
+  speed: NormSpeedPreset;
+  /** 대표 음압 채택 구간 하한 LUFS — 이보다 작은 여린 소리는 적분에서 제외 */
+  rangeLowLufs: number;
+  /** 대표 음압 채택 구간 상한 LUFS — 이보다 큰 강주 폭발음은 적분에서 제외 */
+  rangeHighLufs: number;
+  /** 적분 생략 시 보정 게인이 0.0dB로 복귀하는 텐션 속도 (0.05 .. 1.50 dB/s) */
+  zeroReturnRate: number;
+  /** 구간을 스치는 급변을 거르는 최소 연속 체류 블록 수 */
+  minDwellBlocks: number;
+  /** 최대 증폭 한계 (dB) */
+  maxBoostDb: number;
+}
+
+/** 노멀라이저 설정 자리(모든 채널 또는 한 채널) */
+export interface NormSlot extends NormParams {
+  enabled: boolean;
+  /** 기본 프리셋 키, 내 프리셋 id("u…"), 또는 ""(사용자 지정) */
+  presetId: string;
+  /** 고른 프리셋에서 세부 값을 바꿨는지 (고를 때 복사하므로 비교가 아니라 저장값) */
+  modified: boolean;
+}
+
+export interface GateSlot {
+  enabled: boolean;
+  /** 노이즈 게이트 차단 임계값 (-65 .. -30 dB) */
+  thresholdDb: number;
+}
+
+export interface CompSlot {
+  enabled: boolean;
+  /** 컴프레서 압축 비율 프리셋 (2:1 | 4:1 | 8:1) */
+  ratio: CompRatioPreset;
+}
+
+/** 노멀라이저·게이트·컴프레서 한 벌 */
+export interface FxLayer {
+  norm: NormSlot;
+  gate: GateSlot;
+  comp: CompSlot;
+}
+
 /**
  * 채널별 고급 FX 설정 상태.
- * 전역 `autoNormEnabled`(`균일 N`) 스위치와 물리적으로 분리되어, 전역 스위치를 토글해도 값이 지워지지 않는다.
+ * `own`에 모듈이 없으면 그 모듈은 "모든 채널" 값(`settings.globalFx`)을 따른다.
+ * 패닝은 따름/따로 대신, 채널 값에 전체 밸런스(`settings.globalPan`)를 더한다.
  */
 export interface ChannelFxState {
-  /** 노멀라이저 작동 방식: 전역 스위치 추종("follow") | 개별 강제 켜짐("on") | 개별 강제 꺼짐("off") */
-  normMode: ChannelNormMode;
-  /** 개별 모드("on")에서 사용할 목표 기준 음압 (-20 .. -12 LUFS, 기본 -16) */
-  normTargetLufs: number;
-  /** 개별 모드("on")에서 사용할 EBU 3341 계측 창·응답 속도 ("slow": 9s | "std": 3s | "fast": 0.4s) */
-  normSpeed: NormSpeedPreset;
-  /** 대표 음압 채택 구간 하한 (-50 .. -18 LUFS, 기본 -32) — 이보다 작은 여린 소리는 적분에서 제외 */
-  normRangeLowLufs?: number;
-  /** 대표 음압 채택 구간 상한 (-24 .. -4 LUFS, 기본 -10) — 이보다 큰 강주 폭발음은 적분에서 제외 */
-  normRangeHighLufs?: number;
-  /** 적분 생략 시 보정 게인이 0.0dB로 복귀하는 텐션 속도 (0.05 .. 1.50 dB/s, 기본 0.35) */
-  normZeroReturnRate?: number;
-  /** 스테레오 패닝 (-100 좌측 끝 .. 0 중앙 .. +100 우측 끝) */
+  own: Partial<FxLayer>;
+  /** 이 채널의 패닝 (-100 좌측 끝 .. 0 중앙 .. +100 우측 끝) */
   pan: number;
-  /** 바닥 잡음 차단 노이즈 게이트 활성 여부 */
-  gateEnabled: boolean;
-  /** 노이즈 게이트 차단 임계값 (-65 .. -30 dB, 기본 -48) */
-  gateThresholdDb: number;
-  /** 채널 다이내믹 컴프레서 활성 여부 */
-  compEnabled: boolean;
-  /** 컴프레서 압축 비율 프리셋 (2:1 | 4:1 | 8:1) */
-  compRatio: CompRatioPreset;
 }
+
+/** 사용자가 저장한 노멀라이저 프리셋 */
+export interface UserNormPreset extends NormParams {
+  id: string;
+  name: string;
+}
+
+/** 고급 FX 편집 한 건 (팝업의 즉시 반영과 백그라운드의 실제 반영이 같은 함수로 적용) */
+export type FxEdit =
+  | { kind: "detach"; module: FxModuleKey }
+  | { kind: "relink"; module: FxModuleKey }
+  | { kind: "norm"; patch: Partial<NormParams> & { enabled?: boolean } }
+  | { kind: "gate"; patch: Partial<GateSlot> }
+  | { kind: "comp"; patch: Partial<CompSlot> }
+  | { kind: "pan"; value: number }
+  | { kind: "pickPreset"; presetId: string };
 
 export interface ResolvedNormalizerConfig {
   active: boolean;
@@ -109,10 +162,12 @@ export interface PersistedSettings {
   masterDb: number;
   /** 전체 출력 음소거 여부 */
   masterMuted: boolean;
-  /** 전역 Easy 다이나믹 노멀라이저(`균일 N`) 스위치 — `normMode === "follow"` 채널에만 적용 (기본값 true) */
-  autoNormEnabled: boolean;
-  /** 전역 Easy 노멀라이저 프리셋 ("classical" | "music" | "standard" | "night", 기본 "music") */
-  autoNormPreset: AutoNormPreset;
+  /** "모든 채널" 고급 FX 값 — 따르는 채널에 걸린다. `globalFx.norm.enabled`가 상단 `균일 N` 스위치 */
+  globalFx: FxLayer;
+  /** 전체 밸런스 — 모든 채널 패닝에 더해진다 (-100 .. +100) */
+  globalPan: number;
+  /** 사용자가 저장한 노멀라이저 프리셋 목록 */
+  userPresets: UserNormPreset[];
   /** 고급 FX 노멀라이저 시각화 뷰 모드 ("spectrum2d" 2D 프리퀀시 상·하 구간 | "bar1d" 1D 수평 구간) */
   normVizMode?: NormVizMode;
   /** 최초 실행 온보딩(빠른 투어 안내) 확인/생략 완료 여부 */
@@ -241,11 +296,15 @@ export type PopupActionMessage =
   | { source: "popup"; type: "SET_MASTER_DB"; masterDb: number }
   | { source: "popup"; type: "TOGGLE_MASTER_MUTE" }
   | { source: "popup"; type: "TOGGLE_AUTO_NORM" }
-  | { source: "popup"; type: "SET_AUTO_NORM_PRESET"; preset: AutoNormPreset; enable?: boolean }
+  | { source: "popup"; type: "SET_AUTO_NORM_PRESET"; preset: string; enable?: boolean }
+  | { source: "popup"; type: "EDIT_FX"; target: FxTarget; edit: FxEdit }
+  | { source: "popup"; type: "SAVE_USER_PRESET"; target: FxTarget; id: string; name: string }
+  | { source: "popup"; type: "OVERWRITE_USER_PRESET"; target: FxTarget }
+  | { source: "popup"; type: "RENAME_USER_PRESET"; id: string; name: string }
+  | { source: "popup"; type: "DELETE_USER_PRESET"; id: string }
   | { source: "popup"; type: "SET_NORM_VIZ_MODE"; mode: NormVizMode }
   | { source: "popup"; type: "COMPLETE_ONBOARDING" }
   | { source: "popup"; type: "SET_ADV_RACK_OPEN"; open: boolean }
-  | { source: "popup"; type: "UPDATE_TAB_FX"; tabId: number; patch: Partial<ChannelFxState> }
   | {
       source: "popup";
       type: "REORDER_CHANNELS";

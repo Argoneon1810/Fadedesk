@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="popup.css" />
   <link rel="stylesheet" href="popup-strips.css" />
   <link rel="stylesheet" href="popup-fx.css" />
+  <link rel="stylesheet" href="popup-fx-scope.css" />
   <link rel="stylesheet" href="popup-help.css" />
 </head>
 <body>
@@ -80,7 +81,7 @@
           <button
             id="auto-norm-btn"
             type="button"
-            title="전역 자동 노멀라이저(균일 N): '전역 따름' 채널에만 적용하며 고급 개별 설정을 덮어쓰지 않습니다"
+            title="모든 채널 노멀라이저(균일 N): '모든 채널 따름' 채널에 걸리며 '이 채널만' 설정은 덮어쓰지 않습니다"
             class="console-btn top-toggle-btn norm-main-btn c-raised"
           >균일 N</button>
           <button
@@ -96,7 +97,7 @@
         <button
           id="adv-rack-btn"
           type="button"
-          title="선택 채널 고급 FX 사이드 랙 열기/닫기"
+          title="고급 FX 랙 열기/닫기 (모든 채널 · 이 채널)"
           class="console-btn top-toggle-btn c-raised"
         >고급 FX ▸</button>
       </div>
@@ -123,7 +124,8 @@
     <main class="console-bay">
       <div id="channels-scroll" class="channels-scroll"></div>
       <div id="master-dock" class="master-dock"></div>
-      <aside id="side-fx-rack" class="side-fx-rack c-surface hidden" aria-label="선택 채널 고급 FX"></aside>
+      <aside id="side-fx-rack" class="side-fx-rack c-surface hidden" aria-label="고급 FX"></aside>
+      <div id="fx-detail" class="fx-detail c-surface hidden" role="dialog" aria-label="고급 FX 세부"></div>
     </main>
   </div>
 

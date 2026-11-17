@@ -1,5 +1,8 @@
 import { getLocalizedPresetMeta, ui } from "../shared/i18n";
-import type { AutoNormPreset, PersistedSettings, TabChannelState, ThemeTokens } from "../shared/types";
+import { fxUi } from "../shared/i18n-fx";
+import { BUILTIN_PRESET_KEYS, isBuiltinPreset } from "../shared/fx-model";
+import type { PersistedSettings, TabChannelState, ThemeTokens } from "../shared/types";
+import { normSlotLabel } from "./fx-labels";
 import { buildPopoverMiniVizDom, syncPopoverMiniVizDom } from "./norm-visualizer";
 
 /**
@@ -11,21 +14,25 @@ export function renderNormPopoverDom(
   settings: PersistedSettings,
   open: boolean,
   t: ThemeTokens,
-  onSelectPreset: (preset: AutoNormPreset) => void,
+  onSelectPreset: (presetId: string) => void,
   selectedChannel?: TabChannelState,
 ): void {
   const copy = ui();
-  const curPreset: AutoNormPreset = settings.autoNormPreset ?? "music";
-  const curMeta = getLocalizedPresetMeta(curPreset);
-  const badgeDetail = curMeta.badge.split("·")[1]?.trim() ?? "";
-  const presetDesc = badgeDetail ? `${curMeta.shortLabel} · ${badgeDetail}` : curMeta.shortLabel;
+  const slot = settings.globalFx.norm;
+  const enabled = slot.enabled;
+  const curPreset = slot.modified ? "" : slot.presetId;
+  const badgeDetail = isBuiltinPreset(slot.presetId) && !slot.modified
+    ? getLocalizedPresetMeta(slot.presetId).badge.split("·")[1]?.trim() ?? ""
+    : `${slot.targetLufs} LUFS`;
+  const slotName = normSlotLabel(slot, settings.userPresets);
+  const presetDesc = badgeDetail ? `${slotName} · ${badgeDetail}` : slotName;
 
   // 1. #auto-norm-btn 동기화 (폭 변화 0px 보장)
   const normBtn = document.getElementById("auto-norm-btn") as HTMLButtonElement | null;
   if (normBtn) {
     normBtn.textContent = copy.autoNormLabel;
     normBtn.title = copy.autoNormBtnTitle(presetDesc);
-    if (settings.autoNormEnabled) {
+    if (enabled) {
       normBtn.style.backgroundColor = t.primary;
       normBtn.style.color = t.onPrimary;
       normBtn.style.borderColor = t.primary;
@@ -50,7 +57,7 @@ export function renderNormPopoverDom(
       presetBtn.style.color = t.primary;
       presetBtn.style.borderColor = t.primary;
       presetBtn.style.fontWeight = "700";
-    } else if (settings.autoNormEnabled) {
+    } else if (enabled) {
       presetBtn.style.backgroundColor = t.primary;
       presetBtn.style.color = t.onPrimary;
       presetBtn.style.borderColor = t.primary;
@@ -98,7 +105,7 @@ export function renderNormPopoverDom(
   sumEl.id = "norm-pop-cur-summary";
   sumEl.className = "pop-summary tabular";
   sumEl.style.color = t.primary;
-  sumEl.textContent = `${presetDesc} (${settings.autoNormEnabled ? "ON" : "OFF"})`;
+  sumEl.textContent = `${presetDesc} (${enabled ? "ON" : "OFF"})`;
   headEl.appendChild(sumEl);
 
   pop.appendChild(headEl);
@@ -110,8 +117,7 @@ export function renderNormPopoverDom(
 
   const miniVizEl = buildPopoverMiniVizDom(selectedChannel, settings, t);
 
-  const presetKeys: AutoNormPreset[] = ["classical", "music", "standard", "night"];
-  for (const key of presetKeys) {
+  for (const key of BUILTIN_PRESET_KEYS) {
     const meta = getLocalizedPresetMeta(key);
     const active = curPreset === key;
     const btn = document.createElement("button");
@@ -177,5 +183,45 @@ export function renderNormPopoverDom(
   }
 
   pop.appendChild(listEl);
+
+  // 내 프리셋 (사용자 이름은 textContent로만 넣는다)
+  if (settings.userPresets.length > 0) {
+    const mineHead = document.createElement("div");
+    mineHead.className = "c-muted pop-label norm-mine-head";
+    mineHead.textContent = fxUi().popoverMine;
+    pop.appendChild(mineHead);
+    const mineList = document.createElement("div");
+    mineList.className = "norm-mine-list";
+    for (const p of settings.userPresets) {
+      const active = curPreset === p.id;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = `norm-mine-item${active ? " active" : ""}`;
+      btn.setAttribute("role", "radio");
+      btn.setAttribute("aria-checked", String(active));
+      btn.style.backgroundColor = active ? t.raised : t.bg;
+      btn.style.borderColor = active ? t.primary : t.border;
+      btn.style.color = t.text;
+      const name = document.createElement("span");
+      name.className = "truncate";
+      name.textContent = `★ ${p.name}`;
+      const spec = document.createElement("span");
+      spec.className = "tabular c-muted";
+      spec.textContent = `${p.targetLufs} · ${ui().fxNormSpeeds[p.speed]}`;
+      btn.append(name, spec);
+      btn.addEventListener("pointerenter", () => syncPopoverMiniVizDom(miniVizEl, selectedChannel, settings, t, p.id));
+      btn.addEventListener("pointerleave", () => syncPopoverMiniVizDom(miniVizEl, selectedChannel, settings, t, null));
+      btn.onclick = (ev) => {
+        ev.stopPropagation();
+        onSelectPreset(p.id);
+      };
+      mineList.appendChild(btn);
+    }
+    pop.appendChild(mineList);
+  }
+  const note = document.createElement("div");
+  note.className = "norm-pop-note allow-wrap";
+  note.textContent = fxUi().popoverNote;
+  pop.appendChild(note);
   pop.appendChild(miniVizEl);
 }

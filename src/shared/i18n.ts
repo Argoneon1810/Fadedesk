@@ -2,7 +2,6 @@ import { AUTO_NORM_PRESET_META } from "./mixer-math";
 import { PALETTES } from "./palettes";
 import type {
   AutoNormPreset,
-  ChannelNormMode,
   CompRatioPreset,
   ModePref,
   NormSpeedPreset,
@@ -243,7 +242,6 @@ export interface UiDictionary {
   fxNormCustomHint: (lufs: number) => string;
   fxNormTargetLabel: string;
   fxNormTargetAria: string;
-  fxNormModes: Record<ChannelNormMode, string>;
   fxNormSpeeds: Record<NormSpeedPreset, string>;
   fxVizExpandTitle: string;
   fxVizCollapseTitle: string;
@@ -285,13 +283,13 @@ const KO_UI: UiDictionary = {
   resetModesLabel: "S·F 해제",
   resetModesTitle: "켜져 있는 Solo / Focus 모드를 모두 해제합니다",
   autoNormLabel: "균일 N",
-  autoNormBtnTitle: (desc) => `전역 자동 노멀라이저 (현재 프리셋: ${desc}) — 클릭 시 ON/OFF`,
+  autoNormBtnTitle: (desc) => `모든 채널 노멀라이저 (현재: ${desc}) — 클릭 시 ON/OFF · '이 채널만' 채널은 건드리지 않음`,
   autoNormPresetAria: "자동 노멀라이저 프리셋 선택",
   autoNormPresetTitle: (desc) => `자동 노멀라이저 프리셋 선택 (현재: ${desc})`,
   advRackOpenLabel: "고급 FX ◂",
   advRackClosedLabel: "고급 FX ▸",
-  advRackTitle: "선택 채널 고급 FX 사이드 랙 열기/닫기",
-  sideFxAria: "선택 채널 고급 FX",
+  advRackTitle: "고급 FX 랙 열기/닫기 (모든 채널 · 이 채널)",
+  sideFxAria: "고급 FX",
   themeDialogAria: "컬러 테마 및 화면 모드",
   themeHeader: "컬러 테마",
   modeHeader: "화면 모드",
@@ -348,7 +346,7 @@ const KO_UI: UiDictionary = {
   fxUnselectedTitle: "채널 미선택",
   fxUnselectedSub: "활성 미디어 탭을 선택하세요",
   fxNoActiveTitle: "활성 채널 없음",
-  fxNoActiveSub: "미디어 재생 시 채널별 고급 FX가 활성화됩니다",
+  fxNoActiveSub: "미디어를 재생하면 그 탭을 고를 수 있습니다",
   fxCorsSub: "교차 출처·DRM 보안으로 DSP 자동 우회",
   fxTrimIdle: "대기",
   fxTrimCors: "보안 0dB · 우회",
@@ -362,7 +360,6 @@ const KO_UI: UiDictionary = {
   fxNormCustomHint: (l) => `개별 ${l}`,
   fxNormTargetLabel: "개별 목표 음압",
   fxNormTargetAria: "개별 목표 음압 LUFS",
-  fxNormModes: { follow: "전역 따름", on: "개별 ON", off: "개별 OFF" },
   fxNormSpeeds: { slow: "완만", std: "표준", fast: "민감" },
   fxVizExpandTitle: "대표 구간 표시기 펼치기 (주파수 스펙트럼 확장)",
   fxVizCollapseTitle: "대표 구간 표시기 접기 (막대 축소)",
@@ -404,13 +401,13 @@ const EN_UI: UiDictionary = {
   resetModesLabel: "Clear S·F",
   resetModesTitle: "Clear all active Solo and Focus modes",
   autoNormLabel: "Level N",
-  autoNormBtnTitle: (desc) => `Global Auto Normalizer (Preset: ${desc}) — click to toggle`,
+  autoNormBtnTitle: (desc) => `All-channel normalizer (Current: ${desc}) — click to toggle; tabs set separately are unaffected`,
   autoNormPresetAria: "Select Auto Normalizer preset",
   autoNormPresetTitle: (desc) => `Select Auto Normalizer preset (Current: ${desc})`,
   advRackOpenLabel: "FX Rack ◂",
   advRackClosedLabel: "FX Rack ▸",
-  advRackTitle: "Toggle per-channel FX side rack",
-  sideFxAria: "Selected channel FX rack",
+  advRackTitle: "Toggle FX Rack (all channels · this tab)",
+  sideFxAria: "FX Rack",
   themeDialogAria: "Color theme and appearance",
   themeHeader: "Color Theme",
   modeHeader: "Appearance",
@@ -467,7 +464,7 @@ const EN_UI: UiDictionary = {
   fxUnselectedTitle: "No Channel",
   fxUnselectedSub: "Select an active media tab",
   fxNoActiveTitle: "No Active Tab",
-  fxNoActiveSub: "Play media in a tab to unlock per-channel FX",
+  fxNoActiveSub: "Play media in a tab to select it here",
   fxCorsSub: "DSP bypassed due to CORS / DRM media policy",
   fxTrimIdle: "Idle",
   fxTrimCors: "0dB · Bypass",
@@ -481,7 +478,6 @@ const EN_UI: UiDictionary = {
   fxNormCustomHint: (l) => `Custom ${l}`,
   fxNormTargetLabel: "Target Loudness",
   fxNormTargetAria: "Target loudness LUFS",
-  fxNormModes: { follow: "Follow", on: "On", off: "Off" },
   fxNormSpeeds: { slow: "Slow", std: "Std", fast: "Fast" },
   fxVizExpandTitle: "Expand representative band visualizer",
   fxVizCollapseTitle: "Collapse representative band visualizer",

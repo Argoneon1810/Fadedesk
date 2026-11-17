@@ -6,13 +6,16 @@ import { createDemoTourChannels } from "../src/popup/tour-overlay";
 import { resetUiLocaleCache, resolveUiLocale } from "../src/shared/i18n";
 import {
   buildDspConfigPayload,
+  defaultChannelFx,
+  resolveEffectiveNormalizer,
+} from "../src/shared/fx-model";
+import {
   clampDb,
   computeAppliedChannelDb,
   computeDisplayedEffectiveDb,
   computeMasterStereoVu,
   dbToLinear,
   dbToRatio,
-  DEFAULT_CHANNEL_FX,
   extractDomainInfo,
   focusDimDbToAlpha,
   formatFocusReadout,
@@ -20,8 +23,6 @@ import {
   linearToDb,
   parseDbInput,
   parseFocusInput,
-  resolveEffectiveNormalizer,
-  sanitizeChannelFx,
   toggleExclusiveFlags,
 } from "../src/shared/mixer-math";
 
@@ -211,15 +212,14 @@ test("dB 수치 직접 입력 파서(parseDbInput) 및 0.1dB 정밀도·예외 �
   assert.equal(parseDbInput("-"), null);
 });
 
-test("비파괴 2계층 노멀라이저 해석 및 전역 균일 토글 시 개별 FX 100% 보존 검증", () => {
+test("1.2.0 2계층 노멀라이저: 상단 균일 N 토글은 '이 채널만' 값을 건드리지 않는다", () => {
   const store = new MixerStateStore();
-  // 1-A: 기본 상태는 autoNormEnabled === true, autoNormPreset === "music"
-  assert.equal(store.getSettings().autoNormEnabled, true);
-  assert.equal(store.getSettings().autoNormPreset, "music");
+  // 기본: 모든 채널 노멀라이저 켜짐, 음악 프리셋
+  assert.equal(store.getSettings().globalFx.norm.enabled, true);
+  assert.equal(store.getSettings().globalFx.norm.presetId, "music");
 
-  // OFF 상태부터 토글 검증을 시작하기 위해 먼저 1회 토글
   store.toggleAutoNorm();
-  assert.equal(store.getSettings().autoNormEnabled, false);
+  assert.equal(store.getSettings().globalFx.norm.enabled, false);
 
   const baseReport = {
     hasMedia: true,
@@ -231,119 +231,69 @@ test("비파괴 2계층 노멀라이저 해석 및 전역 균일 토글 시 개�
     vuPeak: 0.6,
     normTrimDb: 0,
   };
+  for (const [id, url, cors] of [
+    [1, "https://music.site/track1", false],
+    [2, "https://video.site/movie", false],
+    [3, "https://news.site/live", false],
+    [4, "https://cors.cdn/stream", true],
+  ] as const) {
+    store.updateFrameReport({ tabId: id, windowId: 1, url, title: `탭 ${id}` }, 0, { ...baseReport, corsRestricted: cors });
+  }
 
-  // 탭 1: 개별 고정 ON (목표 -14 LUFS, 고속 반응)
-  store.updateFrameReport(
-    { tabId: 1, windowId: 1, url: "https://music.site/track1", title: "음악 탭" },
-    0,
-    baseReport,
-  );
-  store.updateTabFx(1, { normMode: "on", normTargetLufs: -14, normSpeed: "fast" });
+  // 탭 1: 이 채널만 따로 + 켬 + 목표 -14, 민감
+  assert.equal(store.editFx(1, { kind: "detach", module: "norm" }), 1);
+  assert.equal(store.editFx(1, { kind: "norm", patch: { enabled: true, targetLufs: -14, speed: "fast" } }), 1);
+  // 탭 2: 이 채널만 따로 + 끔 (값 -18 보존)
+  store.editFx(2, { kind: "detach", module: "norm" });
+  store.editFx(2, { kind: "norm", patch: { enabled: false, targetLufs: -18 } });
+  // 탭 3: 모든 채널 따름 → 값 편집은 잠겨 거부된다
+  assert.equal(store.editFx(3, { kind: "norm", patch: { targetLufs: -12 } }), null);
+  // 탭 4: CORS 탭은 따로 켜도 DSP 우회
+  store.editFx(4, { kind: "detach", module: "norm" });
+  store.editFx(4, { kind: "norm", patch: { enabled: true } });
 
-  // 탭 2: 개별 고정 OFF (목표 -18 LUFS, 완만 반응 보존)
-  store.updateFrameReport(
-    { tabId: 2, windowId: 1, url: "https://video.site/movie", title: "영화 탭" },
-    0,
-    baseReport,
-  );
-  store.updateTabFx(2, { normMode: "off", normTargetLufs: -18, normSpeed: "slow" });
+  const check = (globalOn: boolean): void => {
+    const d1 = store.computeDspForTab(1);
+    assert.equal(d1.normActive, true);
+    assert.equal(d1.normTargetLufs, -14);
+    assert.equal(d1.normSpeed, "fast");
+    const d2 = store.computeDspForTab(2);
+    assert.equal(d2.normActive, false);
+    assert.equal(d2.normTargetLufs, -18);
+    const d3 = store.computeDspForTab(3);
+    assert.equal(d3.normActive, globalOn);
+    assert.equal(d3.normTargetLufs, -16);
+    assert.equal(store.computeDspForTab(4).normActive, false);
+  };
+  check(false);
+  for (const expected of [true, false, true]) {
+    store.toggleAutoNorm();
+    assert.equal(store.getSettings().globalFx.norm.enabled, expected);
+    check(expected);
+  }
 
-  // 탭 3: 전역 추종 follow (기본값)
-  store.updateFrameReport(
-    { tabId: 3, windowId: 1, url: "https://news.site/live", title: "뉴스 탭" },
-    0,
-    baseReport,
-  );
-
-  // 탭 4: CORS 제한 탭 (DSP 우회)
-  store.updateFrameReport(
-    { tabId: 4, windowId: 1, url: "https://cors.cdn/stream", title: "CORS 탭" },
-    0,
-    { ...baseReport, corsRestricted: true },
-  );
-  store.updateTabFx(4, { normMode: "on", normTargetLufs: -12, normSpeed: "fast" });
-
-  // 1) 전역 스위치 OFF 상태 검증
-  const dsp1_off = store.computeDspForTab(1);
-  assert.equal(dsp1_off.normActive, true);
-  assert.equal(dsp1_off.normTargetLufs, -14);
-  assert.equal(dsp1_off.normSpeed, "fast");
-
-  const dsp2_off = store.computeDspForTab(2);
-  assert.equal(dsp2_off.normActive, false);
-  assert.equal(dsp2_off.normTargetLufs, -18);
-  assert.equal(dsp2_off.normSpeed, "slow");
-
-  const dsp3_off = store.computeDspForTab(3);
-  assert.equal(dsp3_off.normActive, false);
-  assert.equal(dsp3_off.normTargetLufs, -16);
-  assert.equal(dsp3_off.normSpeed, "slow");
-
-  const dsp4_off = store.computeDspForTab(4);
-  assert.equal(dsp4_off.normActive, false); // CORS 캡으로 강제 우회
-
-  // 2) 전역 스위치 반복 토글 (OFF -> ON -> OFF -> ON)
-  store.toggleAutoNorm(); // true
-  assert.equal(store.getSettings().autoNormEnabled, true);
-
-  const dsp1_on = store.computeDspForTab(1);
-  assert.equal(dsp1_on.normActive, true);
-  assert.equal(dsp1_on.normTargetLufs, -14);
-  assert.equal(dsp1_on.normSpeed, "fast");
-
-  const dsp2_on = store.computeDspForTab(2);
-  assert.equal(dsp2_on.normActive, false);
-  assert.equal(dsp2_on.normTargetLufs, -18);
-  assert.equal(dsp2_on.normSpeed, "slow");
-
-  const dsp3_on = store.computeDspForTab(3);
-  assert.equal(dsp3_on.normActive, true); // 전역 스위치 추종하여 활성화
-  assert.equal(dsp3_on.normTargetLufs, -16);
-  assert.equal(dsp3_on.normSpeed, "slow");
-
-  store.toggleAutoNorm(); // false
-  assert.equal(store.getSettings().autoNormEnabled, false);
-  assert.equal(store.computeDspForTab(3).normActive, false);
-
-  store.toggleAutoNorm(); // true
-  assert.equal(store.getSettings().autoNormEnabled, true);
-
-  // 스냅샷 내 채널 fx 객체가 100% 보존되었는지 검증
   const snap = store.buildSnapshot();
-  const ch1 = snap.channels.find((c) => c.tabId === 1)!;
-  const ch2 = snap.channels.find((c) => c.tabId === 2)!;
-  const ch3 = snap.channels.find((c) => c.tabId === 3)!;
+  const fx = (id: number) => snap.channels.find((c) => c.tabId === id)!.fx;
+  assert.equal(fx(1).own.norm?.targetLufs, -14);
+  assert.equal(fx(1).own.norm?.modified, true);
+  assert.equal(fx(2).own.norm?.enabled, false);
+  assert.equal(fx(3).own.norm, undefined);
 
-  assert.equal(ch1.fx.normMode, "on");
-  assert.equal(ch1.fx.normTargetLufs, -14);
-  assert.equal(ch1.fx.normSpeed, "fast");
-
-  assert.equal(ch2.fx.normMode, "off");
-  assert.equal(ch2.fx.normTargetLufs, -18);
-  assert.equal(ch2.fx.normSpeed, "slow");
-
-  assert.equal(ch3.fx.normMode, "follow");
-
-  const res1 = resolveEffectiveNormalizer(true, ch1.fx, false);
-  assert.deepEqual(res1, { active: true, targetLufs: -14, speed: "fast", source: "custom-on" });
-
-  const res2 = resolveEffectiveNormalizer(true, ch2.fx, false);
-  assert.deepEqual(res2, { active: false, targetLufs: -18, speed: "slow", source: "custom-off" });
-
-  const res3_on = resolveEffectiveNormalizer(true, ch3.fx, false);
-  assert.deepEqual(res3_on, { active: true, targetLufs: -16, speed: "slow", source: "auto" });
-
-  const res3_off = resolveEffectiveNormalizer(false, ch3.fx, false);
-  assert.deepEqual(res3_off, { active: false, targetLufs: -16, speed: "slow", source: "off" });
+  const g = snap.settings.globalFx;
+  assert.equal(resolveEffectiveNormalizer(g, fx(1), false).source, "custom-on");
+  assert.equal(resolveEffectiveNormalizer(g, fx(2), false).source, "custom-off");
+  assert.equal(resolveEffectiveNormalizer(g, fx(3), false).source, "auto");
+  g.norm.enabled = false;
+  assert.equal(resolveEffectiveNormalizer(g, fx(3), false).source, "off");
 });
 
 test("선형 진폭 RSS 마스터 스테레오 VU 연산 및 L/R 팬 분리도 검증", () => {
   // 4개 재생 unmuted 채널이 모두 0dB 이하 (-6dB, -12dB, -15dB, -18dB)
   const channels = [
-    { playing: true, muted: false, corsCap: false, vuLevel: dbToRatio(-6), fx: { pan: 0 } },
-    { playing: true, muted: false, corsCap: false, vuLevel: dbToRatio(-12), fx: { pan: 0 } },
-    { playing: true, muted: false, corsCap: false, vuLevel: dbToRatio(-15), fx: { pan: 0 } },
-    { playing: true, muted: false, corsCap: false, vuLevel: dbToRatio(-18), fx: { pan: 0 } },
+    { playing: true, muted: false, corsCap: false, vuLevel: dbToRatio(-6), pan: 0 },
+    { playing: true, muted: false, corsCap: false, vuLevel: dbToRatio(-12), pan: 0 },
+    { playing: true, muted: false, corsCap: false, vuLevel: dbToRatio(-15), pan: 0 },
+    { playing: true, muted: false, corsCap: false, vuLevel: dbToRatio(-18), pan: 0 },
   ];
 
   const redZoneThreshold = dbToRatio(7.5); // 0.9375
@@ -365,7 +315,7 @@ test("선형 진폭 RSS 마스터 스테레오 VU 연산 및 L/R 팬 분리도 �
 
   // 좌측 극단 패닝 (pan: -100) -> L만 출력되고 R은 완전 무음 0
   const panLeftChannel = [
-    { playing: true, muted: false, corsCap: false, vuLevel: dbToRatio(0), fx: { pan: -100 } },
+    { playing: true, muted: false, corsCap: false, vuLevel: dbToRatio(0), pan: -100 },
   ];
   const vuLeftOnly = computeMasterStereoVu(panLeftChannel, false);
   assert.ok(vuLeftOnly.left > 0.8);
@@ -373,7 +323,7 @@ test("선형 진폭 RSS 마스터 스테레오 VU 연산 및 L/R 팬 분리도 �
 
   // 우측 극단 패닝 (pan: 100) -> R만 출력되고 L은 완전 무음 0
   const panRightChannel = [
-    { playing: true, muted: false, corsCap: false, vuLevel: dbToRatio(0), fx: { pan: 100 } },
+    { playing: true, muted: false, corsCap: false, vuLevel: dbToRatio(0), pan: 100 },
   ];
   const vuRightOnly = computeMasterStereoVu(panRightChannel, false);
   assert.equal(vuRightOnly.left, 0);
@@ -381,7 +331,7 @@ test("선형 진폭 RSS 마스터 스테레오 VU 연산 및 L/R 팬 분리도 �
 
   // CORS 캡 걸린 채널은 팬 설정(예: pan: -100)이 있어도 보안 정책상 중앙(pan: 0)으로 폴백
   const corsPanChannel = [
-    { playing: true, muted: false, corsCap: true, vuLevel: dbToRatio(-6), fx: { pan: -100 } },
+    { playing: true, muted: false, corsCap: true, vuLevel: dbToRatio(-6), pan: -100 },
   ];
   const vuCors = computeMasterStereoVu(corsPanChannel, false);
   assert.ok(vuCors.left > 0);
@@ -531,7 +481,7 @@ test("독립 콘솔 창 크기(setPopoutBounds · clampStandaloneWindowBounds) 5
 
 test("이지 노멀라이저 4종 프리셋(클래식·음악·표준·야간) 합성 및 온보딩 완료 플래그 검증", () => {
   const store = new MixerStateStore();
-  assert.equal(store.getSettings().autoNormPreset, "music");
+  assert.equal(store.getSettings().globalFx.norm.presetId, "music");
   assert.equal(store.getSettings().onboardingDone, false);
 
   // 온보딩 완료는 최초 1회만 true 반환 (이후 중복 호출은 false)
@@ -539,42 +489,28 @@ test("이지 노멀라이저 4종 프리셋(클래식·음악·표준·야간) �
   assert.equal(store.getSettings().onboardingDone, true);
   assert.equal(store.completeOnboarding(), false);
 
-  // 전역 따름("follow") 채널에 대한 프리셋별 목표 음압·EBU 계측 창(slow:9s~15s / std:3s / fast:0.4s) 해석
-  assert.deepEqual(resolveEffectiveNormalizer(true, DEFAULT_CHANNEL_FX, false, "classical"), {
-    active: true,
-    targetLufs: -16,
-    speed: "slow",
-    source: "auto",
-  });
-  assert.deepEqual(resolveEffectiveNormalizer(true, DEFAULT_CHANNEL_FX, false, "music"), {
-    active: true,
-    targetLufs: -16,
-    speed: "slow",
-    source: "auto",
-  });
-  assert.deepEqual(resolveEffectiveNormalizer(true, DEFAULT_CHANNEL_FX, false, "standard"), {
-    active: true,
-    targetLufs: -16,
-    speed: "std",
-    source: "auto",
-  });
-  assert.deepEqual(resolveEffectiveNormalizer(true, DEFAULT_CHANNEL_FX, false, "night"), {
-    active: true,
-    targetLufs: -18,
-    speed: "fast",
-    source: "auto",
-  });
+  // 상단 균일 N ▾에서 고른 기본 프리셋의 목표 음압·계측 창이 "모든 채널" 슬롯에 복사된다
+  const expect: Array<[string, number, string]> = [
+    ["classical", -16, "slow"],
+    ["music", -16, "slow"],
+    ["standard", -16, "std"],
+    ["night", -18, "fast"],
+  ];
+  for (const [key, lufs, speed] of expect) {
+    assert.equal(store.setAutoNormPreset(key, true), true);
+    const res = resolveEffectiveNormalizer(store.getSettings().globalFx, defaultChannelFx(), false);
+    assert.deepEqual([res.active, res.targetLufs, res.speed, res.source], [true, lufs, speed, "auto"]);
+  }
+  assert.equal(store.setAutoNormPreset("nope"), false);
 
-  // 프리셋 선택과 동시에 전역 노멀라이저 활성화 및 탭 DSP 페이로드 반영 검증(이지 프리셋 = 고급 FX 동일 파라미터)
   store.setAutoNormPreset("music", true);
-  assert.equal(store.getSettings().autoNormPreset, "music");
-  assert.equal(store.getSettings().autoNormEnabled, true);
   assert.equal(store.computeDspForTab(999).normSpeed, "slow");
-  assert.equal(sanitizeChannelFx(undefined, { normSpeed: "music" as never }).normSpeed, "slow");
 
-  // 개별 고정("on") 채널은 전역 프리셋을 바꿔도 자신의 설정(-14 LUFS, "slow")을 보존
-  const customOnFx = { ...DEFAULT_CHANNEL_FX, normMode: "on" as const, normTargetLufs: -14, normSpeed: "slow" as const };
-  const dspCustom = buildDspConfigPayload(true, customOnFx, false, "night");
+  // "이 채널만" 채널은 모든 채널 프리셋을 바꿔도 자기 값(-14 LUFS)을 지킨다
+  const own = defaultChannelFx();
+  own.own.norm = { ...store.getSettings().globalFx.norm, targetLufs: -14, presetId: "", modified: false };
+  store.setAutoNormPreset("night", true);
+  const dspCustom = buildDspConfigPayload(store.getSettings().globalFx, 0, own, false);
   assert.equal(dspCustom.normTargetLufs, -14);
   assert.equal(dspCustom.normSpeed, "slow");
 });

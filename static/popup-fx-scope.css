@@ -1,0 +1,310 @@
+/*
+ * 1.2.0 고급 FX 범위 개편 스타일: 범위 탭 · 요약 카드 · 따름 줄 · 세부 창 · 내 프리셋 · 마스터 전체 FX 버튼.
+ */
+
+/* ───────── 1.2.0 고급 FX: 범위 탭 · 요약 카드 · 따름 줄 ───────── */
+.fx-scope-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.fx-scope-tab {
+  height: 24px;
+  padding: 0 6px;
+  border: 0;
+  background: var(--c-surface);
+  color: var(--c-muted);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.fx-scope-tab[data-on="true"] {
+  background: var(--c-raised);
+  color: var(--c-text);
+  box-shadow: inset 0 -2px 0 var(--c-primary);
+}
+
+.fx-scope-tab:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.fx-card[data-own="true"] {
+  border-color: color-mix(in srgb, var(--c-text) 55%, transparent);
+}
+
+.fx-card[data-detail-open="true"] {
+  border-color: var(--c-primary);
+  box-shadow: inset 0 0 0 1px var(--c-primary);
+}
+
+.fx-card-sum,
+.fx-link-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  font-size: 10.5px;
+  min-width: 0;
+}
+
+.fx-card-sum-text {
+  color: var(--c-muted);
+  min-width: 0;
+}
+
+.fx-more-btn,
+.fx-link-btn,
+.fx-small-btn,
+.master-fx-btn {
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.fx-more-btn {
+  border: 1px solid var(--c-primary);
+  color: var(--c-primary);
+  background: transparent;
+}
+
+.fx-link-btn,
+.fx-small-btn {
+  border: 1px solid var(--c-border);
+  background: var(--c-raised);
+  color: var(--c-text);
+}
+
+.fx-small-btn.primary {
+  border-color: var(--c-primary);
+  color: var(--c-primary);
+}
+
+.fx-link-state {
+  font-weight: 700;
+  min-width: 0;
+}
+
+.fx-link-state[data-kind="follow"] { color: var(--c-primary); }
+.fx-link-state[data-kind="own"] { color: var(--c-text); }
+.fx-link-state[data-kind="plain"] { color: var(--c-muted); font-weight: 500; }
+
+.fx-lock-hint {
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--c-warning, #eda922);
+  white-space: normal;
+}
+
+.fx-pan-val {
+  font-family: Consolas, "SFMono-Regular", Menlo, monospace;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.master-fx-btn {
+  height: 20px;
+  border: 1px solid var(--c-primary);
+  background: transparent;
+  color: var(--c-primary);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ───────── 세부 창 (랙 왼쪽에 떠서 채널 줄을 잠시 가림) ───────── */
+.fx-detail {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  right: 220px;
+  width: 250px;
+  z-index: 30;
+  padding: 10px;
+  border: 1px solid var(--c-primary);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  overflow-y: auto;
+  font-size: 12px;
+}
+
+#console-root[data-dark="true"] .fx-detail { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.65); }
+#console-root[data-dark="false"] .fx-detail { box-shadow: 0 10px 30px rgba(15, 23, 30, 0.22); }
+
+.fx-detail[data-own="true"] {
+  border-color: var(--c-text);
+}
+
+.fx-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.fx-detail-title {
+  font-weight: 700;
+}
+
+.fx-detail-close {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  background: transparent;
+  color: var(--c-muted);
+  font-size: 13px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.fx-detail-sub,
+.fx-detail-note {
+  font-size: 10.5px;
+  color: var(--c-muted);
+  line-height: 1.45;
+}
+
+.fx-detail-note {
+  white-space: normal;
+}
+
+.fx-detail-sec {
+  position: relative;
+}
+
+.fx-detail-ctrls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.fx-detail-sec.is-locked .fx-detail-ctrls {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.fx-lock-catcher {
+  position: absolute;
+  inset: 0;
+  cursor: not-allowed;
+}
+
+.fx-preset-select {
+  width: 100%;
+  height: 24px;
+  border-radius: 4px;
+  border: 1px solid var(--c-border);
+  background: var(--c-raised);
+  color: var(--c-text);
+  font-size: 11px;
+}
+
+.fx-text-btn {
+  align-self: flex-start;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--c-primary);
+  font-size: 10.5px;
+  cursor: pointer;
+}
+
+.fx-manage-box {
+  border: 1px solid var(--c-border);
+  border-radius: 5px;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fx-manage-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  min-width: 0;
+}
+
+.fx-manage-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--c-text);
+}
+
+.fx-manage-item input,
+.fx-name-box input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 3px;
+  border: 1px solid var(--c-border);
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-size: 11px;
+}
+
+.fx-mod-bar {
+  border: 1px dashed var(--c-warning, #eda922);
+  border-radius: 5px;
+  padding: 5px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 10.5px;
+  color: var(--c-warning, #eda922);
+}
+
+.fx-mod-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.fx-name-box {
+  display: flex;
+  gap: 4px;
+}
+
+/* 상단 균일 N ▾ 팝오버: 내 프리셋 목록 */
+.norm-mine-head {
+  margin-top: 6px;
+}
+
+.norm-mine-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.norm-mine-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--c-border);
+  border-radius: 5px;
+  font-size: 11.5px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.norm-pop-note {
+  margin: 6px 0 4px;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--c-muted);
+}

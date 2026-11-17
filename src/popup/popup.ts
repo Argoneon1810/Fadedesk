@@ -1,16 +1,20 @@
-import { applyStaticPopupI18n, getLocalizedPresetMeta, ui } from "../shared/i18n";
+import { applyStaticPopupI18n, ui } from "../shared/i18n";
+import { applyGlobalFxEdit, defaultGlobalFx, settingsEditContext } from "../shared/fx-model";
 import {
   clampAlpha, clampAlphaStep, clampDb, formatDb, formatFocusReadout,
-  isChannelPinned, sanitizeChannelFx, toggleExclusiveFlags, type MixerContextInput,
+  isChannelPinned, toggleExclusiveFlags, type MixerContextInput,
 } from "../shared/mixer-math";
 import { DEFAULT_SETTINGS, PALETTES } from "../shared/palettes";
 import {
-  POPUP_PORT_NAME, type AutoNormPreset, type BgToPopupPortMessage, type ChannelFxState,
+  POPUP_PORT_NAME, type BgToPopupPortMessage,
   type ConsoleSnapshot, type ModePref, type PopupActionMessage,
   type TabChannelState, type ThemeKey, type ThemeTokens,
 } from "../shared/types";
 import { attachAlphaInlineEditor } from "./db-inline-editor";
 import { isChannelReorderDragging, startChannelReorderDrag } from "./drag-reorder";
+import { createFxController, type FxController } from "./fx-controller";
+import { buildFxDetailDom, syncFxDetailDom, syncFxDetailViz, type FxDetailRefs } from "./fx-detail-view";
+import { presetName } from "./fx-labels";
 import { buildFxRackDom, syncFxRackDom, syncFxRackTrimBadge, type FxRackRefs } from "./fx-rack-view";
 import { buildHelpModalDom, syncHelpModalDom, type HelpModalRefs } from "./help-modal";
 import { ICONS } from "./icons";
@@ -23,6 +27,7 @@ import {
   syncChannelReadoutSub, syncChannelStripDom,
   type ChannelStripRefs, type StripCallbacks,
 } from "./strip-view";
+import { pauseDivider, reconcileChannelStrips, stripMap, syncEmptyBayCopy } from "./strip-bay";
 import { renderThemePopoverDom } from "./theme-popover";
 import { buildTourOverlayDom, createDemoTourChannels, type TourOverlayRefs } from "./tour-overlay";
 
@@ -31,7 +36,10 @@ import { buildTourOverlayDom, createDemoTourChannels, type TourOverlayRefs } fro
  * 백그라운드 포트 동기화, 채널 드래그 재배치, 2계층 노멀라이저(3종 프리셋)·고급 FX 랙·실화면 투어 제어.
  */
 
-let snapshot: ConsoleSnapshot = { settings: { ...DEFAULT_SETTINGS, domainDefaults: {} }, channels: [] };
+let snapshot: ConsoleSnapshot = {
+  settings: { ...DEFAULT_SETTINGS, domainDefaults: {}, globalFx: defaultGlobalFx(), userPresets: [] },
+  channels: [],
+};
 let popoverOpen = false, normPopoverOpen = false, helpOpen = false;
 let initialOnboardingChecked = false;
 let tourDemoActive = false;
@@ -41,19 +49,9 @@ let toastText = "";
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 let port: chrome.runtime.Port | null = null;
 
-const stripMap = new Map<number, ChannelStripRefs>();
-const pauseDivider = document.createElement("div");
-pauseDivider.className = "pause-divider";
-
-const emptyBay = document.createElement("div");
-emptyBay.className = "empty-bay";
-
-function syncEmptyBayCopy(): void {
-  const dict = ui();
-  emptyBay.innerHTML = `<div class="empty-icon">${ICONS.consoleEmpty}</div><div class="empty-title">${dict.emptyTitle}</div><div class="empty-desc">${dict.emptyDesc}</div>`;
-}
 
 let masterRefs!: MasterStripRefs, fxRackRefs!: FxRackRefs, helpRefs!: HelpModalRefs, tourRefs!: TourOverlayRefs;
+let fxDetailRefs!: FxDetailRefs;
 
 function resolvedMode(): "dark" | "light" {
   const pref = snapshot.settings.modePref;
@@ -68,6 +66,18 @@ const activeChannels = (): TabChannelState[] =>
 
 const findChannel = (tabId: number): TabChannelState | undefined =>
   activeChannels().find((c) => c.tabId === tabId);
+
+const selectedChannel = (): TabChannelState | undefined =>
+  findChannel(selectedTabId ?? 0) ?? activeChannels()[0];
+
+const fxCtl: FxController = createFxController({
+  getSettings: () => snapshot.settings,
+  getAllChannels: () => activeChannels(),
+  getSelectedChannel: () => selectedChannel(),
+  sendAction: (msg) => sendAction(msg),
+  renderAll: () => renderAll(),
+  flashToast: (text) => flashToast(text),
+});
 
 function sendAction(msg: PopupActionMessage): void {
   try {
@@ -100,45 +110,6 @@ function renderThemePopover(t: ThemeTokens, isDark: boolean): void {
   });
 }
 
-function reconcileChannelStrips(callbacks: StripCallbacks): void {
-  if (isChannelReorderDragging()) return;
-  const scrollRow = document.getElementById("channels-scroll")!;
-  const channels = activeChannels();
-  const liveIds = new Set(channels.map((c) => c.tabId));
-
-  for (const [tabId, ref] of stripMap.entries()) {
-    if (!liveIds.has(tabId)) { ref.el.remove(); stripMap.delete(tabId); }
-  }
-  if (selectedTabId !== null && !liveIds.has(selectedTabId)) {
-    selectedTabId = channels[0]?.tabId ?? null;
-  }
-  if (channels.length === 0) {
-    pauseDivider.remove();
-    if (!emptyBay.isConnected) scrollRow.appendChild(emptyBay);
-    return;
-  }
-  emptyBay.remove();
-
-  for (const ch of channels) {
-    if (!stripMap.has(ch.tabId)) {
-      stripMap.set(ch.tabId, buildChannelStripDom(ch, () => findChannel(ch.tabId), callbacks));
-    }
-  }
-
-  const playing = channels.filter((c) => c.playing);
-  const paused = channels.filter((c) => !c.playing);
-  const desiredNodes: HTMLElement[] = [];
-  for (const ch of playing) desiredNodes.push(stripMap.get(ch.tabId)!.el);
-  if (playing.length > 0 && paused.length > 0) desiredNodes.push(pauseDivider);
-  for (const ch of paused) desiredNodes.push(stripMap.get(ch.tabId)!.el);
-  if (playing.length === 0 || paused.length === 0) pauseDivider.remove();
-
-  desiredNodes.forEach((node, idx) => {
-    const currentAtIdx = scrollRow.children[idx];
-    if (currentAtIdx !== node) scrollRow.insertBefore(node, currentAtIdx ?? null);
-  });
-}
-
 function renderAll(): void {
   const mode = resolvedMode();
   const isDark = mode === "dark";
@@ -154,6 +125,8 @@ function renderAll(): void {
     "--c-bg": t.bg, "--c-surface": t.surface, "--c-raised": t.raised,
     "--c-border": t.border, "--c-text": t.text, "--c-muted": t.muted,
     "--c-primary": t.primary, "--c-on-primary": t.onPrimary, "--c-accent": t.accent,
+    "--c-focus": t.focus, "--c-on-focus": t.onFocus, "--c-danger": t.states.danger,
+    "--c-warning": t.states.warning,
   };
   for (const [k, v] of Object.entries(vars)) {
     root.style.setProperty(k, v);
@@ -163,12 +136,14 @@ function renderAll(): void {
   const channels = activeChannels();
   const selCh = findChannel(selectedTabId ?? 0) ?? channels[0];
   renderThemePopover(t, isDark);
-  renderNormPopoverDom(snapshot.settings, normPopoverOpen, t, (preset: AutoNormPreset) => {
-    snapshot.settings.autoNormPreset = preset;
-    snapshot.settings.autoNormEnabled = true;
+  renderNormPopoverDom(snapshot.settings, normPopoverOpen, t, (presetId: string) => {
+    const name = presetName(presetId, snapshot.settings.userPresets);
+    if (!name) return;
+    applyGlobalFxEdit(settingsEditContext(snapshot.settings), { kind: "pickPreset", presetId });
+    snapshot.settings.globalFx.norm.enabled = true;
     normPopoverOpen = false;
-    sendAction({ source: "popup", type: "SET_AUTO_NORM_PRESET", preset, enable: true });
-    flashToast(ui().toastPresetApplied(getLocalizedPresetMeta(preset).shortLabel));
+    sendAction({ source: "popup", type: "SET_AUTO_NORM_PRESET", preset: presetId, enable: true });
+    flashToast(ui().toastPresetApplied(name));
   }, selCh);
   const playingCount = channels.filter((c) => c.playing).length;
   const pausedCount = channels.length - playingCount;
@@ -188,12 +163,12 @@ function renderAll(): void {
   const alphaFill = document.getElementById("alpha-fill")!, alphaThumb = document.getElementById("alpha-thumb")!;
   const alphaReadout = document.getElementById("alpha-readout")!;
   const resetModesBtn = document.getElementById("reset-modes-btn") as HTMLButtonElement;
-  alphaBox.style.borderColor = anyFocus ? t.primary : t.border;
-  alphaLabel.style.color = anyFocus ? t.primary : t.muted;
+  alphaBox.style.borderColor = anyFocus ? t.focus : t.border;
+  alphaLabel.style.color = anyFocus ? t.focus : t.muted;
   alphaFill.style.width = `${snapshot.settings.alpha * 100}%`;
-  alphaFill.style.backgroundColor = t.primary;
+  alphaFill.style.backgroundColor = t.focus;
   alphaThumb.style.left = `calc(${snapshot.settings.alpha * 100}% - 5px)`;
-  alphaThumb.style.borderColor = t.primary;
+  alphaThumb.style.borderColor = t.focus;
 
   alphaReadout.textContent = formatFocusReadout(snapshot.settings.alpha);
   resetModesBtn.disabled = !(anySolo || anyFocus);
@@ -223,7 +198,7 @@ function renderAll(): void {
     popoutBtn.style.borderColor = t.border;
   }
 
-  reconcileChannelStrips(stripCallbacks);
+  selectedTabId = reconcileChannelStrips(activeChannels(), selectedTabId, findChannel, stripCallbacks);
 
   const ctx: MixerContextInput = {
     alpha: snapshot.settings.alpha,
@@ -233,14 +208,18 @@ function renderAll(): void {
     anyFocus,
   };
 
+  // 떠오른 칸 = 랙이 지금 고치는 대상: "모든 채널"이면 채널 대신 MASTER BUS가 떠오른다
+  const fxGlobalShown = fxCtl.isGlobal() && snapshot.settings.advRackOpen;
   for (const ch of channels) {
     const refs = stripMap.get(ch.tabId);
-    if (refs) syncChannelStripDom(refs, ch, snapshot.settings, ctx, selectedTabId === ch.tabId, t);
+    const isSel = !fxGlobalShown && selectedTabId === ch.tabId;
+    if (refs) syncChannelStripDom(refs, ch, snapshot.settings, ctx, isSel, t);
   }
 
-  syncMasterStripDom(masterRefs, snapshot.settings, channels, t);
+  syncMasterStripDom(masterRefs, snapshot.settings, channels, t, fxCtl.isGlobal());
   updateMasterBusVu(masterRefs, snapshot.settings, channels, t);
-  syncFxRackDom(fxRackRefs, findChannel(selectedTabId ?? 0) ?? channels[0], snapshot.settings, t);
+  syncFxRackDom(fxRackRefs, fxCtl, snapshot.settings, channels, t);
+  syncFxDetailDom(fxDetailRefs, fxCtl, snapshot.settings, t);
   syncHelpModalDom(helpRefs, helpOpen, t);
   if (tourActive) {
     tourRefs.syncPosition(tourDemoActive && snapshot.channels.length === 0, t);
@@ -248,14 +227,23 @@ function renderAll(): void {
 }
 
 const stripCallbacks: StripCallbacks = {
-  onSelectChannel(tabId) {
-    if (selectedTabId === tabId) return;
+  onSelectChannel(tabId, keepScope) {
+    const sameTab = selectedTabId === tabId;
     selectedTabId = tabId;
-    for (const [id, refs] of stripMap.entries()) {
-      refs.el.dataset.selected = String(id === tabId);
+    // 휠·버튼·페이더로 조작할 때는 "모든 채널" 범위를 유지한다
+    if (!keepScope && fxCtl.isGlobal()) {
+      fxCtl.selectChannelScope();
+      return;
     }
-    const channels = activeChannels();
-    syncFxRackDom(fxRackRefs, findChannel(selectedTabId) ?? channels[0], snapshot.settings, currentTokens());
+    if (!sameTab) renderAll();
+  },
+  onSelectFxGlobal(openRack) {
+    if (openRack && !snapshot.settings.advRackOpen) {
+      snapshot.settings.advRackOpen = true;
+      sendAction({ source: "popup", type: "SET_ADV_RACK_OPEN", open: true });
+    }
+    if (!fxCtl.isGlobal()) fxCtl.selectGlobal();
+    else if (openRack) renderAll();
   },
   onBeginDragChannel(ev, tabId) {
     if (tabId < 0) return;
@@ -396,7 +384,7 @@ function setupTopDeckAndKeyboard(): void {
   };
   const autoNormBtn = document.getElementById("auto-norm-btn");
   if (autoNormBtn) autoNormBtn.onclick = () => {
-    snapshot.settings.autoNormEnabled = !snapshot.settings.autoNormEnabled;
+    snapshot.settings.globalFx.norm.enabled = !snapshot.settings.globalFx.norm.enabled;
     sendAction({ source: "popup", type: "TOGGLE_AUTO_NORM" });
     renderAll();
   };
@@ -459,6 +447,11 @@ function setupTopDeckAndKeyboard(): void {
       normPopoverOpen = false;
       renderAll();
     }
+    // 세부 창은 바깥을 누르면 닫는다. 채널·마스터·랙을 누르면 대상만 바꾸고 열어 둔다
+    const keepIds = ["fx-detail", "side-fx-rack", "channels-scroll", "master-dock"];
+    if (target && fxCtl.view().detail && !keepIds.some((id) => document.getElementById(id)?.contains(target))) {
+      fxCtl.closeDetail();
+    }
   });
 
   window.addEventListener("resize", () => {
@@ -496,6 +489,10 @@ function setupTopDeckAndKeyboard(): void {
         renderAll();
         return;
       }
+      if (fxCtl.closeDetail()) {
+        ev.preventDefault();
+        return;
+      }
     }
     if (helpOpen) return;
     const channels = activeChannels();
@@ -509,7 +506,8 @@ function setupTopDeckAndKeyboard(): void {
         : (idx <= 0 ? channels.length - 1 : idx - 1);
       selectedTabId = channels[nextIdx]!.tabId;
       stripMap.get(selectedTabId)?.el.scrollIntoView({ block: "nearest", inline: "nearest" });
-      renderAll();
+      if (fxCtl.isGlobal()) fxCtl.selectChannelScope();
+      else renderAll();
       return;
     }
 
@@ -597,13 +595,14 @@ function connectBackgroundPort(): void {
           }
           const refs = stripMap.get(item.tabId);
           if (refs && ch) {
-            paintChannelStereoVu(refs, ch, t);
+            paintChannelStereoVu(refs, ch, t, snapshot.settings.globalPan);
             syncChannelReadoutSub(refs, ch, snapshot.settings, ctx, t);
           }
         }
         const selCh = findChannel(selectedTabId ?? 0) ?? channels[0];
         updateMasterBusVu(masterRefs, snapshot.settings, channels, t);
-        syncFxRackTrimBadge(fxRackRefs, selCh, snapshot.settings, t);
+        syncFxRackTrimBadge(fxRackRefs, selCh, snapshot.settings, t, fxCtl.isGlobal());
+        syncFxDetailViz(fxDetailRefs, fxCtl, snapshot.settings, t);
         if (normPopoverOpen) {
           const miniVizEl = document.querySelector<HTMLElement>("#norm-popover .norm-pop-mini-viz");
           if (miniVizEl) syncPopoverMiniVizDom(miniVizEl, selCh, snapshot.settings, t);
@@ -637,17 +636,10 @@ function bootstrapPopup(): void {
   masterRefs = buildMasterStripDom(() => snapshot.settings.masterDb, stripCallbacks);
   document.getElementById("master-dock")!.appendChild(masterRefs.el);
 
-  const sideFxRack = document.getElementById("side-fx-rack")!;
-  fxRackRefs = buildFxRackDom(
-    sideFxRack,
-    () => findChannel(selectedTabId ?? 0) ?? activeChannels()[0],
-    (tabId, patch) => {
-      const ch = findChannel(tabId);
-      if (!ch) return;
-      ch.fx = sanitizeChannelFx(ch.fx, patch);
-      if (tabId >= 0) sendAction({ source: "popup", type: "UPDATE_TAB_FX", tabId, patch });
-      renderAll();
-    },
+  fxRackRefs = buildFxRackDom(document.getElementById("side-fx-rack")!, fxCtl);
+  fxDetailRefs = buildFxDetailDom(
+    document.getElementById("fx-detail")!,
+    fxCtl,
     () => snapshot.settings,
     (nextMode) => {
       snapshot.settings.normVizMode = nextMode;

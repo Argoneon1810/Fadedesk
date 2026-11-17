@@ -183,10 +183,11 @@ const KO_HELP: HelpLocaleBundle = {
       ],
     },
     {
-      title: "대표 구간 확장·축소 뷰 & 채널별 2계층 제어",
+      title: "고급 FX: 모든 채널 · 이 채널, 세부 창과 내 프리셋",
       bullets: [
-        "상단 고급 FX ▸를 열면 노멀라이저 카드 우측 상단 확장·축소 아이콘 버튼으로 대표 구간 표시기를 펼쳐 실시간 주파수 스펙트럼 위 상·하(↕) 임계선으로 조절하거나, 접어서 수평 막대 좌·우(↔) 브래킷으로 간결하게 조절할 수 있습니다.",
-        "전역 따름 · 개별 ON · 개별 OFF 2계층으로 분리되어 전역 스위치를 꺼도 개별 설정은 보존되며, 개별 모드에서 대표 구간(하한·상한), 0dB 회귀 텐션 속도(dB/s), 목표 LUFS를 직접 튜닝합니다.",
+        "고급 FX ▸ 랙 맨 위 [모든 채널 | 이 채널] 탭(또는 MASTER BUS의 '전체 FX')으로 고칠 대상을 고릅니다. 지금 고치는 대상은 바탕이 떠올라 보입니다(채널, 또는 모든 채널이면 MASTER BUS).",
+        "카드마다 '🔗 모든 채널 따름'이면 모든 채널 값을 쓰며 잠겨 있고, '이 채널만 따로'를 눌러야 그 채널 값만 바꿀 수 있습니다. 패닝은 이 채널 값에 '전체 밸런스'가 더해집니다.",
+        "카드의 '세부 ▸'로 세부 창을 열어 프리셋·대표 구간(↕ 스펙트럼 / ↔ 막대)·0dB 회귀 텐션·목표 LUFS를 다루고, 바꾼 값은 '내 프리셋으로 저장'해 다른 채널에서도 고를 수 있습니다.",
       ],
     },
     {
@@ -303,7 +304,7 @@ const KO_HELP: HelpLocaleBundle = {
     {
       step: 7,
       title: "마스터 버스와 고급 FX 사이드 랙",
-      desc: "우측 마스터 버스에서 전체 볼륨·일괄 정지·음소거를 제어하고, 상단 '고급 FX ▸'로 채널별 LUFS·패닝·게이트·컴프레서를 세밀하게 다룹니다.",
+      desc: "우측 마스터 버스에서 전체 볼륨·일괄 정지·음소거를 제어하고, '전체 FX' 또는 상단 '고급 FX ▸'로 모든 채널 또는 한 채널의 노멀라이저·패닝·게이트·컴프레서를 다룹니다.",
     },
   ],
 };
@@ -396,10 +397,11 @@ const EN_HELP: HelpLocaleBundle = {
       ],
     },
     {
-      title: "Expand / Collapse Band View & 2-Tier Channel Control",
+      title: "FX Rack: All Channels vs. This Tab, Details & My Presets",
       bullets: [
-        "In FX Rack ▸, click the expand/collapse icon button in the Normalizer card to expand the real-time frequency spectrum (drag top/bottom ↕ lines) or collapse into a compact horizontal bar (drag left/right ↔ brackets).",
-        "Set any strip to Follow, On, or Off without losing custom values; drag the representative band bounds, 0 dB return tension speed, and target LUFS directly.",
+        "Pick what you edit with the [All channels | This tab] tabs at the top of FX Rack ▸ (or 'All FX' on the Master Bus). The current target is raised: the tab's strip, or the Master Bus for all channels.",
+        "A card marked '🔗 Follows all' uses the all-channel value and is locked; press 'Set separately' to change it for this tab only. Pan adds this tab's value to the Global Balance.",
+        "Open 'Details ▸' for presets, the band view (↕ spectrum / ↔ bar), 0 dB return tension and target LUFS, then 'Save as my preset' to reuse it on other tabs.",
       ],
     },
     {
@@ -515,8 +517,8 @@ const EN_HELP: HelpLocaleBundle = {
     },
     {
       step: 7,
-      title: "Master Bus & Per-Channel FX Rack",
-      desc: "Control Master Gain, Pause All, and Mute All on the right, or open FX Rack ▸ for per-tab LUFS, Stereo Pan, Gate, and Compressor.",
+      title: "Master Bus & FX Rack",
+      desc: "Control Master Gain, Pause All, and Mute All on the right; use 'All FX' or FX Rack ▸ to set Normalizer, Pan, Gate and Compressor for all channels or one tab.",
     },
   ],
 };
