@@ -27,7 +27,7 @@
         </button>
         <span class="brand-title">FADEDESK</span>
         <button id="help-btn" type="button" aria-haspopup="dialog" aria-expanded="false" title="사용법 및 부품 안내" class="console-btn help-trigger c-raised">?</button>
-        <button id="popout-btn" type="button" title="독립 창으로 분리해 원하는 크기로 조절" aria-label="독립 창으로 콘솔 분리" class="console-btn popout-trigger c-raised"></button>
+        <button id="popout-btn" type="button" title="별도 창으로 분리 (크기 조절 가능)" aria-label="콘솔을 별도 창으로 분리" class="console-btn popout-trigger c-raised"></button>
         <div id="status-pill" class="status-pill c-recessed">
           <span id="status-dot" class="status-dot"></span>
           <span id="status-text" class="status-text truncate">탐색 중...</span>
@@ -38,10 +38,10 @@
         <div
           id="alpha-box"
           class="alpha-box c-recessed"
-          title="Focus 감쇠(α): 노브 드래그·휠 조절 · 우측 수치 클릭 시 직접 입력"
+          title="Focus 볼륨 줄임(α): 드래그·휠로 조절 · 우측 숫자 클릭해 직접 입력"
         >
           <span id="alpha-label" class="alpha-label">Focus <i class="alpha-sym">α</i></span>
-          <div id="alpha-track" class="alpha-track" title="노브 드래그로 조절 · 더블클릭 시 0.70(-12dB) 복귀">
+          <div id="alpha-track" class="alpha-track" title="드래그하여 조절 · 더블클릭하면 0.70(-12dB)으로 초기화">
             <div class="alpha-slot c-surface">
               <div id="alpha-fill" class="alpha-fill"></div>
             </div>
@@ -51,8 +51,8 @@
             id="alpha-readout-btn"
             role="button"
             tabindex="0"
-            aria-label="Focus 감쇠 데시벨 직접 입력"
-            title="클릭하여 Focus 감쇠 dB(예: -12, -15.5, 0) 또는 비율(예: 0.75) 직접 입력"
+            aria-label="Focus 볼륨 줄임 폭(dB) 직접 입력"
+            title="클릭하여 Focus로 줄일 dB(예: -12, -15.5)나 비율(예: 0.75) 직접 입력"
             class="alpha-readout-btn"
           >
             <span id="alpha-readout" class="alpha-readout tabular">0.70 · -12dB</span>
@@ -63,7 +63,7 @@
                 inputmode="decimal"
                 spellcheck="false"
                 autocomplete="off"
-                aria-label="Focus 감쇠 dB 입력"
+                aria-label="Focus 볼륨 줄임 폭(dB) 입력"
                 class="alpha-inline-input tabular"
               />
               <span class="alpha-edit-unit">dB</span>
@@ -81,14 +81,14 @@
           <button
             id="auto-norm-btn"
             type="button"
-            title="모든 채널 노멀라이저(균일 N): '모든 채널 따름' 채널에 걸리며 '이 채널만' 설정은 덮어쓰지 않습니다"
+            title="모든 채널 노멀라이저 — 클릭하여 켜기/끄기 · '이 채널만' 설정된 곳은 제외"
             class="console-btn top-toggle-btn norm-main-btn c-raised"
           >균일 N</button>
           <button
             id="auto-norm-preset-btn"
             type="button"
-            title="자동 노멀라이저 프리셋 선택 (음악 · 표준 · 야간)"
-            aria-label="자동 노멀라이저 프리셋 선택"
+            title="노멀라이저 프리셋 선택"
+            aria-label="노멀라이저 프리셋 선택"
             aria-haspopup="dialog"
             aria-expanded="false"
             class="console-btn norm-preset-trigger c-raised"
@@ -117,7 +117,7 @@
     </div>
 
     <!-- 우측 상단 모든 채널 노멀라이저 프리셋 팝오버 (기본 4종 + 내 프리셋) -->
-    <div id="norm-popover" role="dialog" aria-label="이지 노멀라이저 프리셋" class="norm-popover c-surface hidden"></div>
+    <div id="norm-popover" role="dialog" aria-label="노멀라이저 프리셋" class="norm-popover c-surface hidden"></div>
 
     <div id="help-backdrop" class="help-backdrop hidden"></div>
     <div id="tour-overlay" class="tour-overlay hidden"></div>

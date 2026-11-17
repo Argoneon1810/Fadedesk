@@ -125,6 +125,23 @@ const TOUR_HOLE_SPECS: TourHoleSpec[] = [
 
 const LAST_STEP = TOUR_HOLE_SPECS.length - 1;
 
+/** 투어 카드 설명: 긴 문장 하나 대신 짧은 줄 목록이면 글머리표 줄로 그린다 (문구는 textContent로만 넣음) */
+function renderTourDesc(el: HTMLElement, desc: string | readonly string[]): void {
+  el.replaceChildren();
+  if (typeof desc === "string") {
+    el.textContent = desc;
+    return;
+  }
+  const list = document.createElement("ul");
+  list.className = "tour-card-lines";
+  for (const line of desc) {
+    const li = document.createElement("li");
+    li.textContent = line;
+    list.appendChild(li);
+  }
+  el.appendChild(list);
+}
+
 function roundedRectPath(x: number, y: number, w: number, h: number, r = 7): string {
   const rx = Math.max(0, Math.min(r, w / 2, h / 2));
   return [
@@ -184,7 +201,7 @@ export function buildTourOverlayDom(
         <button type="button" class="tour-skip-btn" data-tour-skip>${copy.tourSkipLabel}</button>
       </div>
       <h3 class="tour-card-title allow-wrap" data-ref="title"></h3>
-      <p class="tour-card-desc allow-wrap" data-ref="desc"></p>
+      <div class="tour-card-desc allow-wrap" data-ref="desc"></div>
       <div class="tour-card-footer">
         <div class="tour-step-dots" data-ref="dots"></div>
         <div class="tour-nav-actions">
@@ -291,7 +308,7 @@ export function buildTourOverlayDom(
     stepBadge.textContent = `STEP ${currentStep + 1} / ${TOUR_HOLE_SPECS.length}`;
     demoPill.classList.toggle("hidden", !demoMode);
     titleEl.textContent = stepCopy.title;
-    descEl.textContent = stepCopy.desc;
+    renderTourDesc(descEl, stepCopy.desc);
 
     prevBtn.disabled = currentStep === 0;
     nextBtn.textContent = currentStep === LAST_STEP ? copy.tourDoneLabel : copy.tourNextLabel;

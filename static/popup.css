@@ -472,6 +472,9 @@ html[data-view="window"] .side-fx-rack {
   z-index: 30;
   width: 312px;
   max-width: calc(100% - 24px);
+  /* 프리셋 설명·내 프리셋(최대 20개)이 길어도 팝업 밖으로 넘지 않게 하고 안에서 스크롤한다 */
+  max-height: calc(100% - 52px);
+  overflow-y: auto;
   border-radius: 8px;
   border: 1px solid var(--c-border);
   padding: 6px 8px;

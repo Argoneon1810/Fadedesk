@@ -209,6 +209,8 @@ export function syncFxRackDom(
     r.titleEl.textContent = ch.title;
     r.subDescEl.textContent = ch.corsCap ? legacy.fxCorsSub : copy.channelSub(ch.shortHost);
   }
+  // 랙 폭(214px)에서 말줄임될 수 있으므로 전체 문구를 툴팁으로도 보인다
+  r.subDescEl.title = r.subDescEl.textContent ?? "";
   syncFxRackTrimBadge(r, ch, settings, t, isGlobal);
 
   const disabled = !isGlobal && (!ch || ch.corsCap);

@@ -268,6 +268,19 @@
   margin: 0; font-size: 11px; line-height: 1.5; color: var(--c-text);
 }
 
+/* 한 줄에 동작 하나: 글머리표 줄 목록 */
+.tour-card-lines {
+  margin: 0; padding: 0; list-style: none;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.tour-card-lines li {
+  position: relative; padding-left: 11px;
+}
+.tour-card-lines li::before {
+  content: ""; position: absolute; left: 2px; top: 0.62em;
+  width: 4px; height: 4px; border-radius: 50%; background: var(--c-primary);
+}
+
 .tour-card-footer {
   display: flex; align-items: center; justify-content: space-between;
   gap: 8px; margin-top: 2px; flex-shrink: 0;

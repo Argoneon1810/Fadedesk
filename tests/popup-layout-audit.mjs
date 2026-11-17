@@ -245,6 +245,13 @@ function buildAuditHtml(sc) {
               issues.push("TOUR_RACK_LEAKED_STEP_" + step);
             }
             if (!cr || cr.width < 200 || cr.height < 80) issues.push("TOUR_CARD_INVALID_STEP_" + step);
+            // 카드 설명이 줄 목록이면 줄마다 한 줄에 들어가야 한다 (두 줄로 접히면 읽기 어려움)
+            overlay?.querySelectorAll(".tour-card-lines li").forEach((li, i) => {
+              const lh = parseFloat(getComputedStyle(li).lineHeight) || 16;
+              if (li.getBoundingClientRect().height > lh * 1.5) {
+                issues.push("TOUR_LINE_WRAPPED_STEP_" + (step + 1) + "_LINE_" + (i + 1) + ": " + li.textContent);
+              }
+            });
             if (cr && (cr.left < rr.left - 1 || cr.right > rr.right + 1 || cr.top < rr.top - 1 || cr.bottom > rr.bottom + 1)) {
               issues.push("TOUR_CARD_OUT_OF_BOUNDS_STEP_" + step);
             }
@@ -809,6 +816,7 @@ const scenarios = [
   { name: "window_inline_edit", w: 680, h: 460, isWindow: true, openPop: false, inlineEdit: true, snap: { settings: { ...BASE_SETTINGS, domainDefaults: PINNED_DEFAULTS }, channels: SAMPLE_CHANNELS } },
   { name: "window_help_modal", w: 680, h: 480, isWindow: true, openPop: false, testHelpModal: true, snap: { settings: { ...BASE_SETTINGS, domainDefaults: PINNED_DEFAULTS }, channels: SAMPLE_CHANNELS } },
   { name: "en_empty_popup", lang: "en", w: 800, h: 600, isWindow: false, openPop: false, snap: { settings: { ...BASE_SETTINGS }, channels: [] } },
+  { name: "tour_step5_lines", w: 800, h: 600, isWindow: false, openPop: false, tourShotStep: 5, snap: { settings: { ...BASE_SETTINGS, onboardingDone: false }, channels: SAMPLE_CHANNELS } },
   { name: "tour_step8_rack", w: 800, h: 600, isWindow: false, openPop: false, tourShotStep: 8, snap: { settings: { ...BASE_SETTINGS, onboardingDone: false }, channels: [] } },
   { name: "en_tour_step8_live", lang: "en", w: 800, h: 600, isWindow: false, openPop: false, tourShotStep: 8, snap: { settings: { ...BASE_SETTINGS, onboardingDone: false }, channels: SAMPLE_CHANNELS_EN } },
   { name: "en_onboarding_tour", lang: "en", w: 800, h: 600, isWindow: false, openPop: false, testOnboardingTour: true, snap: { settings: { ...BASE_SETTINGS, onboardingDone: false }, channels: [] } },

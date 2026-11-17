@@ -32,7 +32,8 @@ export interface HelpStep {
 export interface TourStepCopy {
   step: number;
   title: string;
-  desc: string;
+  /** 문자열 하나면 문단, 목록이면 한 줄에 동작 하나씩 글머리표 줄로 보인다 */
+  desc: string | readonly string[];
 }
 
 export interface HelpLocaleBundle {
@@ -80,6 +81,7 @@ export const TERM_CHIP_MAP: Record<string, HelpTermKey> = {
   "수치 표시창": "readout",
   "드래그 핸들": "grip",
   "도메인 핀": "pin",
+  "사이트 고정 핀": "pin",
   "스위치 뱅크": "switchBank",
   "마스터 버스": "masterBus",
   "Tab Header": "tabJump",
@@ -106,7 +108,7 @@ const KO_HELP: HelpLocaleBundle = {
   introItems: [
     {
       lead: "탭 바로 이동 & 창 분리",
-      body: "채널 헤더(↗)를 눌러 재생 중인 탭으로 바로 이동하거나, 상단 창 분리(↗)로 콘솔을 독립 창에 띄워 둡니다.",
+      body: "채널 상단(↗)을 눌러 소리가 나는 탭으로 바로 이동하거나, 창 분리(↗) 버튼을 눌러 콘솔을 별도 창으로 띄워 둘 수 있습니다.",
     },
     {
       lead: "정밀 볼륨 & 집중 청취",
@@ -114,16 +116,16 @@ const KO_HELP: HelpLocaleBundle = {
     },
     {
       lead: "모든 채널 노멀라이저와 내 프리셋",
-      body: "클래식·음악·표준·야간 프리셋으로 탭 사이 음량을 맞추고, 바꾼 값은 내 프리셋으로 저장해 다시 고릅니다.",
+      body: "클래식·음악·표준·야간 프리셋으로 탭마다 다른 음량을 일정하게 맞추고, 직접 조절한 설정은 내 프리셋으로 저장해 언제든 불러올 수 있습니다.",
     },
   ],
   introNote:
-    "열린 미디어 탭이 없어도 투어 동안 중립 예시 채널 2개가 임시로 표시되며, 끝나거나 건너뛰면 즉시 원래 화면으로 돌아갑니다.",
-  tourStartBtn: "실화면 투어 시작 ▸",
+    "현재 재생 중인 탭이 없어도 투어를 진행하는 동안 예시 채널 2개가 임시로 표시되며, 투어를 마치면 원래 화면으로 돌아갑니다.",
+  tourStartBtn: "화면 투어 시작 ▸",
   tourSkipBtn: "바로 쓰기 (건너뛰기)",
   introSub: "상단 ? 버튼에서 사용법과 안전 유의사항을 언제든 다시 볼 수 있습니다 · Esc로 닫기",
-  easyHint: "밑줄 친 부품 이름에 커서를 올리면 위치를 미리 보고, 클릭하면 고정됩니다.",
-  advHint: "밑줄 친 프리셋·부품 이름에 커서를 올려 도면 위치를 확인할 수 있습니다.",
+  easyHint: "밑줄 친 기능 이름에 마우스를 올리면 화면에서 위치를 보여주고, 클릭하면 설명이 고정됩니다.",
+  advHint: "밑줄 친 프리셋이나 기능 이름에 마우스를 올리면 그림에서 위치를 확인할 수 있습니다.",
   safetyHint: "청력·장비 보호와 중요 알림, 보안 페이지 호환을 위해 사용 전 꼭 확인해 주세요.",
   pinnedTip: "✓ 클릭으로 고정됨 · 칩 다시 클릭 또는 바깥 클릭 시 닫힘",
   unpinnedTip: "💡 칩을 클릭하면 화면에 고정됩니다",
@@ -142,24 +144,24 @@ const KO_HELP: HelpLocaleBundle = {
     {
       title: "탭별 볼륨 증폭 · 노브 조작 · 수치 직접 입력",
       bullets: [
-        "실수로 트랙을 건드려 볼륨이 튀는 것을 막기 위해 드래그는 [페이더] 위의 사각 [노브]를 직접 잡고 움직이며, 레일 위에서는 마우스 휠(Shift+휠 미세 조절)과 더블클릭(0.0dB 복귀)이 동작합니다.",
+        "실수로 볼륨이 갑자기 튀는 것을 막기 위해, 마우스 드래그는 [페이더] 위의 사각 [노브]를 직접 잡았을 때만 작동합니다. 눈금 영역에서는 마우스 휠(Shift+휠: 미세 조절)과 더블클릭(0.0dB 초기화)을 사용할 수 있습니다.",
         "0 눈금 위로 올리면 최대 +12dB(약 4배)까지 증폭되며 우측 [레벨 미터]로 실시간 출력 레벨을 확인합니다.",
         "아래 [수치 표시창]을 클릭하면 -8.5처럼 원하는 데시벨 숫자를 키보드로 직접 입력합니다.",
       ],
     },
     {
-      title: "집중 청취(M·S·F) · 드래그 정렬 · 도메인 핀",
+      title: "집중 청취(M·S·F) · 드래그 정렬 · 사이트 고정 핀",
       bullets: [
         "하단 [스위치 뱅크]에서 F(Focus)를 켜면 선택 탭은 그대로 두고 나머지 탭만 상단 Focus α 비율만큼 줄입니다(우측 데시벨 수치 클릭 시 직접 입력, S 단독 청취, Shift+클릭 다중 선택).",
-        "맨 위 좌측 [드래그 핸들]을 끌어 순서를 바꾸거나, 구분선 너머 우측 대기 구역에 놓아 즉시 일시정지·좌측으로 옮겨 즉시 재생합니다.",
-        "재생 버튼 오른쪽 [도메인 핀]을 켜면 같은 사이트를 새 탭으로 열 때 현재 볼륨이 초기값으로 자동 적용됩니다.",
+        "채널 맨 위의 [드래그 핸들]을 끌어 순서를 바꿀 수 있습니다. 구분선 오른쪽 대기 구역으로 옮기면 바로 일시정지되고, 왼쪽으로 옮기면 다시 재생됩니다.",
+        "재생 버튼 오른쪽의 [사이트 고정 핀]을 켜 두면, 나중에 같은 사이트를 새 탭으로 열 때도 현재 볼륨이 그대로 적용됩니다.",
       ],
     },
     {
       title: "자동 볼륨 균일화(균일 N ▾) 옵션 읽는 법과 마스터 제어",
       bullets: [
         "상단 [균일 N ▾]는 기본 켜짐(음악 모드)으로 동작하며, 우측 ▾에서 클래식(광대역) · 음악(기본) · 표준(영상/방송) · 야간(강한 균일) 4종 프리셋을 고릅니다.",
-        "옵션 읽는 법: '-16 LUFS · 9s'는 목표 기준 음량(-16)과 평균을 재는 시간 창(9초)을 뜻하며, '대표 [-32..-10] · 0회귀'는 이 구간 안의 소리만 평균에 반영하고 여린 독주나 폭발음에서는 원음(0.0dB)으로 물러난다는 뜻입니다(채널 하단 '균일 +2.4dB'는 현재 자동 보정량).",
+        "수치 읽는 법: '-16 LUFS · 9s'는 목표 음량(-16)과 평균을 측정하는 시간(9초)을 뜻합니다. '유효 [-32..-10] · 복귀'는 이 구간 안의 소리만 볼륨 보정에 반영하고, 너무 작거나 폭발적인 소리에서는 원래 볼륨(0.0dB)으로 돌아간다는 뜻입니다(채널 아래 '균일 +2.4dB'는 현재 보정된 볼륨).",
         "우측 고정 [마스터 버스]와 각 채널의 2열(L/R) [레벨 미터]로 스테레오 출력 밸런스를 보며 전체 볼륨·정지·음소거를 한 번에 제어합니다.",
       ],
     },
@@ -167,7 +169,7 @@ const KO_HELP: HelpLocaleBundle = {
       title: "안전 및 유의사항 (청력 · 중요 알림 · 호환 · 면책)",
       bullets: [
         "청력·스피커 보호: +0dB 초과 증폭(채널·마스터·노멀라이저 중첩)이나 Solo 해제 시 소리가 크게 커질 수 있으니 이어폰 착용 시 낮은 볼륨에서 서서히 올리세요.",
-        "통화·경보 주의: 전체 음소거, Solo·Focus 감쇠, 노이즈 게이트는 다른 탭의 화상회의·호출·일정 알림·비상 경보음까지 함께 줄이거나 차단합니다.",
+        "통화·경보 주의: 전체 음소거, Solo·Focus, 노이즈 게이트를 켜면 다른 탭의 화상회의·호출·일정 알림·비상 경보음까지 함께 줄어들거나 차단됩니다.",
         "시험·보안·웹 DAW: 브라우저 오디오 API에 연결되므로 변조 검사에 민감한 온라인 시험·금융 보안 페이지나 웹 작곡 도구에서는 확장을 잠시 끄거나 시크릿 창을 이용하세요.",
         "계측·프라이버시·면책: LUFS·미터는 실시간 청취 보정용 근사치(공인 계측기 아님, 0dB 보안 탭은 설정 볼륨 표시)이며 모든 창의 미디어 탭 제목이 함께 보이므로 화면 공유 시 유의하세요. 본 확장(GPL-3.0-or-later)은 보증 없이 '있는 그대로(AS IS)' 무상 제공되며 사용상 손해에 대해 법령 범위 내에서 책임을 지지 않습니다.",
       ],
@@ -175,40 +177,40 @@ const KO_HELP: HelpLocaleBundle = {
   ],
   advSteps: [
     {
-      title: "대표 음압 구간(3-A) · 0.0dB 회귀 텐션과 4종 프리셋",
+      title: "유효 음량 구간 · 원음 복귀 속도와 4종 프리셋",
       bullets: [
-        "노멀라이저는 원본 입력 음압 중 '평균 음압을 대표하기에 마땅한 구간(예: -32 ~ -10 LUFS)' 안에 들어온 소리만 적분하며, 구간 밖의 여린 독주(ppp)나 강주 폭발(fff)은 제외하고 0.0dB 회귀 텐션으로 서서히 원음 볼륨(0.0dB)으로 복귀합니다.",
-        "클래식처럼 곡 전체에 걸쳐 다이나믹 레인지가 넓은 음악은 [균일 N ▾]에서 '클래식(광대역)' 프리셋을 고르면 급격한 도약 스침을 배제하고 원음 강약 대비를 보존합니다.",
-        "상단 [균일 N ▾] 팝오버 하단에서도 현재 탭의 실시간 입력 음압과 대표 채택 구간을 미니 바로 즉시 확인할 수 있습니다.",
+        "노멀라이저는 원래 소리 중 '평균 음량으로 삼기 적절한 유효 구간(예: -32 ~ -10 LUFS)' 안의 소리만 계산해 볼륨을 맞춥니다. 구간을 벗어난 아주 작은 소리(ppp)나 폭발적인 소리(fff)는 보정에서 제외하고, 설정된 복귀 속도에 따라 서서히 원래 볼륨(0.0dB)으로 돌아갑니다.",
+        "클래식처럼 작고 큰 소리의 폭(다이내믹 레인지)이 넓은 음악은 [균일 N ▾]에서 '클래식(광대역)' 프리셋을 선택하세요. 순간적으로 튀는 소리에 민감하게 반응하지 않아 원곡의 강약 대비가 자연스럽게 유지됩니다.",
+        "상단 [균일 N ▾] 메뉴 아래쪽의 미니 바에서도 현재 탭의 실시간 음량과 유효 구간을 한눈에 확인할 수 있습니다.",
       ],
     },
     {
       title: "고급 FX: 모든 채널 · 이 채널, 세부 창과 내 프리셋",
       bullets: [
-        "고급 FX ▸ 랙 맨 위 [모든 채널 | 이 채널] 탭(또는 MASTER BUS의 '전체 FX')으로 고칠 대상을 고릅니다. 지금 고치는 대상은 바탕이 떠올라 보입니다(채널, 또는 모든 채널이면 MASTER BUS).",
+        "고급 FX ▸ 랙 맨 위의 [모든 채널 | 이 채널] 탭(또는 마스터 버스의 '전체 FX')에서 효과를 적용할 대상을 선택합니다. 현재 선택된 대상(개별 채널 또는 마스터 버스)은 배경이 밝게 강조됩니다.",
         "카드마다 '🔗 모든 채널 따름'이면 모든 채널 값을 쓰며 잠겨 있고, '이 채널만 따로'를 눌러야 그 채널 값만 바꿀 수 있습니다. 패닝은 이 채널 값에 '전체 밸런스'가 더해집니다.",
-        "카드의 '세부 ▸'로 세부 창을 열어 프리셋·대표 구간(↕ 스펙트럼 / ↔ 막대)·0dB 회귀 텐션·목표 LUFS를 다루고, 바꾼 값은 '내 프리셋으로 저장'해 다른 채널에서도 고를 수 있습니다.",
+        "각 항목의 '세부 ▸'를 누르면 프리셋, 유효 구간(↕ 스펙트럼 / ↔ 막대), 원음 복귀 속도, 목표 LUFS를 세밀하게 조절할 수 있습니다. 변경한 설정은 '내 프리셋으로 저장'해 다른 채널에도 그대로 쓸 수 있습니다.",
       ],
     },
     {
       title: "스테레오 패닝(Pan) & 노이즈 게이트",
       bullets: [
         "패닝 (L100 ~ C ~ R100): 각 탭의 소리를 좌우 공간에 배치해 여러 방송·음악을 동시에 들을 때 명료도를 높입니다(더블클릭 또는 C 버튼으로 중앙 복귀).",
-        "노이즈 게이트 (-65 ~ -30 dB): 대사 사이 무음 구간의 마이크 화이트노이즈·바닥 잡음을 차단합니다.",
+        "노이즈 게이트 (-65 ~ -30 dB): 말이 멈춘 조용한 구간에서 들리는 마이크 화이트노이즈나 잔잔한 배경 잡음을 깔끔하게 잡아줍니다.",
       ],
     },
     {
-      title: "다이내믹 컴프레서 & 교차 출처 보안 0dB 상한",
+      title: "다이내믹 컴프레서 & 사이트 보안 제한(0dB)",
       bullets: [
         "컴프레서 (약 2:1 · 중 4:1 · 강 8:1): 갑작스럽게 튀는 비명이나 폭발음 피크를 매끄럽게 눌러 귀를 보호합니다.",
-        "보안 0dB 상한: 교차 출처(CORS)·DRM 보호 미디어는 저작권 보호 정책을 존중해 기본 볼륨 제어(0dB 이하 감쇠)로 자동 전환되며 [페이더] 상단에 빗금이 표시되고 미터는 설정 볼륨 기준으로 표시됩니다.",
+        "보안 제한(0dB): 사이트 보안(CORS·DRM)이 적용된 미디어는 저작권 보호를 위해 기본 볼륨 조절(0dB 이하로만 조절)로 자동 전환되며, [페이더] 상단에 빗금이 표시되고 미터는 설정 볼륨 기준으로 움직입니다.",
       ],
     },
   ],
   terms: {
     tabJump: {
       name: "탭 이동 헤더 (Tab Jump)",
-      subtitle: "파비콘 · 도메인 · ↗ 바로 이동 버튼",
+      subtitle: "파비콘 · 사이트 · ↗ 바로 이동 버튼",
       description: "채널 상단 파비콘·사이트명·↗ 버튼입니다. 클릭하거나 채널 선택 후 Enter를 누르면 해당 미디어가 재생 중인 브라우저 탭과 창으로 즉시 포커스가 이동합니다.",
     },
     popout: {
@@ -218,7 +220,7 @@ const KO_HELP: HelpLocaleBundle = {
     },
     normSplit: {
       name: "균일 N ▾ (Normalizer Split)",
-      subtitle: "상단 자동 음압 평준화 스플릿 버튼",
+      subtitle: "상단 자동 음량 평준화 스플릿 버튼",
       description: "상단 '모든 채널' 노멀라이저 스플릿 버튼입니다. 본체를 누르면 즉시 ON/OFF되며('이 채널만'으로 따로 둔 채널은 그대로), 우측 ▾에서 클래식(광대역) · 음악(강약 보존) · 표준(영상/방송) · 야간(강한 균일) 프리셋과 내 프리셋을 고릅니다.",
     },
     fader: {
@@ -247,14 +249,14 @@ const KO_HELP: HelpLocaleBundle = {
       description: "채널 맨 위 좌측 점 6개(⠿) 손잡이(우측에는 노멀라이저 N 배지 표시)입니다. 좌우로 끌어 순서를 바꾸거나, 우측 대기 구역에 놓아 즉시 일시정지할 수 있습니다.",
     },
     pin: {
-      name: "도메인 핀 (Domain Pin)",
+      name: "사이트 고정 핀 (Domain Pin)",
       subtitle: "하단 재생 버튼 오른쪽 압정(📌) 스위치",
       description: "하단 재생 버튼 오른쪽의 압정(📌) 스위치입니다. 켜 두면 이후 같은 사이트를 새 탭으로 열 때 현재 설정한 볼륨이 시작 기본값으로 자동 적용됩니다.",
     },
     switchBank: {
       name: "스위치 뱅크 (Switch Bank)",
       subtitle: "채널 최하단 M · S · F 3버튼 묶음",
-      description: "채널 맨 아래 M · S · F 3버튼 묶음입니다. M(음소거), S(단독 청취), F(선택 탭 외 배경 탭 감쇠 · Shift+클릭 다중 선택)로 여러 탭 간의 청취 집중도를 빠르게 전환합니다.",
+      description: "채널 맨 아래 M · S · F 3버튼 묶음입니다. M(음소거), S(이 채널만 듣기), F(다른 채널 줄이기 · Shift+클릭: 여러 개 선택)로 채널별 청취 집중도를 빠르게 전환합니다.",
     },
     masterBus: {
       name: "마스터 버스 (Master Bus)",
@@ -262,7 +264,7 @@ const KO_HELP: HelpLocaleBundle = {
       description: "콘솔 우측에 고정된 전체 출력 스트립입니다. 좌·우 2열 스테레오 레벨 미터, 중앙 마스터 페이더, 하단 전체 정지 및 전체 음소거 2단 버튼으로 구성됩니다.",
     },
   },
-  tourDialogAria: "Fadedesk 콘솔 실화면 투어",
+  tourDialogAria: "Fadedesk 콘솔 화면 투어",
   tourDemoPill: "예시 채널 표시 중",
   tourSkipLabel: "투어 건너뛰기",
   tourPrevLabel: "이전",
@@ -273,43 +275,75 @@ const KO_HELP: HelpLocaleBundle = {
   tourSteps: [
     {
       step: 1,
-      title: "상단 테마 · 도움말(?) · 독립 창 분리(↗)",
-      desc: "좌측 색상 점(●)에서 테마·모드를 바꾸고, 창 분리(↗) 버튼으로 콘솔을 별도 창으로 떼어내 항상 띄워 둘 수 있습니다.",
+      title: "테마(●) · 도움말(?) · 창 분리(↗)",
+      desc: [
+        "●를 눌러 테마와 화면 모드를 바꿉니다",
+        "?에서 사용법과 안전 안내를 다시 봅니다",
+        "↗를 눌러 콘솔을 별도 창으로 띄웁니다",
+      ],
     },
     {
       step: 2,
-      title: "채널 헤더 클릭 → 해당 탭 바로 이동(↗)",
-      desc: "파비콘·사이트명·↗ 영역을 클릭(또는 Enter)하면 여러 창의 수많은 탭 중에서 소리가 나는 해당 탭으로 즉시 이동합니다.",
+      title: "채널 상단 클릭 → 탭 바로 이동(↗)",
+      desc: [
+        "사이트 이름이나 ↗를 눌러 탭으로 이동합니다",
+        "채널을 선택한 뒤 Enter를 눌러도 됩니다",
+      ],
     },
     {
       step: 3,
-      title: "페이더 노브 드래그 & dB 직접 입력",
-      desc: "사각 노브를 끌어 -60dB~+12dB까지 조절하고, 아래 숫자창을 클릭해 원하는 데시벨을 직접 타이핑할 수 있습니다.",
+      title: "페이더 노브 드래그 · 숫자 입력",
+      desc: [
+        "노브를 끌어 -60~+12dB까지 조절합니다",
+        "더블클릭하면 0.0dB로 초기화됩니다",
+        "아래 숫자창을 눌러 dB를 직접 입력합니다",
+      ],
     },
     {
       step: 4,
-      title: "재생 전환 · 도메인 핀(📌) · 드래그 정렬(⠿)",
-      desc: "재생 옆 압정(📌)을 켜면 사이트 기본 볼륨으로 기억되며, 맨 위 6점 핸들(⠿)을 우측 대기 구역에 놓으면 즉시 일시정지됩니다.",
+      title: "사이트 고정 핀(📌) · 드래그(⠿)",
+      desc: [
+        "📌를 켜면 이 사이트의 기본 볼륨이 됩니다",
+        "⠿를 좌우로 끌어 채널 순서를 바꿉니다",
+        "⠿를 대기 구역에 놓으면 바로 일시정지됩니다",
+      ],
     },
     {
       step: 5,
-      title: "집중 청취(M · S · F)와 상단 Focus α",
-      desc: "F(Focus)를 켜면 이 탭만 또렷하게 두고 다른 탭들은 상단 Focus α 비율만큼 줄입니다. 우측 데시벨 수치도 직접 입력할 수 있습니다.",
+      title: "집중 청취(M·S·F)와 Focus α",
+      desc: [
+        "S는 이 채널만 듣고, F는 다른 채널을 줄입니다",
+        "Focus α에서 다른 채널을 줄일 폭을 정합니다",
+        "S·F 해제를 누르면 한 번에 모두 꺼집니다",
+      ],
     },
     {
       step: 6,
       title: "모든 채널 노멀라이저(균일 N ▾)",
-      desc: "본체로 모든 채널 노멀라이저를 켜고 끄며, 우측 ▾에서 클래식 · 음악 · 표준 · 야간 프리셋이나 내 프리셋을 고릅니다. '이 채널만'으로 따로 둔 채널은 건드리지 않습니다.",
+      desc: [
+        "균일 N을 눌러 자동 음량 맞춤을 켜고 끕니다",
+        "▾에서 상황별 프리셋과 내 프리셋을 고릅니다",
+        "'이 채널만' 설정된 채널은 그대로 유지됩니다",
+      ],
     },
     {
       step: 7,
       title: "마스터 버스 · 전체 FX",
-      desc: "우측 마스터 버스에서 전체 볼륨·일괄 정지·음소거를 다루고, '전체 FX'를 누르면 고급 FX 랙이 모든 채널을 고치는 상태로 열립니다.",
+      desc: [
+        "페이더로 콘솔 전체 볼륨을 조절합니다",
+        "전체 정지 · 전체 음소거로 한 번에 제어합니다",
+        "전체 FX를 눌러 모든 채널 효과를 설정합니다",
+      ],
     },
     {
       step: 8,
       title: "고급 FX 랙: 모든 채널 · 이 채널",
-      desc: "랙 위 탭으로 고칠 대상을 고릅니다. '🔗 모든 채널 따름' 카드는 잠겨 있어 '이 채널만 따로'를 눌러야 바뀌고, '세부 ▸'에서 바꾼 값은 내 프리셋으로 저장합니다. 채널 위 N G C P 칩은 지금 걸린 효과입니다.",
+      desc: [
+        "상단 탭에서 모든 채널 · 이 채널을 고릅니다",
+        "이 채널만 따로를 눌러야 개별 조절이 됩니다",
+        "세부 ▸에서 바꾼 값을 내 프리셋으로 저장합니다",
+        "채널 위 N·G·C·P는 현재 켜진 효과입니다",
+      ],
     },
   ],
 };
@@ -492,43 +526,75 @@ const EN_HELP: HelpLocaleBundle = {
   tourSteps: [
     {
       step: 1,
-      title: "Theme · Guide (?) · Popout Window (↗)",
-      desc: "Switch 4 color themes from the left dot (●), check guides & safety notes via ?, or detach Fadedesk into its own window (↗).",
+      title: "Theme (●) · Guide (?) · Popout (↗)",
+      desc: [
+        "Click ● to change theme and light/dark mode",
+        "Click ? to reopen this guide and safety notes",
+        "Click ↗ to open the console in its own window",
+      ],
     },
     {
       step: 2,
-      title: "Click Strip Header → Jump to Tab (↗)",
-      desc: "Click the favicon/domain header (or press Enter) to jump straight to the noisy tab across any browser window.",
+      title: "Strip Header → Jump to Tab (↗)",
+      desc: [
+        "Click the site name or ↗ to jump to that tab",
+        "Or select a strip and press Enter",
+      ],
     },
     {
       step: 3,
-      title: "Drag Fader Knob & Type Exact dB",
-      desc: "Drag the fader cap from -60 dB to +12 dB, or click the digital readout box below to type an exact decibel level.",
+      title: "Fader Knob & Exact dB",
+      desc: [
+        "Drag the knob from -60 to +12 dB",
+        "Double-click to reset to 0.0 dB",
+        "Click the number below to type a dB value",
+      ],
     },
     {
       step: 4,
-      title: "Play/Pause · Domain Pin · Drag Zone (⠿)",
-      desc: "Pin a site's default volume next to Play, or drag the top 6-dot grip across the divider to pause or resume instantly.",
+      title: "Domain Pin (📌) · Drag Grip (⠿)",
+      desc: [
+        "Turn on 📌 to make this the site's default volume",
+        "Drag ⠿ left or right to reorder strips",
+        "Drop ⠿ in the idle zone to pause right away",
+      ],
     },
     {
       step: 5,
-      title: "Focus / Solo (M · S · F) & Top Focus α",
-      desc: "Turn on F (Focus) to keep this tab clear while ducking background tabs by Focus α (click the α dB readout to type directly).",
+      title: "Solo · Focus (M·S·F) & Focus α",
+      desc: [
+        "S plays only this tab; F turns the others down",
+        "Focus α sets how far the others go down",
+        "Clear S·F turns them all off at once",
+      ],
     },
     {
       step: 6,
       title: "All-Channel Normalizer (Level N ▾)",
-      desc: "Toggle loudness leveling for all channels in one click, or open ▾ for Classical, Music, Standard, Night or My Presets. Tabs set separately are left alone.",
+      desc: [
+        "Click Level N to toggle auto loudness",
+        "Pick a preset or one of My presets from ▾",
+        "Tabs set separately keep their own settings",
+      ],
     },
     {
       step: 7,
-      title: "Master Bus & All FX",
-      desc: "Control Master Gain, Pause All and Mute All on the right; 'All FX' opens the FX Rack set to edit all channels.",
+      title: "Master Bus · All FX",
+      desc: [
+        "The fader sets the overall volume",
+        "Pause All and Mute All act on every tab",
+        "All FX opens the rack for all channels",
+      ],
     },
     {
       step: 8,
       title: "FX Rack: All Channels · This Tab",
-      desc: "Pick the target with the tabs on top. Cards marked '🔗 Follows all' are locked until you press 'Set separately'; values tuned in 'Details ▸' can be saved as My Presets. N G C P chips on each strip show active effects.",
+      desc: [
+        "Pick All channels or This tab at the top",
+        "Press Set separately to unlock a card",
+        "Details ▸ values can be saved as a preset",
+        "N·G·C·P on each strip show active effects",
+      ],
     },
   ],
 };
