@@ -35,6 +35,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ steps.ref.outputs.tag }}
+          # 릴리스 노트가 직전 릴리스 태그를 찾을 수 있게 태그까지 받는다
+          fetch-depth: 0
 
       - name: Setup Node.js 20
         uses: actions/setup-node@v4

@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -6,6 +7,8 @@ import { fileURLToPath } from "node:url";
 /**
  * GitHub Release 본문(한·영 수동 설치 안내 + CHANGELOG 발췌 + SHA-256 체크섬) 생성기.
  * RELEASE_TAG 환경변수가 주어지면(예: v1.0.0) static/manifest.json의 version과 일치하는지 검증한다.
+ * 바뀐 내역은 직전 릴리스 태그 다음 판부터 이번 판까지의 CHANGELOG 절을 모두 담는다
+ * (1.0.0 다음 공개 릴리스가 1.2.4라서, 이번 판 절만 담으면 1.1.0~1.2.3 변경이 빠졌다).
  */
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -37,7 +40,34 @@ if (!fs.existsSync(zipFullPath)) {
 const zipBuffer = fs.readFileSync(zipFullPath);
 const sha256 = crypto.createHash("sha256").update(zipBuffer).digest("hex");
 
-function extractChangelogForVersion(ver) {
+function compareVersions(a, b) {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < 3; i++) {
+    if (pa[i] !== pb[i]) return pa[i] - pb[i];
+  }
+  return 0;
+}
+
+/** 저장소 태그(v*) 가운데 이번 판보다 낮은 가장 높은 판. 태그를 못 읽으면 null(이번 판 절만 담음) */
+function previousReleaseVersion(cur) {
+  try {
+    const out = execFileSync("git", ["tag", "--list", "v*"], { cwd: ROOT, encoding: "utf8" });
+    const older = out
+      .split(/\r?\n/)
+      .map((t) => t.trim().replace(/^v/, ""))
+      .filter((v) => /^\d+\.\d+\.\d+$/.test(v) && compareVersions(v, cur) < 0)
+      .sort(compareVersions);
+    return older.length > 0 ? older[older.length - 1] : null;
+  } catch {
+    return null;
+  }
+}
+
+/** CHANGELOG에서 (since, ver] 범위 판의 절을 모두 뽑는다. since가 null이면 ver 절만 */
+function extractChangelogRange(since, ver) {
+  const inRange = (v) =>
+    since === null ? v === ver : compareVersions(v, since) > 0 && compareVersions(v, ver) <= 0;
   const changelogPath = path.join(ROOT, "CHANGELOG.md");
   if (!fs.existsSync(changelogPath)) return "";
   const lines = fs.readFileSync(changelogPath, "utf8").split(/\r?\n/);
@@ -52,7 +82,7 @@ function extractChangelogForVersion(ver) {
       if (collecting && current.length > 0) {
         matchedBlocks.push(current.join("\n").trim());
       }
-      if (m[1] === ver) {
+      if (inRange(m[1])) {
         collecting = true;
         current = [`### ${line.replace(/^##\s+/, "")}`];
       } else {
@@ -69,7 +99,8 @@ function extractChangelogForVersion(ver) {
   return matchedBlocks.join("\n\n");
 }
 
-const changelogExcerpt = extractChangelogForVersion(version);
+const previousRelease = previousReleaseVersion(version);
+const changelogExcerpt = extractChangelogRange(previousRelease, version);
 
 const firstReleaseSummary =
   version === "1.0.0"
@@ -87,7 +118,7 @@ const firstReleaseSummary =
 const notes = [
   `## 바로 설치하기 (ZIP 수동 설치 · 빌드 도구 불필요)`,
   ``,
-  `크롬 웹 스토어 심사를 기다리는 동안이나 오프라인 환경에서 소스 빌드 없이 바로 설치해 쓸 수 있는 공식 패키지입니다.`,
+  `오프라인 환경에서 소스 빌드 없이 바로 설치해 쓸 수 있는 공식 패키지입니다.`,
   ``,
   `1. 아래 **Assets**에서 **\`${zipName}\`** 파일을 내려받아 지우지 않을 폴더(예: \`Documents\\Fadedesk\`)에 **압축을 풉니다**.`,
   `2. Chrome 주소창에 \`chrome://extensions\`를 입력해 이동한 뒤 우측 상단 **개발자 모드(Developer mode)** 를 켭니다.`,
