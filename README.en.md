@@ -9,7 +9,7 @@
 A studio-style per-tab audio mixer console for Chrome (Manifest V3) that brings playback, logarithmic `dB` faders (`-60` to `+12 dB`), Focus ducking, Solo, stereo pan, and `BS.1770` loudness leveling across all windows and background tabs into one desk.<br/>
 Zero `tabCapture` banners. Zero network requests. 100% local.
 
-[한국어](README.md) · [**English**](README.en.md) · [**Download Latest Release (`v1.0.0` ZIP)**](https://github.com/Argoneon1810/Fadedesk/releases/latest) · [Chrome Web Store](https://chromewebstore.google.com/detail/fadedesk/dfklknhlpfjhdijdaadgbliolpkkhhpi) · [Changelog](CHANGELOG.md) · [Privacy Policy](PRIVACY.md) · [Report an Issue](https://github.com/Argoneon1810/Fadedesk/issues)
+[한국어](README.md) · [**English**](README.en.md) · [**Download Latest Release (`v1.2.4` ZIP)**](https://github.com/Argoneon1810/Fadedesk/releases/latest) · [Chrome Web Store](https://chromewebstore.google.com/detail/fadedesk/dfklknhlpfjhdijdaadgbliolpkkhhpi) · [Changelog](CHANGELOG.md) · [Privacy Policy](PRIVACY.md) · [Report an Issue](https://github.com/Argoneon1810/Fadedesk/issues)
 
 </div>
 
@@ -28,18 +28,18 @@ Zero `tabCapture` banners. Zero network requests. 100% local.
 
 ## Installation
 
-### 1. Direct Install from GitHub Releases (No Node.js Needed · Recommended While Store Review Is Pending)
+### 1. Direct Install from GitHub Releases (No Node.js Needed)
 
 You can install the exact official release package right away without building from source:
 
-1. Go to [GitHub Releases](https://github.com/Argoneon1810/Fadedesk/releases/latest), download **`fadedesk-1.0.0.zip`** ([Direct Download](https://github.com/Argoneon1810/Fadedesk/releases/download/v1.0.0/fadedesk-1.0.0.zip)), and extract it into a permanent folder (for example, `Documents/Fadedesk`).
+1. Go to [GitHub Releases](https://github.com/Argoneon1810/Fadedesk/releases/latest), download **`fadedesk-1.2.4.zip`** ([Direct Download](https://github.com/Argoneon1810/Fadedesk/releases/download/v1.2.4/fadedesk-1.2.4.zip)), and extract it into a permanent folder (for example, `Documents/Fadedesk`).
 2. Open `chrome://extensions` in Chrome and turn on **Developer mode** in the top-right corner.
 3. Click **Load unpacked** in the top-left corner and select the extracted folder (the folder directly containing `manifest.json`).
 4. Pin **Fadedesk** from Chrome's puzzle-piece toolbar menu. Already-open media tabs connect immediately without reloading.
 
 ### 2. Chrome Web Store
 
-- [Fadedesk on the Chrome Web Store](https://chromewebstore.google.com/detail/fadedesk/dfklknhlpfjhdijdaadgbliolpkkhhpi) *(Initial store review is currently in progress; one-click install and automatic updates will unlock as soon as review completes.)*
+- [Fadedesk on the Chrome Web Store](https://chromewebstore.google.com/detail/fadedesk/dfklknhlpfjhdijdaadgbliolpkkhhpi)
 
 <details>
 <summary><strong>3. Build from Source (For Developers)</strong></summary>
@@ -74,36 +74,41 @@ Then open `chrome://extensions`, enable **Developer mode**, click **Load unpacke
 | --- | --- |
 | **`M` (Mute)** | Silences that tab alone; click again to restore its previous fader level. |
 | **`S` (Solo)** | Isolates the selected tab (`Shift+Click` for multi-Solo) and mutes all others. Closing the last `Solo` tab restores other tabs over a smooth `0.3s` ramp instead of an abrupt jump. |
-| **`F` (Focus)** | Keeps focused tabs at full volume while smoothly attenuating all background tabs by the top **`Focus α`** slider (or direct `dB` readout input). |
+| **`F` (Focus)** | Keeps this tab at full volume and smoothly turns the other tabs down by the top **`Focus α`** amount (slider or direct `dB` input). |
 
-### 3. BS.1770 Loudness Presets (`Level N ▾`) & Per-Channel FX Rack
+### 3. BS.1770 Loudness Presets (`Level N ▾`) & FX Rack (`All channels` · `This tab`)
 
-![Fadedesk dockable per-channel FX rack](docs/store/screenshots/2-fx-rack.png)
+![Fadedesk FX Rack with the details panel](docs/store/screenshots/2-fx-rack.png)
 
-The top **`Level N ▾`** split button runs a real-time `ITU-R BS.1770-4` K-weighted loudness engine with `EBU Tech 3341` sliding windows and a **`-10 LU` relative gate** that holds gain steady during quiet intros and reverb tails instead of pumping background hiss.
+The top **`Level N ▾`** split button runs a real-time `ITU-R BS.1770-4` loudness engine with `EBU Tech 3341` time windows to even out loudness across tabs (on by default with the **Music** preset for new installs).
 
-| Preset | Window · Target | Best For |
-| --- | --- | --- |
-| **Music (Dynamic)** | `9.0s` slow window · `-16 LUFS` | Matching loudness across songs while preserving quiet-verse to loud-chorus dynamics |
-| **Standard (Video)** | `3.0s` balanced window · `-16 LUFS` | Everyday videos, livestreams, lectures, and mixed browsing |
-| **Night (Even)** | `0.45s` fast window · `-18 LUFS` | Late-night listening—keeps soft dialogue audible while clamping sudden loud effects |
+- **Active band & return speed**: The normalizer only listens to sound inside the active band (for example `-32` to `-10 LUFS`). Outside it—very soft passages or explosive peaks—it stops correcting and glides back to the original level (`0.0 dB`) at the set return speed.
+- **`-10 LU` relative gate**: Holds gain steady during quiet intros and reverb tails so the next beat never blasts.
 
-Open **`FX Rack ▸`** on the right to shape any selected channel non-destructively without disturbing your global preset:
+| Preset | Target · Window | Max Boost | Best For |
+| --- | --- | --- | --- |
+| **Classical (Wide)** | `-16 LUFS` · `15s` wide | `+4 dB` | Wide-range music—returns to the original level on very soft solos and loud tuttis |
+| **Music (Dynamic · Default)** | `-16 LUFS` · `9s` slow | `+6 dB` | Matching loudness between songs while keeping each song's dynamics |
+| **Standard (Video)** | `-16 LUFS` · `3s` balanced | `+7.5 dB` | Switching between videos, streams, and lectures |
+| **Night (Even)** | `-18 LUFS` · `0.4s` fast | `+9 dB` | Late-night listening—tames sudden loud effects, keeps soft dialogue clear |
 
-- **2-Tier Normalizer Override**: Set each tab to `Follow` global, force `On`, or force `Off`, with custom target loudness (`-20` to `-12 LUFS`) and speed
-- **Stereo Pan (`L100 – C – R100`)**: Place simultaneous streams left and right so overlapping voices stay distinct
-- **Noise Gate (`-65` to `-30 dB`)**: Gently mute mic hiss and room rumble between spoken phrases
-- **Dynamic Compressor (`2:1` / `4:1` / `8:1`)**: Tame sharp transients ahead of a `-1.0 dBFS` safety peak limiter
+Open **`FX Rack ▸`** on the right (or **`All FX`** on the Master Bus) and pick what you edit with the **`[All channels | This tab]`** tabs at the top. The target being edited (a channel strip, or the Master Bus for all channels) is raised, and the **`N` · `G` · `C` · `P`** chips on each strip show which effects are on.
 
-### 4. Pop-Out Window (`↗`), 4 Studio Themes & Guided Spotlight Tour
+- **`🔗 Follows all` and `Set separately`**: Normalizer, Noise Gate, and Compressor cards follow the all-channel settings and stay locked until you press **`Set separately`** for that tab; **`Follow all`** links it back.
+- **`Details ▸` panel & My Presets**: **`Details ▸`** opens a side panel for the preset, active band (live spectrum `↕` / bar `↔`, draggable), return speed, and target loudness. Save tuned normalizer values with **`Save as my preset`** (up to 20, rename and delete supported) and pick them on other tabs or from **`Level N ▾`**.
+- **Stereo Pan & Global Balance**: Place simultaneous streams left and right (`L100 – C – R100`). **Global Balance** in the all-channel settings shifts the whole mix while keeping each tab's relative position.
+- **Noise Gate (`-65` to `-30 dB`)**: Mutes mic hiss and room noise below the threshold.
+- **Dynamic Compressor (`2:1` / `4:1` / `8:1`)**: Tames sharp transients ahead of a `-1.0 dBFS` safety peak limiter.
 
-| 7-Step Live Spotlight Tour | Interactive Schematic & Safety Guide |
+### 4. Pop-Out Window (`↗`), 4 Studio Themes & 8-Step Screen Tour
+
+| 8-Step Screen Tour | Interactive Schematic & Safety Guide |
 | :---: | :---: |
-| ![Spotlight Tour](docs/store/screenshots/3-spotlight-tour.png) | ![Help Modal and Safety Guide](docs/store/screenshots/4-help-and-safety.png) |
+| ![Screen Tour](docs/store/screenshots/3-spotlight-tour.png) | ![Help Modal and Safety Guide](docs/store/screenshots/4-help-and-safety.png) |
 
 - **Standalone Pop-Out Window (`↗`)**: Detach the mixer into a resizable desktop window (auto-clamped above `520×420` with remembered size) for a second monitor.
-- **4 Studio Themes**: Switch among 4 hardware-inspired palettes across Dark, Light, or System appearance.
-- **Live Tour & Interactive Schematic (`?`)**: Walk through the console with an optional 7-step Spotlight Tour (complete with neutral demo strips when no media tabs are open) and an 11-part interactive hardware diagram. UI switches automatically between **English** and **Korean**.
+- **4 Studio Themes & a Dedicated Focus Color**: Switch among 4 palettes in Dark, Light, or System appearance. Focused strips use their own theme color, and the part of a fader you can't actually hear is hatched in a color that tells you why (Mute = red, silenced by `Solo` = Solo color, turned down by `Focus` = Focus color).
+- **Screen Tour & Interactive Schematic (`?`)**: An 8-step tour highlights the real console—including the FX Rack—with short step-by-step cards (2 demo strips appear when no media tabs are open), plus an interactive parts diagram. UI switches automatically between **English** and **Korean**.
 
 ---
 
@@ -128,7 +133,7 @@ Global shortcuts can be customized anytime at `chrome://extensions/shortcuts`.
 - **DRM & Cross-Origin Fallback (`0 dB` Cap)**: Encrypted streams (DRM/EME such as Netflix) and strict cross-origin media cannot be routed through Web Audio nodes without silencing audio. Fadedesk detects these automatically and falls back to native browser volume control (`-60` to `0 dB`) so playback never breaks.
 - **Local Media Files (`file://`)**: To control local audio/video files opened in Chrome, enable **Allow access to file URLs** on Fadedesk's `chrome://extensions` details page.
 - **Hearing & Speaker Protection**: Boosting above `0 dB` (especially stacking channel, master, and normalizer gain) or clearing `Solo` can raise loudness sharply. Start at a low volume when wearing headphones.
-- **Calls, Alerts & Sensitive Pages**: Master Mute, `Solo`, `Focus` ducking, and `Noise Gate` also attenuate web calls, meetings, calendar reminders, and emergency alerts in other tabs. Because Fadedesk hooks browser audio APIs, pause the extension or use Incognito during proctored online exams, strict banking security checks, or Web DAW production.
+- **Calls, Alerts & Sensitive Pages**: Master Mute, `Solo`, `Focus`, and `Noise Gate` also turn down or silence web calls, meetings, calendar reminders, and emergency alerts in other tabs. Because Fadedesk hooks browser audio APIs, pause the extension or use Incognito during proctored online exams, strict banking security checks, or Web DAW production.
 - **Metering & Screen Sharing**: `LUFS` and VU meters are real-time listening estimates, not certified broadcast compliance instruments. Media tab titles from all open Chrome windows appear together in the console—check before sharing your screen.
 
 ---
@@ -148,10 +153,10 @@ Fadedesk **collects nothing and transmits nothing off your device.** Extension p
 
 ## Development & Verification
 
-Written in zero-dependency runtime TypeScript (`src/`) + Web Audio API. [scripts/build.mjs](scripts/build.mjs) packages an explicit 16-file runtime whitelist into `dist/unpacked/` and `dist/fadedesk-<version>.zip`, with seamless audio-graph **Hot-Swap** across extension reloads.
+Written in zero-dependency runtime TypeScript (`src/`) + Web Audio API. [scripts/build.mjs](scripts/build.mjs) packages an explicit 17-file runtime whitelist into `dist/unpacked/` and `dist/fadedesk-<version>.zip`, with seamless audio-graph **Hot-Swap** across extension reloads.
 
 ```bash
-npm test             # Full suite: typecheck + 27 unit/DOM/hot-swap tests + build + 17 headless Chrome ko/en UI audits
+npm test             # Full suite: typecheck + 43 unit/DOM/hot-swap tests + build + 26 headless Chrome ko/en UI audits
 npm run typecheck    # TypeScript static analysis (tsc --noEmit)
 npm run test:unit    # Audio math, state store, DOM hook, and hot-swap tests
 npm run build        # Bundle dist/unpacked and dist/fadedesk-<version>.zip
