@@ -560,33 +560,49 @@ const BASE_SETTINGS = {
   domainDefaults: { "audio.example": 0, "live.example": -3.5 },
 };
 
-const SCREENSHOT_SPECS = [
+/**
+ * 스토어 스크린숏 장면 4개를 영어·한국어로 한 벌씩 찍는다.
+ * 영어(확장 기본 언어)는 docs/store/screenshots/, 한국어는 docs/store/screenshots/ko/에 둔다.
+ * 언어마다 스토어 등록 페이지와 README가 자기 언어 그림만 쓰게 하기 위함이다(1.0.0 때는 한 벌에 두 언어가 섞여 있었다).
+ * 한국어 문구는 Gemini 검토를 거친 것만 넣는다(docs/design/copy-review/). 비어 있으면 그 그림을 건너뛴다.
+ */
+const SCENES = [
   {
     fileName: "1-console-overview.png",
-    lang: "en",
     glowHex: "#122b2f",
     accentHex: "#14b8a6",
-    kicker: "FADEDESK · PER-TAB STUDIO AUDIO CONSOLE",
-    headline: "Control Volume, Focus Ducking & Playback Across Every Tab",
-    subtitle: "-60 to +12 dB logarithmic faders · Mute / Solo / Focus (α) · Domain Volume Pin · Zero data collection",
-    snap: {
-      settings: { ...BASE_SETTINGS, theme: "teal", modePref: "dark", globalFx: globalFx(true), globalPan: 0, userPresets: [] },
-      channels: DEMO_CHANNELS_EN,
+    copy: {
+      en: {
+        kicker: "FADEDESK · PER-TAB STUDIO AUDIO CONSOLE",
+        headline: "Control Volume, Focus Ducking & Playback Across Every Tab",
+        subtitle: "-60 to +12 dB logarithmic faders · Mute / Solo / Focus (α) · Domain Volume Pin · Zero data collection",
+      },
+      ko: {
+        kicker: "FADEDESK · 탭별 오디오 믹서 콘솔",
+        headline: "모든 탭의 볼륨·재생·집중 청취를 한 화면에서 제어",
+        subtitle: "-60~+12dB 페이더 · 음소거(M) / Solo(S) / 다른 채널 줄이기(F) · 사이트 고정 핀 · 외부 전송 없음",
+      },
     },
+    settings: { ...BASE_SETTINGS, theme: "teal", modePref: "dark", globalFx: globalFx(true), globalPan: 0, userPresets: [] },
     afterActionJs: "",
   },
   {
     fileName: "2-fx-rack.png",
-    lang: "en",
     glowHex: "#13233b",
     accentHex: "#3b82f6",
-    kicker: "BS.1770 LOUDNESS & FX RACK",
-    headline: "Set Effects for All Channels at Once, or Just This Tab",
-    subtitle: "4 loudness presets (Classical · Music · Standard · Night) · My Presets · Pan, Gate & Compressor",
-    snap: {
-      settings: { ...BASE_SETTINGS, theme: "cobalt", modePref: "dark", advRackOpen: true, globalFx: globalFx(true), globalPan: 0, userPresets: [] },
-      channels: DEMO_CHANNELS_EN,
+    copy: {
+      en: {
+        kicker: "BS.1770 LOUDNESS & FX RACK",
+        headline: "Set Effects for All Channels at Once, or Just This Tab",
+        subtitle: "4 loudness presets (Classical · Music · Standard · Night) · My Presets · Pan, Gate & Compressor",
+      },
+      ko: {
+        kicker: "FADEDESK · 자동 음량 맞춤 & 고급 FX 랙",
+        headline: "모든 채널에 한 번에, 또는 이 채널만 따로 효과 설정",
+        subtitle: "4종 노멀라이저 프리셋 · 유효 구간 조절 및 내 프리셋 저장 · 패닝, 노이즈 게이트, 컴프레서 지원",
+      },
     },
+    settings: { ...BASE_SETTINGS, theme: "cobalt", modePref: "dark", advRackOpen: true, globalFx: globalFx(true), globalPan: 0, userPresets: [] },
     afterActionJs: `
       const ch2 = document.querySelector('.channel-strip[data-tab-id="2"]');
       if (ch2) ch2.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
@@ -596,16 +612,21 @@ const SCREENSHOT_SPECS = [
   },
   {
     fileName: "3-spotlight-tour.png",
-    lang: "ko",
     glowHex: "#122b2f",
     accentHex: "#14b8a6",
-    kicker: "FADEDESK · 한·영 지원 & 8단계 화면 투어",
-    headline: "콘솔 화면을 직접 비추며 안내하는 8단계 화면 투어",
-    subtitle: "열린 탭이 없어도 예시 채널로 체험하며 모든 채널·이 채널 고급 FX까지 쉽게 익힙니다",
-    snap: {
-      settings: { ...BASE_SETTINGS, theme: "teal", modePref: "dark", onboardingDone: false },
-      channels: DEMO_CHANNELS_KO,
+    copy: {
+      en: {
+        kicker: "FADEDESK · ENGLISH & KOREAN · 8-STEP SCREEN TOUR",
+        headline: "An 8-Step Tour That Highlights the Real Console",
+        subtitle: "Try it with demo strips even with no media tabs open, all the way to the All channels / This tab FX Rack",
+      },
+      ko: {
+        kicker: "FADEDESK · 한·영 지원 & 8단계 화면 투어",
+        headline: "콘솔 화면을 직접 비추며 안내하는 8단계 화면 투어",
+        subtitle: "열린 탭이 없어도 예시 채널로 체험하며 모든 채널·이 채널 고급 FX까지 쉽게 익힙니다",
+      },
     },
+    settings: { ...BASE_SETTINGS, theme: "teal", modePref: "dark", onboardingDone: false },
     afterActionJs: `
       document.querySelector("[data-tour-start]")?.click();
       const nextBtn = document.querySelector("#tour-overlay [data-tour-next]");
@@ -615,16 +636,21 @@ const SCREENSHOT_SPECS = [
   },
   {
     fileName: "4-help-and-safety.png",
-    lang: "ko",
     glowHex: "#2a2011",
     accentHex: "#f59e0b",
-    kicker: "FADEDESK · 콘솔 사용법 & 안전 유의사항",
-    headline: "언제든 ? 버튼으로 다시 보는 사용법 그림과 안전 안내",
-    subtitle: "기능 위치 안내 그림부터 청력 보호, 통화·경보 주의, 보안 페이지 호환까지 한곳에 담았습니다",
-    snap: {
-      settings: { ...BASE_SETTINGS, theme: "amber", modePref: "dark", onboardingDone: true },
-      channels: DEMO_CHANNELS_KO,
+    copy: {
+      en: {
+        kicker: "FADEDESK · CONSOLE GUIDE & SAFETY NOTES",
+        headline: "Reopen the Guide and Safety Notes Anytime with ?",
+        subtitle: "Interactive parts diagram, hearing protection, call & alert caution, and secure-page compatibility in one place",
+      },
+      ko: {
+        kicker: "FADEDESK · 콘솔 사용법 & 안전 유의사항",
+        headline: "언제든 ? 버튼으로 다시 보는 사용법 그림과 안전 안내",
+        subtitle: "기능 위치 안내 그림부터 청력 보호, 통화·경보 주의, 보안 페이지 호환까지 한곳에 담았습니다",
+      },
     },
+    settings: { ...BASE_SETTINGS, theme: "amber", modePref: "dark", onboardingDone: true },
     afterActionJs: `
       document.getElementById("help-btn")?.click();
       document.querySelector('[data-help-tab="easy"]')?.click();
@@ -632,6 +658,24 @@ const SCREENSHOT_SPECS = [
     `,
   },
 ];
+
+const SCREENSHOT_SPECS = [];
+for (const lang of ["en", "ko"]) {
+  for (const scene of SCENES) {
+    const copy = scene.copy[lang];
+    if (!copy) {
+      console.log(`[SKIP] ${lang}/${scene.fileName}: 검토를 거친 문구가 아직 없다`);
+      continue;
+    }
+    SCREENSHOT_SPECS.push({
+      ...scene,
+      ...copy,
+      lang,
+      outDir: lang === "en" ? OUT_SHOTS_DIR : path.join(OUT_SHOTS_DIR, "ko"),
+      snap: { settings: scene.settings, channels: lang === "en" ? DEMO_CHANNELS_EN : DEMO_CHANNELS_KO },
+    });
+  }
+}
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "fadedesk-store-assets-"));
 try {
@@ -658,14 +702,16 @@ try {
   );
   console.log(`[PASS] Generated promo tile: ${path.relative(ROOT, promoOut)} (440x280 RGB24)`);
 
-  // 2) 1280x800 스토어 스크린샷 4종 병렬 생성
+  // 2) 1280x800 스토어 스크린샷 (장면 4개 × 언어) 병렬 생성
   await Promise.all(
     SCREENSHOT_SPECS.map(async (spec) => {
-      const shotHtmlPath = path.join(tmpDir, `shot_${spec.fileName}.html`);
+      const tag = `${spec.lang}_${spec.fileName}`;
+      const shotHtmlPath = path.join(tmpDir, `shot_${tag}.html`);
       fs.writeFileSync(shotHtmlPath, buildStoreScreenshotHtml(basePopupHtml, spec), "utf8");
-      const shotProfile = path.join(tmpDir, `profile_${spec.fileName}`);
+      const shotProfile = path.join(tmpDir, `profile_${tag}`);
       fs.mkdirSync(shotProfile, { recursive: true });
-      const shotOut = path.join(OUT_SHOTS_DIR, spec.fileName);
+      fs.mkdirSync(spec.outDir, { recursive: true });
+      const shotOut = path.join(spec.outDir, spec.fileName);
       await captureHtmlToPng(
         CHROME_BIN,
         shotProfile,
@@ -673,7 +719,7 @@ try {
         `?lang=${spec.lang}`,
         1280,
         800,
-        path.join(tmpDir, `raw_${spec.fileName}`),
+        path.join(tmpDir, `raw_${tag}`),
         shotOut,
       );
       console.log(`[PASS] Generated screenshot: ${path.relative(ROOT, shotOut)} (1280x800 RGB24)`);

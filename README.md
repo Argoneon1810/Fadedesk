@@ -16,7 +16,7 @@
 
 ---
 
-![Fadedesk 다중 탭 오디오 믹서 콘솔 화면](docs/store/screenshots/1-console-overview.png)
+![Fadedesk 다중 탭 오디오 믹서 콘솔 화면](docs/store/screenshots/ko/1-console-overview.png)
 
 ## 이럴 때 씁니다
 
@@ -81,7 +81,7 @@ npm run build
 
 ### 3. 방송 표준 음량 평준화(`균일 N ▾`)와 고급 FX 랙(`모든 채널` · `이 채널`)
 
-![Fadedesk 고급 FX 랙과 세부 창](docs/store/screenshots/2-fx-rack.png)
+![Fadedesk 고급 FX 랙과 세부 창](docs/store/screenshots/ko/2-fx-rack.png)
 
 상단 **`균일 N ▾`** 버튼은 실시간 `ITU-R BS.1770-4` 라우드니스 계측과 `EBU Tech 3341` 시간 창을 바탕으로 탭마다 다른 음량을 자동으로 맞춰 줍니다(새로 설치 시 **음악** 프리셋으로 기본 켜짐).
 
@@ -107,7 +107,7 @@ npm run build
 
 | 8단계 화면 투어 | 기능 위치 안내 그림 & 안전 안내 |
 | :---: | :---: |
-| ![화면 투어](docs/store/screenshots/3-spotlight-tour.png) | ![도움말 및 안전 안내](docs/store/screenshots/4-help-and-safety.png) |
+| ![화면 투어](docs/store/screenshots/ko/3-spotlight-tour.png) | ![도움말 및 안전 안내](docs/store/screenshots/ko/4-help-and-safety.png) |
 
 - **별도 콘솔 창 분리 (`↗`)**: 툴바 팝업을 크기 조절 가능한 별도 창(`최소 520×420` 자동 유지, 위치·크기 기억)으로 떼어내 보조 모니터에 띄워 두고 쓸 수 있습니다.
 - **4종 스튜디오 테마 & Focus 전용 배색**: 4가지 포인트 배색과 다크·라이트·시스템 모드를 조합할 수 있습니다. `Focus`를 켠 채널은 테마별 전용 색으로 표시되며, 페이더에서 실제로 줄어들거나 꺼진 몫은 이유에 따라 다른 색의 빗금(음소거 = 빨강, `Solo`로 꺼짐 = Solo 색, `Focus`로 줄어듦 = Focus 색)으로 한눈에 보여 줍니다.

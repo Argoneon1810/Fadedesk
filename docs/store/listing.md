@@ -89,10 +89,11 @@ Source code & support: https://github.com/Argoneon1810/Fadedesk
 | 카테고리 | `Productivity` → `Tools` (또는 대시보드 분류상 `Make Chrome Yours` → `Functionality & UI`) |
 | 스토어 아이콘 (`128×128`) | `static/icons/icon128.png` (`96×96` 본체 + 사방 `16px` 투명 패딩 규격 반영 완료) |
 | 작은 프로모션 타일 (`440×280`) | `docs/store/promo-440x280.png` (24-bit RGB PNG, 알파 없음) |
-| 스크린샷 1 (`1280×800`) | `docs/store/screenshots/1-console-overview.png` (영문 다중 채널 + Focus + 마스터 스테레오 미터) |
-| 스크린샷 2 (`1280×800`) | `docs/store/screenshots/2-fx-rack.png` (영문 고급 FX 랙 · 모든 채널/이 채널 · 노멀라이저 세부 창) |
-| 스크린샷 3 (`1280×800`) | `docs/store/screenshots/3-spotlight-tour.png` (국문 8단계 화면 투어) |
-| 스크린샷 4 (`1280×800`) | `docs/store/screenshots/4-help-and-safety.png` (국문 인앱 사용법 및 5단계 안전·유의사항 모달) |
+| 스크린샷 (`1280×800`, 언어별 4장) | 영어 등록 페이지: `docs/store/screenshots/1~4-*.png` · 한국어 등록 페이지: `docs/store/screenshots/ko/1~4-*.png` (대시보드 우측 상단 언어 선택기에서 언어마다 그 언어 그림만 올린다) |
+| └ 1 `1-console-overview.png` | 콘솔 전체: 탭 5개 채널 · Focus · 마스터 스테레오 미터 |
+| └ 2 `2-fx-rack.png` | 고급 FX 랙(이 채널) · 노멀라이저 세부 창 |
+| └ 3 `3-spotlight-tour.png` | 화면 투어 8단계(고급 FX 랙 · N·G·C·P 배지) |
+| └ 4 `4-help-and-safety.png` | 도움말 창의 안전 및 유의사항 |
 | 홈페이지 URL | `https://github.com/Argoneon1810/Fadedesk` |
 | 지원 URL | `https://github.com/Argoneon1810/Fadedesk/issues` |
 | 성인 콘텐츠 | 아니오 (`No`) |
