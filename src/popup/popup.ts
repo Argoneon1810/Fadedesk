@@ -126,7 +126,7 @@ function renderAll(): void {
     "--c-border": t.border, "--c-text": t.text, "--c-muted": t.muted,
     "--c-primary": t.primary, "--c-on-primary": t.onPrimary, "--c-accent": t.accent,
     "--c-focus": t.focus, "--c-on-focus": t.onFocus, "--c-danger": t.states.danger,
-    "--c-warning": t.states.warning,
+    "--c-warning": t.states.warning, "--c-success": t.states.success,
   };
   for (const [k, v] of Object.entries(vars)) {
     root.style.setProperty(k, v);

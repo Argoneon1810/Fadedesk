@@ -380,12 +380,16 @@
   height: 100%;
 }
 
+/* VU LED: 꺼진 칸(바닥)은 고정, 켜진 칸 층과 정점 칸은 transform·opacity로만 움직여 다시 그리지 않는다 */
 .vu-col {
+  --vu-gap: 2px;
+  position: relative;
+  overflow: hidden;
   width: 4.5px;
   height: 100%;
   display: flex;
   flex-direction: column-reverse;
-  gap: 2px;
+  gap: var(--vu-gap);
 }
 
 .vu-seg {
@@ -394,6 +398,45 @@
   min-height: 2px;
   border-radius: 1px;
   display: block;
+  background-color: var(--c-border);
+  opacity: 0.26;
+}
+
+.vu-lit-window,
+.vu-lit-layer {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+
+.vu-lit-window {
+  overflow: hidden;
+}
+
+.vu-lit-layer {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--vu-gap);
+}
+
+.vu-seg.vu-seg-lit {
+  opacity: 0.95;
+}
+
+.vu-seg.z-ok, .vu-peak[data-zone="ok"] { background-color: var(--c-success); }
+.vu-seg.z-warn, .vu-peak[data-zone="warn"] { background-color: var(--c-warning); }
+.vu-seg.z-hot, .vu-peak[data-zone="hot"] { background-color: var(--c-danger); }
+
+.vu-peak {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc((100% - 19 * var(--vu-gap)) / 20);
+  min-height: 2px;
+  border-radius: 1px;
+  opacity: 0;
+  will-change: transform, opacity;
 }
 
 /* 디지털 dB 표시창 및 인라인 숫자 편집기 */

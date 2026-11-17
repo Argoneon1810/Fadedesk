@@ -1,3 +1,4 @@
+import { setStyle, setText } from "./dom-write";
 import { ui } from "../shared/i18n";
 import { fxUi } from "../shared/i18n-fx";
 import { effectiveModule, effectivePan, resolveEffectiveNormalizer } from "../shared/fx-model";
@@ -142,26 +143,26 @@ export function syncFxRackTrimBadge(
 ): void {
   const copy = ui();
   if (isGlobal) {
-    r.trimBadge.textContent = settings.globalFx.norm.enabled ? "N ON" : "N OFF";
-    r.trimBadge.style.color = settings.globalFx.norm.enabled ? t.primary : t.muted;
+    setText(r.trimBadge, settings.globalFx.norm.enabled ? "N ON" : "N OFF");
+    setStyle(r.trimBadge, "color", settings.globalFx.norm.enabled ? t.primary : t.muted);
     return;
   }
   if (!ch) {
-    r.trimBadge.textContent = copy.fxTrimIdle;
-    r.trimBadge.style.color = t.muted;
+    setText(r.trimBadge, copy.fxTrimIdle);
+    setStyle(r.trimBadge, "color", t.muted);
     return;
   }
   const resolved = resolveEffectiveNormalizer(settings.globalFx, ch.fx, ch.corsCap);
   if (ch.corsCap) {
-    r.trimBadge.textContent = copy.fxTrimCors;
-    r.trimBadge.style.color = t.states.warning;
+    setText(r.trimBadge, copy.fxTrimCors);
+    setStyle(r.trimBadge, "color", t.states.warning);
   } else if (resolved.active) {
     const sign = ch.normTrimDb >= 0 ? "+" : "";
-    r.trimBadge.textContent = copy.fxTrimActive(`${sign}${ch.normTrimDb.toFixed(1)}`);
-    r.trimBadge.style.color = resolved.source === "custom-on" ? t.text : t.primary;
+    setText(r.trimBadge, copy.fxTrimActive(`${sign}${ch.normTrimDb.toFixed(1)}`));
+    setStyle(r.trimBadge, "color", resolved.source === "custom-on" ? t.text : t.primary);
   } else {
-    r.trimBadge.textContent = copy.fxTrimOff;
-    r.trimBadge.style.color = t.muted;
+    setText(r.trimBadge, copy.fxTrimOff);
+    setStyle(r.trimBadge, "color", t.muted);
   }
 }
 

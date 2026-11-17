@@ -1,3 +1,4 @@
+import { setStyle, setText } from "./dom-write";
 import { ui } from "../shared/i18n";
 import { fxUi } from "../shared/i18n-fx";
 import { effectiveModule, effectivePan, resolveEffectiveNormalizer } from "../shared/fx-model";
@@ -42,7 +43,14 @@ export interface StripCallbacks {
 
 export interface LedColumnRef {
   col: HTMLDivElement;
-  segs: HTMLSpanElement[];
+  /** 켜진 칸을 보여 주는 창(밀리는 쪽) */
+  litWindow: HTMLDivElement;
+  /** 켜진 칸 20개를 칠해 둔 층(창과 반대로 밀려 제자리 유지) */
+  litLayer: HTMLDivElement;
+  peak: HTMLSpanElement;
+  /** 마지막으로 그린 값 (같으면 건너뜀) */
+  litCount: number;
+  peakIdx: number;
 }
 
 export interface ChannelStripRefs {
@@ -131,39 +139,74 @@ export function attachKnobDrag(
   });
 }
 
+/** LED 칸의 구간: 0dB 아래 = 초록, 0~+7.5dB = 노랑, 그 위 = 빨강 */
+function ledZone(i: number): "ok" | "warn" | "hot" {
+  const zeroSeg = Math.round(dbToRatio(0) * LED_COUNT);
+  const hotSeg = Math.round(dbToRatio(7.5) * LED_COUNT);
+  return i >= hotSeg ? "hot" : i >= zeroSeg ? "warn" : "ok";
+}
+
+function appendSegs(parent: HTMLElement, lit: boolean): void {
+  for (let i = 0; i < LED_COUNT; i++) {
+    const s = document.createElement("span");
+    s.className = lit ? `vu-seg vu-seg-lit z-${ledZone(i)}` : "vu-seg";
+    parent.appendChild(s);
+  }
+}
+
+/**
+ * LED 한 열. 꺼진 칸 20개(바닥)는 한 번만 그리고, 켜진 칸 20개를 칠해 둔 층을 창(window) 안에서 위아래로 밀어 보인다.
+ * 창은 translateY로 내려가고 안쪽 층은 같은 만큼 올라가 칸 자리가 고정된다. 정점(peak) 칸도 translateY로만 움직인다.
+ * 왜: 칸마다 색·투명도를 80ms마다 다시 쓰면 매번 다시 그리기와 래스터가 일어난다(팝업 CPU의 대부분).
+ * transform·opacity만 바꾸면 Chrome이 GPU 합성으로만 처리한다. (docs/research/performance/01_cpu_audit.md)
+ */
 export function createLedColumn(): LedColumnRef {
   const col = document.createElement("div");
   col.className = "vu-col";
-  const segs = Array.from({ length: LED_COUNT }, () => {
-    const s = document.createElement("span");
-    s.className = "vu-seg";
-    col.appendChild(s);
-    return s;
-  });
-  return { col, segs };
+  appendSegs(col, false);
+  const litWindow = document.createElement("div");
+  litWindow.className = "vu-lit-window";
+  const litLayer = document.createElement("div");
+  litLayer.className = "vu-lit-layer";
+  appendSegs(litLayer, true);
+  litWindow.appendChild(litLayer);
+  const peak = document.createElement("span");
+  peak.className = "vu-peak";
+  col.append(litWindow, peak);
+  const ref: LedColumnRef = { col, litWindow, litLayer, peak, litCount: -1, peakIdx: -2 };
+  paintLedColumn(ref, 0, 0);
+  return ref;
 }
 
-export function paintLedColumn(
-  segs: HTMLSpanElement[],
-  levelRatio: number,
-  peakRatio: number,
-  t: ThemeTokens,
-): void {
-  const litCount = Math.round(levelRatio * LED_COUNT);
-  const peakIdx =
-    peakRatio > 0.04 ? Math.min(LED_COUNT - 1, Math.max(0, Math.round(peakRatio * LED_COUNT) - 1)) : -1;
-  const zeroSeg = Math.round(dbToRatio(0) * LED_COUNT);
-  const hotSeg = Math.round(dbToRatio(7.5) * LED_COUNT);
+/** 켜진 칸 n개를 보이게 하는 창의 이동량: 창 꼭대기를 n번째 칸 위 틈의 가운데에 둔다 (칸 높이는 열 높이·틈에서 정해짐) */
+function litShift(n: number): string {
+  const pct = (1 - n / LED_COUNT) * 100;
+  const gapFactor = 0.5 - n / LED_COUNT;
+  return `calc(${pct}% + var(--vu-gap) * ${gapFactor})`;
+}
 
-  for (let i = 0; i < LED_COUNT; i++) {
-    const seg = segs[i];
-    if (!seg) continue;
-    const segColor =
-      i >= hotSeg ? t.states.danger : i >= zeroSeg ? t.states.warning : t.states.success;
-    const isLit = i < litCount;
-    const isPeak = i === peakIdx && peakIdx >= litCount;
-    seg.style.backgroundColor = isLit || isPeak ? segColor : t.border;
-    seg.style.opacity = isLit ? "0.95" : isPeak ? "0.85" : "0.26";
+export function paintLedColumn(ref: LedColumnRef, levelRatio: number, peakRatio: number): void {
+  const litCount = Math.max(0, Math.min(LED_COUNT, Math.round(levelRatio * LED_COUNT)));
+  const rawPeak =
+    peakRatio > 0.04 ? Math.min(LED_COUNT - 1, Math.max(0, Math.round(peakRatio * LED_COUNT) - 1)) : -1;
+  const peakIdx = rawPeak >= litCount ? rawPeak : -1;
+
+  if (litCount !== ref.litCount) {
+    ref.litCount = litCount;
+    const shift = litShift(litCount);
+    ref.litWindow.style.transform = `translateY(${shift})`;
+    ref.litLayer.style.transform = `translateY(calc(-1 * ${shift}))`;
+  }
+  if (peakIdx !== ref.peakIdx) {
+    ref.peakIdx = peakIdx;
+    if (peakIdx < 0) {
+      ref.peak.style.opacity = "0";
+    } else {
+      ref.peak.dataset.zone = ledZone(peakIdx);
+      ref.peak.style.opacity = "0.85";
+      // 칸 하나 높이(100%) + 틈 만큼씩 올린다
+      ref.peak.style.transform = `translateY(calc(-${peakIdx} * (100% + var(--vu-gap))))`;
+    }
   }
 }
 
@@ -431,8 +474,8 @@ export function paintChannelStereoVu(
   }
   const peakL = lvlL >= ch.vuPeak ? lvlL : Math.min(ch.vuPeak, lvlL + 0.08);
   const peakR = lvlR >= ch.vuPeak ? lvlR : Math.min(ch.vuPeak, lvlR + 0.08);
-  paintLedColumn(r.vu.segs, lvlL, peakL, t);
-  paintLedColumn(r.vuR.segs, lvlR, peakR, t);
+  paintLedColumn(r.vu, lvlL, peakL);
+  paintLedColumn(r.vuR, lvlR, peakR);
 }
 
 export function syncChannelReadoutSub(
@@ -452,24 +495,24 @@ export function syncChannelReadoutSub(
 
   const copy = ui();
   if (ch.corsCap) {
-    r.subText.textContent = copy.subCorsCap;
-    r.subText.style.color = t.muted;
+    setText(r.subText, copy.subCorsCap);
+    setStyle(r.subText, "color", t.muted);
   } else if (!ch.playing) {
-    r.subText.textContent = copy.subPaused;
-    r.subText.style.color = t.muted;
+    setText(r.subText, copy.subPaused);
+    setStyle(r.subText, "color", t.muted);
   } else if (ch.muted) {
-    r.subText.textContent = copy.subMuted;
-    r.subText.style.color = t.states.danger;
+    setText(r.subText, copy.subMuted);
+    setStyle(r.subText, "color", t.states.danger);
   } else if (attenuated) {
-    r.subText.textContent = copy.subAttenuated(formatDb(effDb));
-    r.subText.style.color = ctx.anySolo ? t.accent : t.focus;
+    setText(r.subText, copy.subAttenuated(formatDb(effDb)));
+    setStyle(r.subText, "color", ctx.anySolo ? t.accent : t.focus);
   } else if (norm.active) {
     const sign = ch.normTrimDb >= 0 ? "+" : "";
-    r.subText.textContent = copy.subNormTrim(`${sign}${ch.normTrimDb.toFixed(1)}`);
-    r.subText.style.color = norm.source === "custom-on" ? t.text : t.primary;
+    setText(r.subText, copy.subNormTrim(`${sign}${ch.normTrimDb.toFixed(1)}`));
+    setStyle(r.subText, "color", norm.source === "custom-on" ? t.text : t.primary);
   } else {
-    r.subText.textContent = pinned ? copy.subPinned : copy.subIndividual;
-    r.subText.style.color = pinned ? t.accent : t.muted;
+    setText(r.subText, pinned ? copy.subPinned : copy.subIndividual);
+    setStyle(r.subText, "color", pinned ? t.accent : t.muted);
   }
 }
 
@@ -552,7 +595,7 @@ export function syncChannelStripDom(
 
   if (r.readoutBtn.dataset.editing === "true") {
     r.readoutBtn.style.borderColor = t.primary;
-    r.subText.style.color = t.primary;
+    setStyle(r.subText, "color", t.primary);
   } else {
     r.readoutBtn.style.borderColor = t.border;
     r.dbText.textContent = formatDb(ch.db);

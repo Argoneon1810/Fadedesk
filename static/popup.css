@@ -99,7 +99,7 @@ html[data-view="window"] .fader-well {
 }
 
 html[data-view="window"] .vu-col {
-  gap: 1.5px;
+  --vu-gap: 1.5px;
 }
 
 html[data-view="window"] .vu-seg {

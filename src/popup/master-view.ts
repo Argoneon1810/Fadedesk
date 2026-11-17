@@ -211,8 +211,8 @@ export function syncMasterStripDom(
     sEl.style.fontWeight = db === 0 ? "700" : "400";
   }
 
-  paintLedColumn(m.vuL.segs, m.vuCurL, m.vuPeakL, t);
-  paintLedColumn(m.vuR.segs, m.vuCurR, m.vuPeakR, t);
+  paintLedColumn(m.vuL, m.vuCurL, m.vuPeakL);
+  paintLedColumn(m.vuR, m.vuCurR, m.vuPeakR);
 
   const copy = ui();
   if (m.readoutBtn.dataset.editing === "true") {
@@ -259,6 +259,6 @@ export function updateMasterBusVu(
   m.vuPeakL = m.vuCurL >= m.vuPeakL ? m.vuCurL : Math.max(m.vuCurL, m.vuPeakL - 0.016);
   m.vuPeakR = m.vuCurR >= m.vuPeakR ? m.vuCurR : Math.max(m.vuCurR, m.vuPeakR - 0.016);
 
-  paintLedColumn(m.vuL.segs, m.vuCurL, m.vuPeakL, t);
-  paintLedColumn(m.vuR.segs, m.vuCurR, m.vuPeakR, t);
+  paintLedColumn(m.vuL, m.vuCurL, m.vuPeakL);
+  paintLedColumn(m.vuR, m.vuCurR, m.vuPeakR);
 }
