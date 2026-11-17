@@ -26,7 +26,7 @@ npm run build
 | `v0.4.0` / `main` | `0.4.0` | 박스형 `SOUND MANAGER` 명판 배지 + 원형 `?` 2탭 4단계 도움말 모달 + 8종 실물 부품 인라인 SVG 중첩 카드 + 순수 Node 빌드 파이프라인 |
 | `v1.0.0` / `main` | `1.0.0` | 크롬 웹 스토어 최초 출시 판 (한·영 다국어, 7단계 스포트라이트 투어, 안전 고지, BS.1770-4 노멀라이저) |
 | **`v1.1.0-unstable` (`work/normalizer` → `main`)** | **`1.1.0` (`1.1.0-unstable`)** | 3-A 대표 음압 구간·`0.0 dB` 회귀 텐션·스침 방지 체류(`Dwell`), `클래식` 프리셋 신설, 기본 켜짐(`음악`), 사이트 볼륨 역보정·피크 헤드룸 가드, 실시간 16대역 스펙트럼 확장/축소 뷰, 팝오버 호버 구간 비교, 전 채널·마스터 우측 2열(L/R) 미터 통일 |
-| **`work/fx-scope-ux`** | **`1.2.1`** | (1.2.1: 팝업 그리기 CPU 절감 — `docs/research/performance/01_cpu_audit.md`) 고급 FX "모든 채널" 층(범위 탭 · MASTER BUS `전체 FX`), 노멀라이저 두 축 분리 · 따름 잠금, 전체 밸런스, 내 프리셋(복사), 세부 창, `N G C P` 칩, 활성 채널 떠오름, Focus 전용색, 원인별 빗금. 설계 기록 `docs/design/05_fx_scope_redesign.md`, 시안 `docs/design/mockups/v9-*` |
+| **`work/fx-scope-ux`** | **`1.2.2`** | (1.2.1: 팝업 그리기 CPU 절감 — `docs/research/performance/01_cpu_audit.md` · 1.2.2: 튜토리얼 8단계) 고급 FX "모든 채널" 층(범위 탭 · MASTER BUS `전체 FX`), 노멀라이저 두 축 분리 · 따름 잠금, 전체 밸런스, 내 프리셋(복사), 세부 창, `N G C P` 칩, 활성 채널 떠오름, Focus 전용색, 원인별 빗금. 설계 기록 `docs/design/05_fx_scope_redesign.md`, 시안 `docs/design/mockups/v9-*` |
 
 *(참고: GitHub 웹 설정의 Default branch가 첫 푸시 당시 생성된 `work/db-inline-edit`로 되어 있다면 `git clone -b main ...`으로 클론하거나, GitHub 저장소 `Settings → General → Default branch`에서 `main`으로 변경하면 `-b main` 없이도 항상 최신 `main`이 클론된다.)*
 

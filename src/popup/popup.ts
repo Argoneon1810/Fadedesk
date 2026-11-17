@@ -33,7 +33,7 @@ import { buildTourOverlayDom, createDemoTourChannels, type TourOverlayRefs } fro
 
 /**
  * 팝업 최상위 오케스트레이터.
- * 백그라운드 포트 동기화, 채널 드래그 재배치, 2계층 노멀라이저(3종 프리셋)·고급 FX 랙·실화면 투어 제어.
+ * 백그라운드 포트 동기화, 채널 드래그 재배치, 모든 채널·이 채널 노멀라이저(기본 4종 + 내 프리셋)·고급 FX 랙·실화면 투어 제어.
  */
 
 let snapshot: ConsoleSnapshot = {
@@ -116,10 +116,14 @@ function renderAll(): void {
   const t = PALETTES[snapshot.settings.theme][mode];
   const root = document.getElementById("console-root")!;
   const tourActive = Boolean(tourRefs?.isActive());
+  // 투어의 고급 FX 단계는 랙을 화면에서만 연다(저장된 advRackOpen은 그대로)
+  const rackOpen = snapshot.settings.advRackOpen || Boolean(tourRefs?.showsFxRack());
+  const viewSettings = rackOpen === snapshot.settings.advRackOpen
+    ? snapshot.settings : { ...snapshot.settings, advRackOpen: rackOpen };
   root.dataset.dark = String(isDark);
   root.dataset.helpOpen = String(helpOpen);
   root.dataset.tourOpen = String(tourActive);
-  root.dataset.fxOpen = String(snapshot.settings.advRackOpen);
+  root.dataset.fxOpen = String(rackOpen);
 
   const vars: Record<string, string> = {
     "--c-bg": t.bg, "--c-surface": t.surface, "--c-raised": t.raised,
@@ -175,7 +179,7 @@ function renderAll(): void {
 
   const advRackBtn = document.getElementById("adv-rack-btn");
   if (advRackBtn) {
-    const on = snapshot.settings.advRackOpen;
+    const on = rackOpen;
     advRackBtn.textContent = on ? ui().advRackOpenLabel : ui().advRackClosedLabel;
     advRackBtn.style.backgroundColor = on ? t.primary : t.raised;
     advRackBtn.style.color = on ? t.onPrimary : t.text;
@@ -209,17 +213,17 @@ function renderAll(): void {
   };
 
   // 떠오른 칸 = 랙이 지금 고치는 대상: "모든 채널"이면 채널 대신 MASTER BUS가 떠오른다
-  const fxGlobalShown = fxCtl.isGlobal() && snapshot.settings.advRackOpen;
+  const fxGlobalShown = fxCtl.isGlobal() && rackOpen;
   for (const ch of channels) {
     const refs = stripMap.get(ch.tabId);
     const isSel = !fxGlobalShown && selectedTabId === ch.tabId;
     if (refs) syncChannelStripDom(refs, ch, snapshot.settings, ctx, isSel, t);
   }
 
-  syncMasterStripDom(masterRefs, snapshot.settings, channels, t, fxCtl.isGlobal());
+  syncMasterStripDom(masterRefs, viewSettings, channels, t, fxCtl.isGlobal());
   updateMasterBusVu(masterRefs, snapshot.settings, channels, t);
-  syncFxRackDom(fxRackRefs, fxCtl, snapshot.settings, channels, t);
-  syncFxDetailDom(fxDetailRefs, fxCtl, snapshot.settings, t);
+  syncFxRackDom(fxRackRefs, fxCtl, viewSettings, channels, t);
+  syncFxDetailDom(fxDetailRefs, fxCtl, viewSettings, t);
   syncHelpModalDom(helpRefs, helpOpen, t);
   if (tourActive) {
     tourRefs.syncPosition(tourDemoActive && snapshot.channels.length === 0, t);
@@ -632,7 +636,7 @@ function bootstrapPopup(): void {
       selectedTabId = snapshot.channels[0]?.tabId ?? null;
     }
     renderAll();
-  });
+  }, () => renderAll());
   masterRefs = buildMasterStripDom(() => snapshot.settings.masterDb, stripCallbacks);
   document.getElementById("master-dock")!.appendChild(masterRefs.el);
 

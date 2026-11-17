@@ -65,6 +65,10 @@ interface TourHoleSpec {
   /** 각 내부 배열은 인접 요소를 하나의 스포트라이트 홀로 묶고, 외부 배열은 동시에 뚫을 다중 홀 목록을 뜻한다. */
   holeGroups: string[][];
   fallbackSelector?: string;
+  /** 이 단계 동안 고급 FX 랙을 잠시 열어 보여 준다(저장된 설정은 바꾸지 않음) */
+  showsFxRack?: boolean;
+  /** 선택자에 맞는 요소 전부를 한 구멍으로 묶는다(기본은 첫 요소만). 예: 모든 채널의 칩 줄 */
+  unionAllMatches?: boolean;
 }
 
 interface HoleBox {
@@ -107,10 +111,19 @@ const TOUR_HOLE_SPECS: TourHoleSpec[] = [
   },
   {
     step: 7,
-    holeGroups: [["#master-dock"], ["#adv-rack-btn"]],
+    holeGroups: [["#master-dock"]],
     fallbackSelector: "#console-root",
   },
+  {
+    step: 8,
+    holeGroups: [["#side-fx-rack"], [".channel-strip .fx-chips"]],
+    fallbackSelector: "#console-root",
+    showsFxRack: true,
+    unionAllMatches: true,
+  },
 ];
+
+const LAST_STEP = TOUR_HOLE_SPECS.length - 1;
 
 function roundedRectPath(x: number, y: number, w: number, h: number, r = 7): string {
   const rx = Math.max(0, Math.min(r, w / 2, h / 2));
@@ -140,12 +153,16 @@ export interface TourOverlayRefs {
   stop: () => void;
   isActive: () => boolean;
   getStepIndex: () => number;
+  /** 지금 단계가 고급 FX 랙을 보여 주는가 (팝업이 랙을 잠시 연다) */
+  showsFxRack: () => boolean;
   syncPosition: (demoMode: boolean, t?: ThemeTokens) => void;
 }
 
 export function buildTourOverlayDom(
   container: HTMLElement,
   onFinishOrSkip: () => void,
+  /** 단계가 바뀐 뒤 부른다. 팝업이 화면(랙 열림 등)을 다시 그린 뒤 위치를 맞추게 한다 */
+  onStepChange?: () => void,
 ): TourOverlayRefs {
   const copy = helpCopy();
   let active = false;
@@ -161,7 +178,7 @@ export function buildTourOverlayDom(
     <div class="tour-card c-surface" data-ref="card" role="dialog" aria-modal="true" aria-label="${copy.tourDialogAria}">
       <div class="tour-card-header">
         <div class="tour-card-tags">
-          <span class="tour-step-badge tabular" data-ref="stepBadge">STEP 1 / 7</span>
+          <span class="tour-step-badge tabular" data-ref="stepBadge">STEP 1 / ${TOUR_HOLE_SPECS.length}</span>
           <span class="tour-demo-pill hidden" data-ref="demoPill">${copy.tourDemoPill}</span>
         </div>
         <button type="button" class="tour-skip-btn" data-tour-skip>${copy.tourSkipLabel}</button>
@@ -192,26 +209,33 @@ export function buildTourOverlayDom(
   const skipBtn = container.querySelector<HTMLButtonElement>("[data-tour-skip]")!;
 
   dotsWrap.innerHTML = "";
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < TOUR_HOLE_SPECS.length; i++) {
     const dot = document.createElement("button");
     dot.type = "button";
     dot.className = "tour-step-dot";
     dot.dataset.step = String(i);
     dot.setAttribute("aria-label", copy.stepAria(i));
-    dot.addEventListener("click", () => {
-      currentStep = i;
-      syncPosition(lastDemoMode);
-    });
+    dot.addEventListener("click", () => goTo(i));
     dotsWrap.appendChild(dot);
   }
 
-  function unionSelectorsRect(selectors: string[]): DOMRect | null {
+  function unionSelectorsRect(selectors: string[], allMatches = false): DOMRect | null {
     const rects: DOMRect[] = [];
     for (const sel of selectors) {
-      const el = document.querySelector(sel);
-      if (!el) continue;
-      const r = el.getBoundingClientRect();
-      if (r.width > 0 && r.height > 0) rects.push(r);
+      const els = allMatches ? Array.from(document.querySelectorAll(sel)) : [document.querySelector(sel)];
+      // 여러 채널을 묶을 때는 채널 줄에 보이는 부분까지만 (스크롤로 가려진 채널이 MASTER BUS 위로 번지지 않게)
+      const scroller = allMatches ? document.getElementById("channels-scroll") : null;
+      const clip = scroller?.getBoundingClientRect();
+      for (const el of els) {
+        if (!el) continue;
+        let r = el.getBoundingClientRect();
+        if (clip && scroller?.contains(el)) {
+          const left = Math.max(r.left, clip.left);
+          const right = Math.min(r.right, clip.right);
+          r = new DOMRect(left, r.top, right - left, r.height);
+        }
+        if (r.width > 0 && r.height > 0) rects.push(r);
+      }
     }
     if (rects.length === 0) return null;
 
@@ -233,7 +257,7 @@ export function buildTourOverlayDom(
     const pad = 4;
     const rawRects: DOMRect[] = [];
     for (const group of stepDef.holeGroups) {
-      const r = unionSelectorsRect(group);
+      const r = unionSelectorsRect(group, Boolean(stepDef.unionAllMatches));
       if (r) rawRects.push(r);
     }
     if (rawRects.length === 0 && stepDef.fallbackSelector) {
@@ -264,13 +288,13 @@ export function buildTourOverlayDom(
 
     const stepDef = TOUR_HOLE_SPECS[currentStep] ?? TOUR_HOLE_SPECS[0]!;
     const stepCopy = copy.tourSteps[currentStep] ?? copy.tourSteps[0]!;
-    stepBadge.textContent = `STEP ${currentStep + 1} / 7`;
+    stepBadge.textContent = `STEP ${currentStep + 1} / ${TOUR_HOLE_SPECS.length}`;
     demoPill.classList.toggle("hidden", !demoMode);
     titleEl.textContent = stepCopy.title;
     descEl.textContent = stepCopy.desc;
 
     prevBtn.disabled = currentStep === 0;
-    nextBtn.textContent = currentStep === 6 ? copy.tourDoneLabel : copy.tourNextLabel;
+    nextBtn.textContent = currentStep === LAST_STEP ? copy.tourDoneLabel : copy.tourNextLabel;
 
     const dots = dotsWrap.querySelectorAll<HTMLButtonElement>(".tour-step-dot");
     dots.forEach((d, idx) => {
@@ -326,6 +350,13 @@ export function buildTourOverlayDom(
       { left: clampX(primary.left), top: clampY(primary.top - cardH - 10) },
       { left: clampX((W - cardW) / 2), top: maxT },
     );
+    // 구멍이 여럿이면 나머지 구멍의 아래·위도 후보로 둔다 (예: 8단계 칩 줄 바로 아래)
+    for (const h of holes.slice(1)) {
+      candidates.push(
+        { left: clampX(h.left), top: clampY(h.top + h.height + 10) },
+        { left: clampX(h.left), top: clampY(h.top - cardH - 10) },
+      );
+    }
 
     let best = candidates[0]!;
     let bestOverlap = Infinity;
@@ -358,26 +389,29 @@ export function buildTourOverlayDom(
     container.classList.add("hidden");
   }
 
+  function goTo(step: number): void {
+    currentStep = step;
+    if (onStepChange) onStepChange();
+    else syncPosition(lastDemoMode);
+  }
+
+  function finish(): void {
+    stop();
+    onFinishOrSkip();
+  }
+
   skipBtn.addEventListener("click", () => {
     stop();
     onFinishOrSkip();
   });
 
   prevBtn.addEventListener("click", () => {
-    if (currentStep > 0) {
-      currentStep--;
-      syncPosition(lastDemoMode);
-    }
+    if (currentStep > 0) goTo(currentStep - 1);
   });
 
   nextBtn.addEventListener("click", () => {
-    if (currentStep < 6) {
-      currentStep++;
-      syncPosition(lastDemoMode);
-    } else {
-      stop();
-      onFinishOrSkip();
-    }
+    if (currentStep < LAST_STEP) goTo(currentStep + 1);
+    else finish();
   });
 
   window.addEventListener("keydown", (ev) => {
@@ -385,23 +419,16 @@ export function buildTourOverlayDom(
     if (ev.key === "Escape") {
       ev.preventDefault();
       ev.stopImmediatePropagation();
-      stop();
-      onFinishOrSkip();
+      finish();
     } else if (ev.key === "ArrowLeft" && currentStep > 0) {
       ev.preventDefault();
       ev.stopImmediatePropagation();
-      currentStep--;
-      syncPosition(lastDemoMode);
+      goTo(currentStep - 1);
     } else if (ev.key === "ArrowRight") {
       ev.preventDefault();
       ev.stopImmediatePropagation();
-      if (currentStep < 6) {
-        currentStep++;
-        syncPosition(lastDemoMode);
-      } else {
-        stop();
-        onFinishOrSkip();
-      }
+      if (currentStep < LAST_STEP) goTo(currentStep + 1);
+      else finish();
     }
   });
 
@@ -411,6 +438,7 @@ export function buildTourOverlayDom(
     stop,
     isActive: () => active,
     getStepIndex: () => currentStep,
+    showsFxRack: () => active && Boolean(TOUR_HOLE_SPECS[currentStep]?.showsFxRack),
     syncPosition,
   };
 }

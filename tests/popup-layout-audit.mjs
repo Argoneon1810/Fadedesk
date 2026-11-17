@@ -205,7 +205,12 @@ function buildAuditHtml(sc) {
           }
           const card = overlay?.querySelector('[data-ref="card"]');
           const nextBtn = overlay?.querySelector("[data-tour-next]");
-          for (let step = 0; step < 7; step++) {
+          const TOUR_STEPS = 8;
+          const computeOverlap = (a, b) =>
+            Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) *
+            Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+          const rackWasOpen = !document.getElementById("side-fx-rack")?.classList.contains("hidden");
+          for (let step = 0; step < TOUR_STEPS; step++) {
             const holes = overlay?.querySelectorAll(".tour-spotlight-hole") ?? [];
             const hr = holes[0]?.getBoundingClientRect();
             const cr = card?.getBoundingClientRect();
@@ -217,12 +222,43 @@ function buildAuditHtml(sc) {
                 issues.push("TOUR_STEP5_ALPHA_NOT_SPOTLIGHTED");
               }
             }
+            // 8단계: 고급 FX 랙을 잠시 열고 랙 + 채널 N G C P 칩 두 곳을 비춘다
+            const rackEl = document.getElementById("side-fx-rack");
+            const rackShown = rackEl && !rackEl.classList.contains("hidden");
+            if (step === 7) {
+              if (!rackShown) issues.push("TOUR_STEP8_RACK_NOT_SHOWN");
+              const chipR = document.querySelector(".channel-strip .fx-chips")?.getBoundingClientRect();
+              const h2 = holes[1]?.getBoundingClientRect();
+              if (holes.length < 2 || !h2 || !chipR || h2.left > chipR.left || h2.right < chipR.right) {
+                issues.push("TOUR_STEP8_CHIPS_NOT_SPOTLIGHTED");
+              }
+              // 카드는 left/top 전환(140ms)으로 미끄러지므로 지금 보이는 자리가 아니라 목표 자리(style)로 판정한다
+              const cardTarget = card && {
+                left: rr.left + parseFloat(card.style.left), top: rr.top + parseFloat(card.style.top),
+                right: rr.left + parseFloat(card.style.left) + card.offsetWidth,
+                bottom: rr.top + parseFloat(card.style.top) + card.offsetHeight,
+              };
+              holes.forEach((h, i) => {
+                if (cardTarget && computeOverlap(cardTarget, h.getBoundingClientRect()) > 0) issues.push("TOUR_STEP8_CARD_COVERS_HOLE_" + i);
+              });
+            } else if (rackShown !== rackWasOpen) {
+              issues.push("TOUR_RACK_LEAKED_STEP_" + step);
+            }
             if (!cr || cr.width < 200 || cr.height < 80) issues.push("TOUR_CARD_INVALID_STEP_" + step);
             if (cr && (cr.left < rr.left - 1 || cr.right > rr.right + 1 || cr.top < rr.top - 1 || cr.bottom > rr.bottom + 1)) {
               issues.push("TOUR_CARD_OUT_OF_BOUNDS_STEP_" + step);
             }
-            if (step < 6) nextBtn?.click();
+            if (step < TOUR_STEPS - 1) nextBtn?.click();
           }
+        }
+
+        // 투어를 N단계까지 넘긴 채로 둔다 (AUDIT_SHOTS 화면 확인용, 판정은 testOnboardingTour가 맡음)
+        if (${JSON.stringify(sc.tourShotStep ?? 0)} > 0) {
+          document.querySelector("[data-tour-start]")?.click();
+          for (let i = 1; i < ${JSON.stringify(sc.tourShotStep ?? 0)}; i++) {
+            document.querySelector("#tour-overlay [data-tour-next]")?.click();
+          }
+          if (document.getElementById("tour-overlay")?.classList.contains("hidden")) issues.push("TOUR_SHOT_OVERLAY_HIDDEN");
         }
 
         // 0.7.0 상단 균일 N ▾ 스플릿 프리셋 팝오버 열기 검증
@@ -322,7 +358,8 @@ function buildAuditHtml(sc) {
         }
 
         const channelCount = document.querySelectorAll(".channel-strip").length;
-        const expectedChannels = ${sc.testOnboardingTour ? 2 : sc.snap.channels.length};
+        // 투어 중 빈 화면이면 예시 채널 2개가 뜬다
+        const expectedChannels = ${(sc.testOnboardingTour || sc.tourShotStep) && sc.snap.channels.length === 0 ? 2 : sc.snap.channels.length};
         if (channelCount !== expectedChannels) issues.push("CHANNEL_COUNT_MISMATCH: " + channelCount + " !== " + expectedChannels);
         if (${JSON.stringify(Boolean(sc.openPop))}) {
           const pop = document.getElementById("theme-popover");
@@ -656,6 +693,12 @@ function buildAuditHtml(sc) {
           if (document.querySelectorAll(".channel-strip").length !== 0 || !document.querySelector(".empty-bay")) {
             issues.push("DEMO_CHANNELS_NOT_CLEANED_AFTER_TOUR");
           }
+          if (!document.getElementById("side-fx-rack")?.classList.contains("hidden")) {
+            issues.push("TOUR_RACK_LEFT_OPEN_AFTER_TOUR");
+          }
+          if (window.__SENT_ACTIONS__.some((m) => m.type === "SET_ADV_RACK_OPEN")) {
+            issues.push("TOUR_RACK_OPEN_PERSISTED");
+          }
           if (window.__SENT_ACTIONS__.some((m) => typeof m.tabId === "number" && m.tabId < 0)) {
             issues.push("NEGATIVE_DEMO_TAB_ACTION_LEAKED");
           }
@@ -766,6 +809,8 @@ const scenarios = [
   { name: "window_inline_edit", w: 680, h: 460, isWindow: true, openPop: false, inlineEdit: true, snap: { settings: { ...BASE_SETTINGS, domainDefaults: PINNED_DEFAULTS }, channels: SAMPLE_CHANNELS } },
   { name: "window_help_modal", w: 680, h: 480, isWindow: true, openPop: false, testHelpModal: true, snap: { settings: { ...BASE_SETTINGS, domainDefaults: PINNED_DEFAULTS }, channels: SAMPLE_CHANNELS } },
   { name: "en_empty_popup", lang: "en", w: 800, h: 600, isWindow: false, openPop: false, snap: { settings: { ...BASE_SETTINGS }, channels: [] } },
+  { name: "tour_step8_rack", w: 800, h: 600, isWindow: false, openPop: false, tourShotStep: 8, snap: { settings: { ...BASE_SETTINGS, onboardingDone: false }, channels: [] } },
+  { name: "en_tour_step8_live", lang: "en", w: 800, h: 600, isWindow: false, openPop: false, tourShotStep: 8, snap: { settings: { ...BASE_SETTINGS, onboardingDone: false }, channels: SAMPLE_CHANNELS_EN } },
   { name: "en_onboarding_tour", lang: "en", w: 800, h: 600, isWindow: false, openPop: false, testOnboardingTour: true, snap: { settings: { ...BASE_SETTINGS, onboardingDone: false }, channels: [] } },
   { name: "en_norm_popover", lang: "en", w: 800, h: 600, isWindow: false, openPop: false, testNormPopover: true, snap: { settings: { ...BASE_SETTINGS, globalFx: globalFx(true) }, channels: SAMPLE_CHANNELS_EN } },
   { name: "fx_global_norm_detail", w: 800, h: 600, isWindow: false, openPop: false, testFxDetail: { global: true, panel: "norm", manage: true }, snap: { settings: { ...BASE_SETTINGS, globalFx: globalFx(true), userPresets: USER_PRESETS, advRackOpen: true }, channels: SAMPLE_CHANNELS } },

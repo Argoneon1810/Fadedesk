@@ -113,8 +113,8 @@ const KO_HELP: HelpLocaleBundle = {
       body: "탭별 -60 ~ +12dB 증폭, 직접 숫자 입력, 배경 탭만 부드럽게 줄이는 Focus(F)를 제공합니다.",
     },
     {
-      lead: "음악·표준·야간 맞춤 노멀라이저",
-      body: "곡 내부 강약을 보존하는 음악 모드부터 표준·야간까지 원클릭 프리셋을 지원합니다.",
+      lead: "모든 채널 노멀라이저와 내 프리셋",
+      body: "클래식·음악·표준·야간 프리셋으로 탭 사이 음량을 맞추고, 바꾼 값은 내 프리셋으로 저장해 다시 고릅니다.",
     },
   ],
   introNote:
@@ -219,7 +219,7 @@ const KO_HELP: HelpLocaleBundle = {
     normSplit: {
       name: "균일 N ▾ (Normalizer Split)",
       subtitle: "상단 자동 음압 평준화 스플릿 버튼",
-      description: "상단 자동 볼륨 균일화 스플릿 버튼입니다. 본체를 누르면 즉시 ON/OFF되며, 우측 ▾ 클릭 시 음악(강약 보존) · 표준(영상/방송) · 야간(강한 균일) 프리셋을 전환합니다.",
+      description: "상단 '모든 채널' 노멀라이저 스플릿 버튼입니다. 본체를 누르면 즉시 ON/OFF되며('이 채널만'으로 따로 둔 채널은 그대로), 우측 ▾에서 클래식(광대역) · 음악(강약 보존) · 표준(영상/방송) · 야간(강한 균일) 프리셋과 내 프리셋을 고릅니다.",
     },
     fader: {
       name: "페이더 (Fader)",
@@ -298,13 +298,18 @@ const KO_HELP: HelpLocaleBundle = {
     },
     {
       step: 6,
-      title: "이지 노멀라이저(균일 N ▾) 3종 프리셋",
-      desc: "본체는 자동 음압 정렬 ON/OFF이며, 우측 ▾에서 표준 EBU 계측 창 기반의 음악(9s) · 표준(3s) · 야간(0.4s) 프리셋을 고릅니다.",
+      title: "모든 채널 노멀라이저(균일 N ▾)",
+      desc: "본체로 모든 채널 노멀라이저를 켜고 끄며, 우측 ▾에서 클래식 · 음악 · 표준 · 야간 프리셋이나 내 프리셋을 고릅니다. '이 채널만'으로 따로 둔 채널은 건드리지 않습니다.",
     },
     {
       step: 7,
-      title: "마스터 버스와 고급 FX 사이드 랙",
-      desc: "우측 마스터 버스에서 전체 볼륨·일괄 정지·음소거를 제어하고, '전체 FX' 또는 상단 '고급 FX ▸'로 모든 채널 또는 한 채널의 노멀라이저·패닝·게이트·컴프레서를 다룹니다.",
+      title: "마스터 버스 · 전체 FX",
+      desc: "우측 마스터 버스에서 전체 볼륨·일괄 정지·음소거를 다루고, '전체 FX'를 누르면 고급 FX 랙이 모든 채널을 고치는 상태로 열립니다.",
+    },
+    {
+      step: 8,
+      title: "고급 FX 랙: 모든 채널 · 이 채널",
+      desc: "랙 위 탭으로 고칠 대상을 고릅니다. '🔗 모든 채널 따름' 카드는 잠겨 있어 '이 채널만 따로'를 눌러야 바뀌고, '세부 ▸'에서 바꾼 값은 내 프리셋으로 저장합니다. 채널 위 N G C P 칩은 지금 걸린 효과입니다.",
     },
   ],
 };
@@ -327,8 +332,8 @@ const EN_HELP: HelpLocaleBundle = {
       body: "Control each tab from -60 to +12 dB, type exact dB values, or enable Focus (F) to gently duck background tabs.",
     },
     {
-      lead: "Music · Standard · Night Loudness Presets",
-      body: "One-click BS.1770 loudness presets keep dynamics intact for music or tame sudden peaks late at night.",
+      lead: "All-Channel Normalizer & My Presets",
+      body: "Even out loudness across tabs with Classical, Music, Standard and Night presets, and save your own tweaks as My Presets.",
     },
   ],
   introNote:
@@ -433,7 +438,7 @@ const EN_HELP: HelpLocaleBundle = {
     normSplit: {
       name: "Level N ▾ (Normalizer Split)",
       subtitle: "Top-deck global loudness split button",
-      description: "Click the main button to toggle automatic loudness leveling on/off, or click ▾ to pick Music (9s), Standard (3s), or Night (0.4s).",
+      description: "Click the main button to toggle the all-channel normalizer (tabs set separately are unaffected), or click ▾ to pick Classical, Music, Standard, Night or one of My Presets.",
     },
     fader: {
       name: "Fader",
@@ -512,13 +517,18 @@ const EN_HELP: HelpLocaleBundle = {
     },
     {
       step: 6,
-      title: "Auto Loudness (Level N ▾) Presets",
-      desc: "Toggle global loudness leveling in one click, or open ▾ for Music (9s), Standard (3s), and Night (0.4s) EBU presets.",
+      title: "All-Channel Normalizer (Level N ▾)",
+      desc: "Toggle loudness leveling for all channels in one click, or open ▾ for Classical, Music, Standard, Night or My Presets. Tabs set separately are left alone.",
     },
     {
       step: 7,
-      title: "Master Bus & FX Rack",
-      desc: "Control Master Gain, Pause All, and Mute All on the right; use 'All FX' or FX Rack ▸ to set Normalizer, Pan, Gate and Compressor for all channels or one tab.",
+      title: "Master Bus & All FX",
+      desc: "Control Master Gain, Pause All and Mute All on the right; 'All FX' opens the FX Rack set to edit all channels.",
+    },
+    {
+      step: 8,
+      title: "FX Rack: All Channels · This Tab",
+      desc: "Pick the target with the tabs on top. Cards marked '🔗 Follows all' are locked until you press 'Set separately'; values tuned in 'Details ▸' can be saved as My Presets. N G C P chips on each strip show active effects.",
     },
   ],
 };
