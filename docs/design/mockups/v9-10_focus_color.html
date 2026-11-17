@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fadedesk v9-10 — Focus 고유색 8벌</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: #060b0c; color: #e5edee;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Pretendard, "Malgun Gothic", sans-serif; font-size: 12px; }
+  .tabular { font-variant-numeric: tabular-nums; font-family: Consolas, Menlo, monospace; }
+  .wrap { max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  .q-head { background: #131d1e; border: 1px solid #2d3b3c; border-radius: 10px; padding: 12px 16px; }
+  .q-kicker { font-size: 10px; font-weight: 700; color: #00bdce; letter-spacing: .08em; }
+  .q-title { font-size: 16px; font-weight: 700; margin: 4px 0 6px; }
+  .q-why { color: #98a4a6; line-height: 1.6; font-size: 12.5px; }
+  .q-why b { color: #e5edee; }
+  .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  @media (max-width: 1000px) { .grid { grid-template-columns: 1fr; } }
+
+  .theme { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 10px; color: var(--text); display: flex; flex-direction: column; gap: 8px; }
+  .thead { display: flex; justify-content: space-between; align-items: center; }
+  .tname { font-weight: 800; font-size: 13px; }
+  .swatches { display: flex; gap: 6px; align-items: center; font-size: 10.5px; color: var(--muted); }
+  .sw { display: inline-flex; align-items: center; gap: 3px; }
+  .sw i { width: 14px; height: 14px; border-radius: 3px; display: inline-block; border: 1px solid rgba(128,128,128,.3); }
+  .strips { display: flex; gap: 6px; }
+  .strip { width: 86px; border: 1px solid var(--border); border-radius: 7px; background: var(--raised); overflow: hidden; display: flex; flex-direction: column; }
+  .strip .tb { height: 3px; }
+  .strip.focus { border-color: var(--focus); } .strip.focus .tb { background: var(--focus); }
+  .strip.solo { border-color: var(--accent); } .strip.solo .tb { background: var(--accent); }
+  .strip.muted .tb { background: var(--danger); }
+  .lab { padding: 3px 6px; font-size: 10px; color: var(--muted); display: flex; justify-content: space-between; }
+  .lab b { color: var(--text); font-size: 10.5px; }
+  .fader { height: 96px; margin: 0 6px; border: 1px solid var(--border); border-radius: 5px; background: var(--surface); position: relative; }
+  .fader .in { position: absolute; left: 0; right: 0; top: 8px; bottom: 8px; }
+  .fill { position: absolute; left: 50%; width: 4px; margin-left: -2px; bottom: 0; border-radius: 2px; background: var(--primary); }
+  .strip.focus .fill { background: var(--focus); }
+  .strip.solo .fill { background: var(--accent); }
+  .band { position: absolute; left: 50%; width: 8px; margin-left: -4px; border-radius: 2px; opacity: .8;
+    background-image: repeating-linear-gradient(-45deg, var(--hc), var(--hc) 1.5px, transparent 1.5px, transparent 4px); }
+  .knob { position: absolute; left: 50%; width: 22px; height: 10px; margin-left: -11px; border-radius: 3px; background: var(--surface); border: 1px solid var(--muted); }
+  .strip.focus .knob { background: var(--focus); border-color: var(--focus); }
+  .strip.solo .knob { background: var(--accent); border-color: var(--accent); }
+  .strip.muted .knob { border-color: var(--danger); }
+  .db { text-align: center; font-weight: 700; font-size: 11px; padding: 3px 0; }
+  .strip.muted .db { color: var(--danger); }
+  .btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding: 0 6px 6px; }
+  .btns span { height: 20px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--muted); font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .btns span.m { background: var(--danger); border-color: var(--danger); color: var(--onDanger); }
+  .btns span.s { background: var(--accent); border-color: var(--accent); color: var(--onAccent); }
+  .btns span.f { background: var(--focus); border-color: var(--focus); color: var(--onFocus); }
+  .chk { font-size: 10.5px; color: var(--muted); line-height: 1.5; }
+  .chk b { color: var(--text); }
+  .panel { background: #131d1e; border: 1px solid #2d3b3c; border-radius: 10px; padding: 12px 14px; line-height: 1.65; font-size: 12.5px; }
+  .panel h3 { margin: 0 0 6px; font-size: 13px; color: #00bdce; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="q-head">
+    <div class="q-kicker">1.2.0 고급 FX 개편 · 질문 9 (질문 8 "Focus에 새 고유색"의 실제 색)</div>
+    <div class="q-title">테마 8벌의 Focus 색 후보 — 이대로 color-preset.md에 더할까요?</div>
+    <div class="q-why">
+      각 테마의 <b>주색과 같은 밝기·채도</b>에서 색상만 돌려 만들었습니다. 그래서 테마와 어울리면서도 주색과 확실히 갈립니다.
+      틸·앰버·에메랄드는 <b>보라</b> 계열이고, 코발트는 주색이 이미 파랑이라 보라와 너무 가까워 <b>자홍</b> 계열로 잡았습니다.
+      채널마다 왼쪽부터: <b>보통</b>(Focus 때문에 깎인 몫이 Focus 색 빗금) · <b>Focus</b> · <b>Solo가 켜진 다른 화면</b>의 Solo 채널 · <b>음소거</b>(빨간 띠·빨간 빗금).
+    </div>
+  </section>
+  <div class="grid" id="grid"></div>
+  <div class="panel">
+    <h3>검증 기준 (WCAG AA, 모두 통과)</h3>
+    <div>① Focus 색 ↔ 채널 바탕(surface·raised) 대비 3:1 이상 — 테두리·채움·빗금이 보이는지 ② Focus 버튼 위 글자 대비 4.5:1 이상 ③ 주색·보조색·성공·경고·위험색과 색상 차이 30° 이상(OKLCH). 가장 빠듯한 곳은 앰버 라이트의 raised 위 3.01, 코발트의 Focus↔음소거 빨강 40°입니다.</div>
+  </div>
+</div>
+<script>
+const T = [
+  { name: "스튜디오 틸 · 다크", primary: "#00bdce", accent: "#e69732", onAccent: "#000", bg: "#091112", surface: "#131d1e", raised: "#1d292a", border: "#2d3b3c", text: "#e5edee", muted: "#98a4a6", danger: "#f5605b", onDanger: "#000", focus: "#a998ef", onFocus: "#000000", c: [6.89, 6.01, 8.42] },
+  { name: "스튜디오 틸 · 라이트", primary: "#00808f", accent: "#a05c00", onAccent: "#fff", bg: "#eff5f5", surface: "#fafcfd", raised: "#e3ebec", border: "#c1cdcf", text: "#0e1819", muted: "#4e5b5c", danger: "#bc272c", onDanger: "#fff", focus: "#7462b1", onFocus: "#ffffff", c: [4.95, 4.21, 5.09] },
+  { name: "콘솔 앰버 · 다크", primary: "#eb992e", accent: "#00c4d6", onAccent: "#000", bg: "#130e0a", surface: "#1f1914", raised: "#2c251e", border: "#3e362e", text: "#efeae6", muted: "#a8a098", danger: "#f5605b", onDanger: "#000", focus: "#bd96fe", onFocus: "#000000", c: [7.42, 6.44, 8.96] },
+  { name: "콘솔 앰버 · 라이트", primary: "#d58200", accent: "#007f8f", onAccent: "#fff", bg: "#f6f3ef", surface: "#fdfbfa", raised: "#eee8e3", border: "#d1c9c1", text: "#1b150f", muted: "#5e574f", danger: "#bc272c", onDanger: "#fff", focus: "#9972d7", onFocus: "#000000", c: [3.54, 3.01, 5.74] },
+  { name: "프리시전 코발트 · 다크", primary: "#6591e1", accent: "#00c6c7", onAccent: "#000", bg: "#0d0f15", surface: "#171b21", raised: "#22272e", border: "#333842", text: "#e8ebf1", muted: "#9da2ab", danger: "#f5605b", onDanger: "#000", focus: "#c970a4", onFocus: "#000000", c: [5.22, 4.53, 6.34] },
+  { name: "프리시전 코발트 · 라이트", primary: "#3569cd", accent: "#008183", onAccent: "#fff", bg: "#f1f3f8", surface: "#fbfcfe", raised: "#e6eaf0", border: "#c6cbd4", text: "#12161d", muted: "#535861", danger: "#bc272c", onDanger: "#fff", focus: "#ad3d84", onFocus: "#ffffff", c: [5.42, 4.60, 5.56] },
+  { name: "브로드캐스트 에메랄드 · 다크", primary: "#49bf7b", accent: "#e29a2c", onAccent: "#000", bg: "#0b110d", surface: "#161d18", raised: "#202923", border: "#313b34", text: "#e7ede9", muted: "#9ba49e", danger: "#f5605b", onDanger: "#000", focus: "#ac90f6", onFocus: "#000000", c: [6.60, 5.76, 8.07] },
+  { name: "브로드캐스트 에메랄드 · 라이트", primary: "#00864b", accent: "#9d5e00", onAccent: "#fff", bg: "#f0f5f2", surface: "#fafcfb", raised: "#e5ebe7", border: "#c4cdc7", text: "#111813", muted: "#515b54", danger: "#bc272c", onDanger: "#fff", focus: "#775db5", onFocus: "#ffffff", c: [5.07, 4.32, 5.23] },
+];
+const strip = (kind, user, eff, hc) => {
+  const up = user, ep = eff;
+  return `<div class="strip ${kind}"><div class="tb"></div>
+    <div class="lab"><b>${{ normal: "보통", focus: "Focus", solo: "Solo", muted: "음소거" }[kind]}</b><span>${{ normal: "-12dB 깎임", focus: "", solo: "", muted: "" }[kind]}</span></div>
+    <div class="fader"><div class="in">
+      <span class="fill" style="height:${ep}%"></span>
+      ${hc ? `<span class="band" style="bottom:${ep}%;height:${up - ep}%;--hc:${hc}"></span>` : ""}
+      <span class="knob" style="bottom:calc(${up}% - 5px)"></span></div></div>
+    <div class="db tabular">${kind === "muted" ? "-2.0" : kind === "normal" ? "0.0" : "-6.0"} dB</div>
+    <div class="btns"><span class="${kind === "muted" ? "m" : ""}">M</span><span class="${kind === "solo" ? "s" : ""}">S</span><span class="${kind === "focus" ? "f" : ""}">F</span></div></div>`;
+};
+document.getElementById("grid").innerHTML = T.map((t) => `
+  <div class="theme" style="--primary:${t.primary};--accent:${t.accent};--onAccent:${t.onAccent};--bg:${t.bg};--surface:${t.surface};--raised:${t.raised};--border:${t.border};--text:${t.text};--muted:${t.muted};--danger:${t.danger};--onDanger:${t.onDanger};--focus:${t.focus};--onFocus:${t.onFocus}">
+    <div class="thead"><span class="tname">${t.name}</span>
+      <span class="swatches">
+        <span class="sw"><i style="background:${t.primary}"></i>주색</span>
+        <span class="sw"><i style="background:${t.focus}"></i><b class="tabular" style="color:var(--text)">Focus ${t.focus}</b></span>
+        <span class="sw"><i style="background:${t.accent}"></i>Solo</span>
+        <span class="sw"><i style="background:${t.danger}"></i>음소거</span>
+      </span></div>
+    <div class="strips">
+      ${strip("normal", 82, 66, t.focus)}${strip("focus", 74, 74, null)}${strip("solo", 74, 74, null)}${strip("muted", 80, 0, t.danger)}
+    </div>
+    <div class="chk tabular">바탕 대비 <b>${t.c[0].toFixed(2)}</b> / raised <b>${t.c[1].toFixed(2)}</b> · 버튼 글자 대비 <b>${t.c[2].toFixed(2)}</b> (글자 ${t.onFocus === "#000000" ? "검정" : "흰색"})</div>
+  </div>`).join("");
+</script>
+</body>
+</html>

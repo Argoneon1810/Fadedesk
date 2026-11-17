@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fadedesk v9-5 — 600px 안에 랙 배치</title>
+<style>
+  :root {
+    --c-bg: #091112; --c-surface: #131d1e; --c-raised: #1d292a; --c-border: #2d3b3c;
+    --c-text: #e5edee; --c-muted: #98a4a6;
+    --c-primary: #00bdce; --c-on-primary: #000000;
+    --c-accent: #e69732; --c-on-accent: #000000;
+    --c-success: #4fc678; --c-warning: #eda922; --c-danger: #f5605b;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: #060b0c; color: var(--c-text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Pretendard, "Malgun Gothic", sans-serif; font-size: 12px; }
+  .tabular { font-variant-numeric: tabular-nums; font-family: Consolas, Menlo, monospace; }
+  button, select { font-family: inherit; }
+  .wrap { max-width: 1260px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  .q-head { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 10px; padding: 12px 16px; }
+  .q-kicker { font-size: 10px; font-weight: 700; color: var(--c-primary); letter-spacing: .08em; }
+  .q-title { font-size: 16px; font-weight: 700; margin: 4px 0 6px; }
+  .q-why { color: var(--c-muted); line-height: 1.6; font-size: 12.5px; }
+  .q-why b { color: var(--c-text); }
+  .opt-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .opt-btn { height: 32px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--c-border);
+    background: var(--c-raised); color: var(--c-text); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+  .opt-btn[data-on="true"] { background: var(--c-primary); color: var(--c-on-primary); border-color: var(--c-primary); font-weight: 700; }
+  .stage { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; }
+  @media (max-width: 1150px) { .stage { grid-template-columns: 1fr; } }
+
+  /* 실제 크기 팝업: 790 × 600 */
+  .popup-frame { position: relative; }
+  .popup-cap { position: absolute; left: -2px; right: -2px; top: 600px; border-top: 2px dashed var(--c-danger); }
+  .popup-cap span { position: absolute; right: 0; top: 2px; color: var(--c-danger); font-size: 10.5px; font-weight: 700; }
+  .popup { width: 790px; height: 600px; background: var(--c-bg); border: 1px solid var(--c-border); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; position: relative; }
+  .deck { height: 44px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-bottom: 1px solid var(--c-border); }
+  .logo { border: 1px solid var(--c-primary); color: var(--c-primary); font-weight: 800; font-size: 11px; letter-spacing: .08em; padding: 3px 8px; border-radius: 4px; }
+  .deck-sp { flex: 1; }
+  .pill { height: 26px; padding: 0 10px; display: inline-flex; align-items: center; border-radius: 5px; border: 1px solid var(--c-border); background: var(--c-raised); font-weight: 700; font-size: 11.5px; }
+  .pill.on { background: var(--c-primary); color: var(--c-on-primary); border-color: var(--c-primary); }
+  .body { flex: 1; display: flex; min-height: 0; position: relative; }
+  .strips { flex: 1; display: flex; gap: 6px; padding: 8px; overflow: hidden; }
+  .strip { width: 94px; border: 1px solid var(--c-border); border-radius: 7px; background: var(--c-surface);
+    display: flex; flex-direction: column; padding: 6px; gap: 6px; cursor: pointer; }
+  .strip[data-sel="true"] { border-color: var(--c-primary); box-shadow: inset 0 0 0 1px var(--c-primary); }
+  .strip[data-target="all"] { border-color: var(--c-primary); border-style: dashed; }
+  .host { font-size: 10px; color: var(--c-muted); }
+  .stitle { font-size: 11.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fader { flex: 1; border: 1px solid var(--c-border); border-radius: 5px; background: #0d1718; position: relative; }
+  .fader::before { content: ""; position: absolute; left: 50%; top: 10px; bottom: 10px; width: 4px; margin-left: -2px; background: #2a3a3b; border-radius: 2px; }
+  .fader i { position: absolute; left: 50%; width: 24px; height: 12px; margin-left: -12px; top: 38%; background: var(--c-raised); border: 1px solid var(--c-muted); border-radius: 3px; }
+  .readout { text-align: center; font-weight: 700; }
+  .badges { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; }
+  .bdg { height: 18px; border-radius: 3px; border: 1px solid var(--c-border); color: #4a5859; font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .bdg.g { background: rgba(0,189,206,.16); color: var(--c-primary); border-color: rgba(0,189,206,.55); }
+  .bdg.c { background: rgba(230,151,50,.18); color: var(--c-accent); border-color: rgba(230,151,50,.6); }
+  .msf { display: grid; grid-template-columns: repeat(3,1fr); gap: 3px; }
+  .msf span { height: 20px; border: 1px solid var(--c-border); border-radius: 3px; display: flex; align-items: center; justify-content: center; color: var(--c-muted); font-size: 10px; font-weight: 700; }
+  .master { width: 112px; margin: 8px 0; border: 1px solid var(--c-border); border-top: 3px solid var(--c-primary); border-radius: 7px;
+    background: var(--c-surface); padding: 6px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; }
+  .master[data-sel="true"] { border-color: var(--c-primary); box-shadow: inset 0 0 0 1px var(--c-primary), 0 0 14px rgba(0,189,206,.35); }
+  .mk { font-size: 9.5px; font-weight: 800; letter-spacing: .1em; color: var(--c-primary); text-align: center; }
+  .mt { font-size: 12px; font-weight: 700; text-align: center; }
+  .mfx { height: 24px; border-radius: 4px; border: 1px solid var(--c-primary); color: var(--c-primary); background: transparent; font-weight: 700; font-size: 11px; cursor: pointer; }
+  .master[data-sel="true"] .mfx { background: var(--c-primary); color: var(--c-on-primary); }
+  .mbtn { height: 24px; border: 1px solid var(--c-border); border-radius: 4px; display: flex; align-items: center; justify-content: center; color: var(--c-muted); font-size: 10.5px; }
+
+  .rack { width: 220px; flex: none; border-left: 1px solid var(--c-border); background: var(--c-bg); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .rack.scroll { overflow-y: auto; }
+  .rack.clip { overflow: visible; }
+  .rack::-webkit-scrollbar { width: 6px; }
+  .rack::-webkit-scrollbar-thumb { background: #3f5253; border-radius: 3px; }
+  .scope-tabs { flex: none; display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--c-border); border-radius: 6px; overflow: hidden; }
+  .scope-tabs button { height: 28px; border: 0; background: var(--c-surface); color: var(--c-muted); font-weight: 700; font-size: 11px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 6px; }
+  .scope-tabs button[data-on="true"] { background: var(--c-primary); color: var(--c-on-primary); }
+  .scope-tabs button.ch[data-on="true"] { background: var(--c-raised); color: var(--c-text); box-shadow: inset 0 -2px 0 var(--c-primary); }
+  .rhead { flex: none; border-bottom: 1px solid var(--c-border); padding-bottom: 5px; }
+  .rtitle { font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rsub { font-size: 10.5px; color: var(--c-muted); margin-top: 1px; }
+  .rsub b { color: var(--c-primary); }
+  .card { flex: none; border: 1px solid var(--c-border); background: var(--c-surface); border-radius: 7px; padding: 7px 8px; display: flex; flex-direction: column; gap: 6px; position: relative; }
+  .card.own { border-color: rgba(230,151,50,.55); }
+  .card.open-detail { border-color: var(--c-primary); }
+  .chead { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .chead.click { cursor: pointer; }
+  .ctitle { font-weight: 700; font-size: 12px; display: flex; align-items: center; gap: 5px; }
+  .ctitle .chev { color: var(--c-muted); font-size: 10px; width: 10px; }
+  .csum { font-size: 10.5px; color: var(--c-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card.own .csum { color: var(--c-accent); }
+  .tog { height: 22px; min-width: 40px; border-radius: 4px; border: 1px solid var(--c-border); background: var(--c-surface); color: var(--c-muted); font-weight: 700; font-size: 10.5px; cursor: pointer; flex: none; }
+  .tog.on { background: var(--c-primary); color: var(--c-on-primary); border-color: var(--c-primary); }
+  .card.own .tog.on, .detail.own .tog.on { background: var(--c-accent); border-color: var(--c-accent); }
+  .controls { display: flex; flex-direction: column; gap: 5px; }
+  .locked { opacity: .45; pointer-events: none; }
+  .link { display: flex; align-items: center; justify-content: space-between; gap: 4px; font-size: 10.5px; }
+  .link .state { font-weight: 700; color: var(--c-muted); }
+  .own .link .state { color: var(--c-accent); }
+  .link button, .sbtn { border: 1px solid var(--c-border); background: var(--c-raised); color: var(--c-text); font-size: 10px; border-radius: 4px; height: 20px; padding: 0 6px; cursor: pointer; }
+  .link button.primary, .sbtn.primary { border-color: var(--c-primary); color: var(--c-primary); }
+  select { width: 100%; height: 24px; background: var(--c-raised); color: var(--c-text); border: 1px solid var(--c-border); border-radius: 4px; font-size: 11px; }
+  .meta { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--c-muted); }
+  .meta b { color: var(--c-text); }
+  .seg3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 3px; }
+  .seg3 button { height: 22px; border: 1px solid var(--c-border); border-radius: 4px; background: var(--c-surface); color: var(--c-muted); font-size: 10.5px; font-weight: 600; cursor: pointer; }
+  .seg3 button[data-on="true"] { background: var(--c-raised); color: var(--c-text); border-color: var(--c-primary); font-weight: 700; }
+  input[type=range] { width: 100%; accent-color: var(--c-primary); margin: 0; height: 14px; }
+  .own input[type=range] { accent-color: var(--c-accent); }
+  .viz { height: 30px; border: 1px solid var(--c-border); border-radius: 4px; background: #0b1415; position: relative; }
+  .viz .band { position: absolute; top: 5px; bottom: 5px; background: rgba(0,189,206,.14); border-left: 2px solid var(--c-primary); border-right: 2px solid var(--c-primary); }
+  .viz .pin { position: absolute; top: 2px; bottom: 2px; width: 2px; background: var(--c-accent); }
+  .viz .lvl { position: absolute; bottom: 2px; height: 4px; left: 0; background: var(--c-success); border-radius: 2px; transition: width 200ms; }
+  .viz .tk { position: absolute; bottom: -1px; font-size: 8.5px; color: var(--c-muted); transform: translateX(-50%); }
+  .hint { font-size: 10.5px; color: var(--c-warning); line-height: 1.4; }
+  .lockhit { position: absolute; left: 0; right: 0; top: 0; bottom: 28px; cursor: not-allowed; }
+  .more { height: 20px; border: 1px solid var(--c-primary); color: var(--c-primary); background: transparent; border-radius: 4px; font-size: 10.5px; cursor: pointer; padding: 0 6px; }
+
+  /* 다: 세부 팝오버 */
+  .detail { position: absolute; top: 8px; bottom: 8px; right: 228px; width: 250px; background: var(--c-surface); border: 1px solid var(--c-primary);
+    border-radius: 8px; box-shadow: 0 8px 30px rgba(0,0,0,.6); padding: 10px; display: flex; flex-direction: column; gap: 7px; z-index: 5; }
+  .detail.own { border-color: var(--c-accent); }
+  .detail .dhead { display: flex; justify-content: space-between; align-items: center; }
+  .detail .dclose { border: 0; background: transparent; color: var(--c-muted); font-size: 14px; cursor: pointer; }
+  .detail .dsub { font-size: 10.5px; color: var(--c-muted); }
+
+  .side { display: flex; flex-direction: column; gap: 10px; }
+  .panel { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 10px; padding: 12px 14px; line-height: 1.65; font-size: 12.5px; }
+  .panel h3 { margin: 0 0 6px; font-size: 13px; color: var(--c-primary); }
+  .panel ol, .panel ul { margin: 4px 0; padding-left: 18px; }
+  .panel .cost { color: var(--c-warning); }
+  .task { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; }
+  .task .ck { width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--c-border); flex: none; margin-top: 2px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
+  .task.done .ck { background: var(--c-success); border-color: var(--c-success); color: #000; }
+  .task.done span { color: var(--c-muted); text-decoration: line-through; }
+  .resetall { margin-top: 6px; height: 26px; padding: 0 10px; border-radius: 5px; border: 1px solid var(--c-border); background: var(--c-raised); color: var(--c-text); cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="q-head">
+    <div class="q-kicker">1.2.0 고급 FX 개편 · 질문 5 (질문 1~4의 답을 모두 합친 실제 크기 790×600 화면)</div>
+    <div class="q-title">늘어난 랙을 팝업 높이 600px 안에 어떻게 담을까요?</div>
+    <div class="q-why">
+      지금까지의 결정으로 랙에 <b>범위 탭</b>, <b>프리셋 선택</b>, 카드마다 <b>따름/따로 줄</b>이 새로 생겼습니다.
+      Chrome 확장 팝업은 세로 600px을 넘을 수 없습니다(빨간 점선). 1.1.0도 이미 거의 꽉 차 있었습니다.
+      아래 세 판은 같은 기능을 서로 다르게 접어 담은 것입니다. 바꿔 가며 과제를 해 보세요.
+    </div>
+    <div class="opt-row" id="optRow"></div>
+  </section>
+
+  <div class="stage">
+    <div class="popup-frame">
+      <div class="popup">
+        <div class="deck">
+          <span class="logo">FADEDESK</span><span class="deck-sp"></span>
+          <span class="pill tabular">Focus α 0.70</span><span class="pill on">균일 N ▾</span><span class="pill on">고급 FX ◂</span>
+        </div>
+        <div class="body" id="body">
+          <div class="strips" id="strips"></div>
+          <div class="master" id="master"></div>
+          <div class="rack" id="rack"></div>
+        </div>
+      </div>
+      <div class="popup-cap"><span>Chrome 팝업 상한 600px</span></div>
+    </div>
+    <div class="side">
+      <div class="panel" id="explain"></div>
+      <div class="panel">
+        <h3>해 볼 과제</h3>
+        <div id="tasks"></div>
+        <button class="resetall" id="resetAll">처음 상태로</button>
+      </div>
+      <div class="panel">
+        <h3>이 화면에 들어간 앞의 결정</h3>
+        <ul>
+          <li>질문 1 · C: 랙 위 범위 탭 + MASTER BUS의 <b>전체 FX</b></li>
+          <li>질문 2 · 나: "모든 채널"의 패닝 = 각 채널에 더해지는 <b>전체 밸런스</b></li>
+          <li>질문 3 · 가: 따르는 카드는 <b>잠김</b>, "이 채널만 따로"로 풂</li>
+          <li>질문 4 · 나: 프리셋 고르기 + 수정됨 → 내 프리셋으로 저장(복사)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const OPTIONS = [
+  { key: "accordion", label: "가 · 접는 카드 (하나만 펼침)" },
+  { key: "scroll", label: "나 · 모두 펼치고 랙 안에서 스크롤" },
+  { key: "flyout", label: "다 · 요약 카드 + 세부는 옆에 펼침" },
+];
+const EXPLAIN = {
+  accordion: `<h3>가 · 접는 카드 (하나만 펼침)</h3>
+    <ol>
+      <li>카드는 제목 줄만 보입니다. 제목 줄에 ON/OFF, 요약 값, 따름/따로 색이 함께 나옵니다.</li>
+      <li>제목을 누르면 그 카드가 펼쳐지고, 펼쳐져 있던 다른 카드는 접힙니다.</li>
+      <li>처음에는 노멀라이저가 펼쳐져 있습니다.</li>
+    </ol>
+    <div class="cost">늘 600px 안에 들어갑니다. 대신 두 카드의 세부를 동시에 볼 수 없습니다.</div>`,
+  scroll: `<h3>나 · 모두 펼치고 랙 안에서 스크롤</h3>
+    <ol>
+      <li>1.1.0처럼 모든 카드가 펼쳐져 있습니다.</li>
+      <li>넘치는 부분은 랙 안에서만 위아래로 스크롤합니다. 채널 스트립과 마스터는 그대로 있습니다.</li>
+    </ol>
+    <div class="cost">익숙하고 한 번에 다 보입니다. 대신 아래 카드(컴프레서·패닝)는 스크롤해야 보여서, 있는 줄 모를 수 있습니다.</div>`,
+  flyout: `<h3>다 · 요약 카드 + 세부는 옆에 펼침</h3>
+    <ol>
+      <li>랙에는 카드 네 개가 짧은 요약으로 늘 다 보입니다: ON/OFF, 프리셋·값 한 줄, 따름/따로 줄.</li>
+      <li><b>세부 ▸</b>를 누르면 랙 왼쪽에 세부 창이 떠서 시각화·슬라이더를 넓게 다룹니다. 채널 스트립 위를 잠시 가립니다.</li>
+      <li>바깥을 누르거나 ✕로 닫습니다.</li>
+    </ol>
+    <div class="cost">전체 상태가 한눈에 보이고 세부 공간도 넓습니다. 대신 세부 창이 채널 스트립을 가리고, 한 번 더 눌러야 합니다.</div>`,
+};
+const CHANNELS = [
+  { id: 1, host: "youtube", title: "설명을 포기하는 가…", db: "0.0" },
+  { id: 2, host: "soundcloud", title: "Lo-fi Beats Radio", db: "-6.0" },
+  { id: 3, host: "twitch", title: "생방송 게임 중계", db: "-3.5" },
+];
+const PRESETS = { classical: "클래식", music: "음악", standard: "표준", night: "야간" };
+const SPEED = { slow: "완만", std: "표준", fast: "민감" };
+const MODS = ["norm", "gate", "comp", "pan"];
+const MOD_NAME = { norm: "노멀라이저", gate: "노이즈 게이트", comp: "컴프레서", pan: "패닝" };
+
+let opt = new URLSearchParams(location.search).get("opt") || "accordion";
+let state;
+function fresh() {
+  return {
+    scope: "channel", sel: 1, openCard: "norm", detail: null, hint: null,
+    global: {
+      norm: { on: true, preset: "music", target: -16, speed: "slow", tension: 0.35, low: -32, high: -10, modified: false },
+      gate: { on: false, th: -48 }, comp: { on: false, ratio: 4 },
+    },
+    globalPan: 0,
+    own: { 1: {}, 2: {}, 3: {} }, pan: { 1: 0, 2: 0, 3: 0 },
+  };
+}
+state = fresh();
+const fmtPan = (v) => (v === 0 ? "C" : v < 0 ? "L" + -v : "R" + v);
+const clamp = (v) => Math.max(-100, Math.min(100, v));
+function eff(id, m) {
+  if (m === "pan") return { v: clamp(state.pan[id] + state.globalPan), own: state.pan[id] !== 0 };
+  return m in state.own[id] ? { v: state.own[id][m], own: true } : { v: state.global[m], own: false };
+}
+function cur(m) {
+  if (state.scope === "global") return m === "pan" ? { v: state.globalPan, own: false } : { v: state.global[m], own: false };
+  return eff(state.sel, m);
+}
+function summary(m, v) {
+  if (m === "norm") return v.on ? `${PRESETS[v.preset]}${v.modified ? "*" : ""} · ${v.target} LUFS` : "꺼짐";
+  if (m === "gate") return v.on ? `바닥 ${v.th} dB` : "꺼짐";
+  if (m === "comp") return v.on ? `비율 ${v.ratio}:1` : "꺼짐";
+  return fmtPan(v);
+}
+function el(tag, attrs = {}, html = "") {
+  const e = document.createElement(tag);
+  for (const [a, v] of Object.entries(attrs)) {
+    if (a === "class") e.className = v; else if (a.startsWith("on")) e[a] = v; else e.setAttribute(a, v);
+  }
+  if (html) e.innerHTML = html;
+  return e;
+}
+function renderOptions() {
+  const row = document.getElementById("optRow"); row.innerHTML = "";
+  for (const o of OPTIONS) row.appendChild(el("button", { class: "opt-btn", "data-on": String(o.key === opt),
+    onclick: () => { opt = o.key; state = fresh(); renderAll(); } }, o.label));
+  document.getElementById("explain").innerHTML = EXPLAIN[opt];
+}
+const selectChannel = (id) => { state.sel = id; state.scope = "channel"; state.hint = null; renderAll(); };
+const selectGlobal = () => { state.scope = "global"; state.hint = null; renderAll(); };
+
+function renderStrips() {
+  const box = document.getElementById("strips"); box.innerHTML = "";
+  const global = state.scope === "global";
+  for (const ch of CHANNELS) {
+    const s = el("div", { class: "strip" });
+    s.dataset.sel = String(!global && state.sel === ch.id);
+    s.dataset.target = global ? "all" : "";
+    s.onclick = (ev) => { ev.stopPropagation(); state.detail = null; selectChannel(ch.id); };
+    s.appendChild(el("div", { class: "host" }, "● " + ch.host));
+    s.appendChild(el("div", { class: "stitle" }, ch.title));
+    s.appendChild(el("div", { class: "fader" }, "<i></i>"));
+    s.appendChild(el("div", { class: "readout tabular" }, ch.db + " dB"));
+    const b = el("div", { class: "badges" });
+    for (const [m, L] of [["norm", "N"], ["gate", "G"], ["comp", "C"], ["pan", "P"]]) {
+      const e = eff(ch.id, m);
+      const on = m === "pan" ? e.v !== 0 : e.v.on;
+      b.appendChild(el("span", { class: "bdg" + (on ? (e.own ? " c" : " g") : "") }, L));
+    }
+    s.appendChild(b);
+    s.appendChild(el("div", { class: "msf" }, "<span>M</span><span>S</span><span>F</span>"));
+    box.appendChild(s);
+  }
+}
+function renderMaster() {
+  const m = document.getElementById("master");
+  m.dataset.sel = String(state.scope === "global");
+  m.innerHTML = ""; m.onclick = (ev) => { ev.stopPropagation(); state.detail = null; selectGlobal(); };
+  m.appendChild(el("div", { class: "mk" }, "MASTER BUS"));
+  m.appendChild(el("div", { class: "mt" }, "전체 출력"));
+  m.appendChild(el("button", { class: "mfx" }, "전체 FX"));
+  m.appendChild(el("div", { class: "fader" }, "<i></i>"));
+  m.appendChild(el("div", { class: "readout tabular" }, "0.0 dB"));
+  m.appendChild(el("div", { class: "mbtn" }, "▶ 전체 재생"));
+  m.appendChild(el("div", { class: "mbtn" }, "전체 음소거"));
+}
+
+function change(m, patch) {
+  if (m === "pan") {
+    if (state.scope === "global") state.globalPan = patch; else state.pan[state.sel] = patch;
+    return renderAll();
+  }
+  if (state.scope === "global") { state.global[m] = { ...state.global[m], ...patch }; return renderAll(); }
+  const own = state.own[state.sel];
+  if (!(m in own)) { state.hint = m; return renderAll(); }
+  own[m] = { ...own[m], ...patch };
+  renderAll();
+}
+const detach = (m) => { state.own[state.sel][m] = { ...state.global[m] }; state.hint = null; renderAll(); };
+const relink = (m) => { delete state.own[state.sel][m]; renderAll(); };
+const isLocked = (m) => m !== "pan" && state.scope === "channel" && !(m in state.own[state.sel]);
+
+// 세부 조작 묶음
+function detailControls(m, v) {
+  const c = el("div", { class: "controls" });
+  if (m === "norm") {
+    const sel = el("select");
+    for (const [k, n] of Object.entries(PRESETS)) { const o = el("option", { value: k }, "프리셋: " + n + (k === v.preset && v.modified ? " (수정됨)" : "")); if (k === v.preset) o.selected = true; sel.appendChild(o); }
+    sel.appendChild(el("option", { value: "_save" }, "＋ 내 프리셋으로 저장…"));
+    sel.onchange = () => { if (sel.value === "_save") return renderAll(); change("norm", { preset: sel.value, modified: false }); };
+    c.appendChild(sel);
+    const viz = el("div", { class: "viz" });
+    const pos = (l) => ((l + 50) / 46) * 100;
+    viz.appendChild(Object.assign(el("div", { class: "band" }), { style: `left:${pos(v.low)}%;width:${pos(v.high) - pos(v.low)}%` }));
+    const pin = el("div", { class: "pin" }); pin.style.left = pos(v.target) + "%"; viz.appendChild(pin);
+    const lvl = el("div", { class: "lvl", "data-lvl": "1" }); lvl.style.width = "55%"; viz.appendChild(lvl);
+    for (const t of [-48, -36, -24, -12]) { const tk = el("span", { class: "tk" }, String(t)); tk.style.left = pos(t) + "%"; viz.appendChild(tk); }
+    c.appendChild(viz);
+    c.appendChild(el("div", { class: "meta" }, `<span>목표 음압</span><b class="tabular">${v.target} LUFS</b>`));
+    const tr = el("input", { type: "range", min: "-20", max: "-12", step: "1", value: String(v.target) });
+    tr.onchange = () => change("norm", { target: Number(tr.value), modified: true });
+    c.appendChild(tr);
+    const seg = el("div", { class: "seg3" });
+    for (const k of ["slow", "std", "fast"]) seg.appendChild(el("button", { "data-on": String(v.speed === k), onclick: () => change("norm", { speed: k, modified: true }) }, SPEED[k]));
+    c.appendChild(seg);
+    c.appendChild(el("div", { class: "meta" }, `<span>0dB 회귀 텐션</span><b class="tabular">${v.tension.toFixed(2)} dB/s</b>`));
+    const tn = el("input", { type: "range", min: "5", max: "150", step: "5", value: String(Math.round(v.tension * 100)) });
+    tn.onchange = () => change("norm", { tension: Number(tn.value) / 100, modified: true });
+    c.appendChild(tn);
+  } else if (m === "gate") {
+    c.appendChild(el("div", { class: "meta" }, `<span>바닥 차단</span><b class="tabular">${v.th} dB</b>`));
+    const r = el("input", { type: "range", min: "-65", max: "-30", step: "1", value: String(v.th) });
+    r.onchange = () => change("gate", { th: Number(r.value) });
+    c.appendChild(r);
+  } else if (m === "comp") {
+    const seg = el("div", { class: "seg3" });
+    for (const k of [2, 4, 8]) seg.appendChild(el("button", { "data-on": String(v.ratio === k), onclick: () => change("comp", { ratio: k }) }, ["약", "중", "강"][[2, 4, 8].indexOf(k)] + " " + k + ":1"));
+    c.appendChild(seg);
+  } else {
+    const global = state.scope === "global";
+    const val = global ? state.globalPan : state.pan[state.sel];
+    c.appendChild(el("div", { class: "meta" }, `<span>L100</span><span>C</span><span>R100</span>`));
+    const r = el("input", { type: "range", min: "-100", max: "100", step: "10", value: String(val) });
+    r.onchange = () => change("pan", Number(r.value));
+    c.appendChild(r);
+    if (!global) c.appendChild(el("div", { class: "meta tabular" }, `<span>최종 <b>${fmtPan(eff(state.sel, "pan").v)}</b></span><span>이 채널 ${fmtPan(val)} + 전체 ${fmtPan(state.globalPan)}</span>`));
+    else c.appendChild(el("div", { class: "meta" }, "<span>모든 채널 패닝에 더해짐</span>"));
+  }
+  return c;
+}
+function linkRow(m, own) {
+  if (m === "pan") return null;
+  if (state.scope === "global") {
+    const n = CHANNELS.filter((c) => m in state.own[c.id]).length;
+    return el("div", { class: "link" }, `<span class="state" style="font-weight:500">${n ? `따로 정한 채널 ${n}개 제외` : "모든 채널에 걸림"}</span>`);
+  }
+  const link = el("div", { class: "link" });
+  link.appendChild(el("span", { class: "state" }, own ? "● 이 채널만" : "🔗 모든 채널 따름"));
+  link.appendChild(own ? el("button", { class: "primary", onclick: (e) => { e.stopPropagation(); relink(m); } }, "모든 채널 따르기")
+                       : el("button", { onclick: (e) => { e.stopPropagation(); detach(m); } }, "이 채널만 따로"));
+  return link;
+}
+function headRow(m, v, own, clickable) {
+  const head = el("div", { class: "chead" + (clickable ? " click" : "") });
+  const t = el("span", { class: "ctitle" });
+  if (opt === "accordion") t.appendChild(el("span", { class: "chev" }, state.openCard === m ? "▾" : "▸"));
+  t.appendChild(el("span", {}, m === "pan" && state.scope === "global" ? "전체 밸런스" : MOD_NAME[m]));
+  head.appendChild(t);
+  if (m !== "pan") {
+    const tg = el("button", { class: "tog" + (v.on ? " on" : ""), onclick: (e) => { e.stopPropagation(); change(m, { on: !v.on }); } }, v.on ? "ON" : "OFF");
+    if (isLocked(m)) tg.classList.add("locked");
+    head.appendChild(tg);
+  } else head.appendChild(el("span", { class: "tag tabular", style: "font-weight:700" }, fmtPan(m === "pan" && state.scope === "channel" ? eff(state.sel, "pan").v : state.globalPan)));
+  if (clickable) head.onclick = () => { state.openCard = state.openCard === m ? null : m; renderAll(); };
+  return head;
+}
+function addLock(card, m) {
+  if (!isLocked(m)) return;
+  const hit = el("div", { class: "lockhit" });
+  hit.onclick = (e) => { e.stopPropagation(); state.hint = m; renderAll(); };
+  card.appendChild(hit);
+  if (state.hint === m) card.appendChild(el("div", { class: "hint" }, "모든 채널 값을 따르는 중입니다. 먼저 '이 채널만 따로'를 누르세요."));
+}
+function renderCard(m) {
+  const { v, own } = cur(m);
+  const card = el("div", { class: "card" + (own && m !== "pan" ? " own" : "") });
+  if (opt === "accordion") {
+    const open = state.openCard === m;
+    card.appendChild(headRow(m, v, own, true));
+    if (!open) {
+      const sumRow = el("div", { class: "link" });
+      sumRow.appendChild(el("span", { class: "csum tabular" }, summary(m, m === "pan" ? (state.scope === "global" ? state.globalPan : eff(state.sel, "pan").v) : v)));
+      if (m !== "pan" && state.scope === "channel") sumRow.appendChild(el("span", { class: "state", style: "font-size:10px" }, own ? "● 따로" : "🔗 따름"));
+      card.appendChild(sumRow);
+      sumRow.style.cursor = "pointer"; sumRow.onclick = () => { state.openCard = m; renderAll(); };
+      return card;
+    }
+    const c = detailControls(m, v); if (isLocked(m)) c.classList.add("locked"); card.appendChild(c);
+    const lr = linkRow(m, own); if (lr) card.appendChild(lr);
+    addLock(card, m);
+    return card;
+  }
+  if (opt === "scroll") {
+    card.appendChild(headRow(m, v, own, false));
+    const c = detailControls(m, v); if (isLocked(m)) c.classList.add("locked"); card.appendChild(c);
+    const lr = linkRow(m, own); if (lr) card.appendChild(lr);
+    addLock(card, m);
+    return card;
+  }
+  // flyout
+  if (state.detail === m) card.classList.add("open-detail");
+  card.appendChild(headRow(m, v, own, false));
+  const row = el("div", { class: "link" });
+  row.appendChild(el("span", { class: "csum tabular" }, summary(m, m === "pan" ? (state.scope === "global" ? state.globalPan : eff(state.sel, "pan").v) : v)));
+  row.appendChild(el("button", { class: "more", onclick: (e) => { e.stopPropagation(); state.detail = state.detail === m ? null : m; renderAll(); } }, state.detail === m ? "세부 ◂" : "세부 ▸"));
+  card.appendChild(row);
+  const lr = linkRow(m, own); if (lr) card.appendChild(lr);
+  return card;
+}
+function renderDetail() {
+  const body = document.getElementById("body");
+  body.querySelectorAll(".detail").forEach((d) => d.remove());
+  if (opt !== "flyout" || !state.detail) return;
+  const m = state.detail;
+  const { v, own } = cur(m);
+  const d = el("div", { class: "detail" + (own && m !== "pan" ? " own" : "") });
+  d.onclick = (e) => e.stopPropagation();
+  const h = el("div", { class: "dhead" });
+  h.appendChild(el("span", { class: "ctitle" }, (m === "pan" && state.scope === "global" ? "전체 밸런스" : MOD_NAME[m]) + " 세부"));
+  h.appendChild(el("button", { class: "dclose", onclick: () => { state.detail = null; renderAll(); } }, "✕"));
+  d.appendChild(h);
+  const ch = CHANNELS.find((c) => c.id === state.sel);
+  d.appendChild(el("div", { class: "dsub" }, state.scope === "global" ? "모든 채널 기본 설정" : `${ch.host} · ${m === "pan" ? "이 채널" : own ? "이 채널만" : "모든 채널 따름(잠김)"}`));
+  const c = detailControls(m, v); if (isLocked(m)) c.classList.add("locked"); d.appendChild(c);
+  const lr = linkRow(m, own); if (lr) d.appendChild(lr);
+  addLock(d, m);
+  body.appendChild(d);
+}
+function renderRack() {
+  const r = document.getElementById("rack"); r.innerHTML = "";
+  r.className = "rack" + (opt === "scroll" ? " scroll" : "");
+  const ch = CHANNELS.find((c) => c.id === state.sel);
+  const global = state.scope === "global";
+  const tabs = el("div", { class: "scope-tabs" });
+  tabs.appendChild(el("button", { "data-on": String(global), onclick: (e) => { e.stopPropagation(); selectGlobal(); } }, "모든 채널"));
+  tabs.appendChild(el("button", { class: "ch", "data-on": String(!global), onclick: (e) => { e.stopPropagation(); selectChannel(state.sel); } }, "이 채널 · " + ch.host));
+  r.appendChild(tabs);
+  const head = el("div", { class: "rhead" });
+  if (global) {
+    head.appendChild(el("div", { class: "rtitle" }, "모든 채널 기본 설정"));
+    head.appendChild(el("div", { class: "rsub" }, `여기서 바꾸면 <b>채널 ${CHANNELS.length}개</b>에 걸립니다`));
+  } else {
+    head.appendChild(el("div", { class: "rtitle" }, ch.title));
+    head.appendChild(el("div", { class: "rsub" }, `${ch.host} · 보정 <b>+1.6 dB</b>`));
+  }
+  r.appendChild(head);
+  for (const m of MODS) r.appendChild(renderCard(m));
+}
+const TASKS = [
+  { text: "youtube의 노멀라이저를 \"이 채널만 따로\"로 풀고 목표를 -18로 바꾸세요.", check: () => state.own[1].norm && state.own[1].norm.target === -18 },
+  { text: "youtube의 노이즈 게이트도 따로 풀어 켜고, 바닥을 -40 dB 언저리로 올리세요.", check: () => state.own[1].gate && state.own[1].gate.on && state.own[1].gate.th >= -42 && state.own[1].gate.th <= -38 },
+  { text: "MASTER BUS를 눌러 모든 채널 컴프레서를 켜고, 전체 밸런스를 R20으로 옮기세요.", check: () => state.global.comp.on && state.globalPan === 20 },
+  { text: "마지막으로, youtube 채널에 지금 걸린 네 가지(N·G·C·P)를 랙에서 한눈에 확인할 수 있는지 보세요.", check: () => false },
+];
+function renderTasks() {
+  const box = document.getElementById("tasks"); box.innerHTML = "";
+  TASKS.forEach((t, i) => {
+    const done = t.check();
+    box.appendChild(el("div", { class: "task" + (done ? " done" : "") }, `<span class="ck">${done ? "✓" : i + 1}</span><span>${t.text}</span>`));
+  });
+}
+function renderAll() { renderOptions(); renderStrips(); renderMaster(); renderRack(); renderDetail(); renderTasks(); }
+document.getElementById("resetAll").onclick = () => { state = fresh(); renderAll(); };
+document.getElementById("body").addEventListener("click", () => { if (state.detail) { state.detail = null; renderAll(); } });
+setInterval(() => document.querySelectorAll('[data-lvl="1"]').forEach((l) => (l.style.width = 45 + Math.random() * 20 + "%")), 400);
+renderAll();
+</script>
+</body>
+</html>

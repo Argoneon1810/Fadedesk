@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fadedesk v9-9 — 상태색과 빗금 정리</title>
+<style>
+  :root {
+    --c-bg: #091112; --c-surface: #131d1e; --c-raised: #1d292a; --c-border: #2d3b3c;
+    --c-text: #e5edee; --c-muted: #98a4a6;
+    --c-primary: #00bdce; --c-on-primary: #000000;
+    --c-accent: #e69732; --c-on-accent: #000000;
+    --c-success: #4fc678; --c-warning: #eda922; --c-danger: #f5605b;
+    --c-own: #e5edee; /* "이 채널만" 표시 (Solo 주황과 겹치지 않게 중립 흰색) */
+    --c-fill: var(--c-primary);   /* 보통 채널 페이더 채움 */
+    --c-focus: var(--c-primary);  /* Focus 상태색 */
+  }
+  /* 질문 8 판별 */
+  .opt-A { --c-fill: #7d8b8d; }
+  .opt-B { --c-focus: #a08cff; }
+  .opt-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .opt-btn { height: 32px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--c-border); background: var(--c-raised); color: var(--c-text); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+  .opt-btn[data-on="true"] { background: var(--c-primary); color: #000; border-color: var(--c-primary); font-weight: 700; }
+  .opt-btn.now[data-on="true"] { background: var(--c-muted); border-color: var(--c-muted); }
+  .fader .band { position: absolute; left: 50%; width: 8px; margin-left: -4px; border-radius: 2px; opacity: .75;
+    background-image: repeating-linear-gradient(-45deg, var(--hc), var(--hc) 1.5px, transparent 1.5px, transparent 4px); }
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: #060b0c; color: var(--c-text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Pretendard, "Malgun Gothic", sans-serif; font-size: 12px; }
+  .tabular { font-variant-numeric: tabular-nums; font-family: Consolas, Menlo, monospace; }
+  button, select, input { font-family: inherit; }
+  .wrap { max-width: 1290px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  .q-head { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 10px; padding: 12px 16px; }
+  .q-kicker { font-size: 10px; font-weight: 700; color: var(--c-primary); letter-spacing: .08em; }
+  .q-title { font-size: 16px; font-weight: 700; margin: 4px 0 6px; }
+  .q-why { color: var(--c-muted); line-height: 1.6; font-size: 12.5px; }
+  .q-why b { color: var(--c-text); }
+  .stage { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; }
+  @media (max-width: 1180px) { .stage { grid-template-columns: 1fr; } }
+
+  .popup-frame { position: relative; }
+  .popup-cap { position: absolute; left: -2px; right: -2px; top: 600px; border-top: 2px dashed var(--c-danger); }
+  .popup-cap span { position: absolute; right: 0; top: 2px; color: var(--c-danger); font-size: 10.5px; font-weight: 700; }
+  .popup { width: 790px; height: 600px; background: var(--c-bg); border: 1px solid var(--c-border); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; position: relative; }
+
+  /* 상단 데크 */
+  .deck { height: 44px; flex: none; display: flex; align-items: center; gap: 6px; padding: 0 10px; border-bottom: 1px solid var(--c-border); position: relative; }
+  .logo { border: 1px solid var(--c-primary); color: var(--c-primary); font-weight: 800; font-size: 11px; letter-spacing: .08em; padding: 3px 8px; border-radius: 4px; }
+  .deck-sp { flex: 1; }
+  .pill { height: 26px; padding: 0 10px; display: inline-flex; align-items: center; border-radius: 5px; border: 1px solid var(--c-border); background: var(--c-raised); color: var(--c-text); font-weight: 700; font-size: 11.5px; cursor: pointer; }
+  .pill.on { background: var(--c-primary); color: var(--c-on-primary); border-color: var(--c-primary); }
+  .split { display: inline-flex; }
+  .split .pill:first-child { border-radius: 5px 0 0 5px; }
+  .split .pill:last-child { border-radius: 0 5px 5px 0; border-left: 1px solid rgba(0,0,0,.25); padding: 0 7px; }
+  .npop { position: absolute; top: 40px; right: 92px; width: 248px; background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,.6);
+    padding: 10px; display: flex; flex-direction: column; gap: 6px; z-index: 20; }
+  .npop h4 { margin: 0; font-size: 11.5px; }
+  .npop .sub { font-size: 10.5px; color: var(--c-muted); line-height: 1.45; }
+  .npop .pr { display: flex; justify-content: space-between; align-items: center; height: 28px; padding: 0 8px; border: 1px solid var(--c-border); border-radius: 5px; background: var(--c-bg); cursor: pointer; }
+  .npop .pr:hover { border-color: #3f5253; }
+  .npop .pr[data-on="true"] { border-color: var(--c-primary); box-shadow: inset 0 0 0 1px var(--c-primary); }
+  .npop .pr span:last-child { color: var(--c-muted); font-size: 10.5px; }
+  .npop .user { color: var(--c-own); }
+
+  .body { flex: 1; display: flex; min-height: 0; position: relative; }
+  .strips { flex: 1; display: flex; gap: 6px; padding: 12px 8px 8px; overflow: hidden; }
+  .divider { width: 14px; flex: none; display: flex; align-items: center; justify-content: center; }
+  .divider span { writing-mode: vertical-rl; color: var(--c-muted); font-size: 10px; letter-spacing: .2em; border-left: 1px dashed var(--c-border); padding-left: 3px; }
+
+  /* 클래식 채널 스트립 (1.1.0 + 질문 7 가) */
+  .strip { width: 92px; flex: none; border: 1px solid var(--c-border); border-radius: 7px; background: var(--c-surface); display: flex; flex-direction: column; cursor: pointer;
+    position: relative; overflow: hidden; transition: background 160ms, box-shadow 160ms, transform 160ms, opacity 160ms; }
+  .strip.playing { background: var(--c-raised); }
+  .strip.paused { opacity: .74; }
+  .strip .topband { height: 3px; flex: none; }
+  .strip.focus { border-color: var(--c-focus); }
+  .strip.focus .topband { background: var(--c-focus); }
+  .strip.solo { border-color: var(--c-accent); }
+  .strip.solo .topband { background: var(--c-accent); }
+  .strip.muted:not(.focus):not(.solo) .topband { background: var(--c-danger); }
+  .strip.sel { background: color-mix(in srgb, #ffffff 9%, var(--c-raised)); box-shadow: 0 8px 18px rgba(0,0,0,.6); transform: translateY(-4px); opacity: 1; }
+  .shead { padding: 4px 6px; display: flex; flex-direction: column; gap: 2px; }
+  .host { font-size: 10px; color: var(--c-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stitle { font-size: 11.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .smid { flex: 1; display: flex; flex-direction: column; gap: 5px; padding: 0 6px 6px; min-height: 0; }
+  .fader { flex: 1; border-radius: 5px; background: rgba(0,0,0,.28); position: relative; border: 1px solid var(--c-border); }
+  .fader::before { content: ""; position: absolute; left: 50%; top: 10px; bottom: 10px; width: 4px; margin-left: -2px; background: rgba(255,255,255,.10); border-radius: 2px; }
+  .fader .fill { position: absolute; left: 50%; width: 4px; margin-left: -2px; bottom: 10px; height: 52%; border-radius: 2px; background: var(--c-fill); opacity: .85; }
+  .fader i { position: absolute; left: 50%; width: 24px; height: 12px; margin-left: -12px; top: 42%; background: var(--c-raised); border: 1px solid var(--c-muted); border-radius: 3px; z-index: 1; }
+  .strip.focus .fader i { background: var(--c-focus); border-color: var(--c-focus); }
+  .strip.focus .fader .fill { background: var(--c-focus); }
+  .strip.solo .fader i, .strip.solo .fader .fill { background: var(--c-accent); border-color: var(--c-accent); }
+  .strip.muted .fader i { border-color: var(--c-danger); }
+  .readout { text-align: center; font-weight: 700; }
+  .strip.muted .readout { color: var(--c-danger); }
+  .badges { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; }
+  .bdg { height: 16px; border-radius: 3px; border: 1px solid var(--c-border); color: #56666a; font-size: 9.5px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .bdg.g { color: var(--c-primary); border-color: rgba(0,189,206,.55); background: rgba(0,189,206,.12); }
+  .bdg.o { color: #000; background: var(--c-own); border-color: var(--c-own); }
+  .sdeck { padding: 0 6px 6px; display: flex; flex-direction: column; gap: 3px; }
+  .row1 { display: grid; grid-template-columns: 1fr 24px; gap: 3px; }
+  .row2 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+  .sbtn { height: 21px; padding: 0; min-width: 0; border: 1px solid var(--c-border); border-radius: 4px; background: var(--c-surface); color: var(--c-muted); font-size: 10.5px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; gap: 3px; cursor: pointer; }
+  .sbtn .pip { width: 5px; height: 5px; border-radius: 50%; background: #3a4a4b; }
+  .sbtn.on .pip { background: #000; }
+  .sbtn.m.on { background: var(--c-danger); color: #000; border-color: var(--c-danger); }
+  .sbtn.s.on { background: var(--c-accent); color: #000; border-color: var(--c-accent); }
+  .sbtn.f.on { background: var(--c-focus); color: #000; border-color: var(--c-focus); }
+
+  /* 마스터 */
+  .master { width: 108px; flex: none; margin: 12px 0 8px; border: 1px solid var(--c-border); border-top: 3px solid var(--c-primary); border-radius: 7px; background: var(--c-surface);
+    padding: 6px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; transition: background 160ms, box-shadow 160ms, transform 160ms; }
+  .master.sel { background: color-mix(in srgb, #ffffff 9%, var(--c-raised)); box-shadow: 0 8px 18px rgba(0,0,0,.6); transform: translateY(-4px); }
+  .mk { font-size: 9.5px; font-weight: 800; letter-spacing: .1em; color: var(--c-primary); text-align: center; }
+  .mt { font-size: 12px; font-weight: 700; text-align: center; }
+  .mfx { height: 24px; border-radius: 4px; border: 1px solid var(--c-primary); color: var(--c-primary); background: transparent; font-weight: 700; font-size: 11px; cursor: pointer; }
+  .master.sel .mfx { background: var(--c-primary); color: #000; }
+  .mbtn { height: 24px; border: 1px solid var(--c-border); border-radius: 4px; display: flex; align-items: center; justify-content: center; color: var(--c-muted); font-size: 10.5px; }
+
+  /* 랙 */
+  .rack { width: 220px; flex: none; border-left: 1px solid var(--c-border); background: var(--c-bg); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .scope-tabs { flex: none; display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--c-border); border-radius: 6px; overflow: hidden; }
+  .scope-tabs button { height: 28px; border: 0; background: var(--c-surface); color: var(--c-muted); font-weight: 700; font-size: 11px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 6px; }
+  .scope-tabs button[data-on="true"] { background: var(--c-raised); color: var(--c-text); box-shadow: inset 0 -2px 0 var(--c-primary); }
+  .rhead { flex: none; border-bottom: 1px solid var(--c-border); padding-bottom: 5px; }
+  .rrow { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+  .rtitle { font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .trim { flex: none; font-size: 10.5px; color: var(--c-primary); border: 1px solid var(--c-border); border-radius: 4px; padding: 0 5px; }
+  .rsub { font-size: 10.5px; color: var(--c-muted); margin-top: 1px; }
+  .rsub b { color: var(--c-text); }
+  .card { flex: none; border: 1px solid var(--c-border); background: var(--c-surface); border-radius: 7px; padding: 7px 8px; display: flex; flex-direction: column; gap: 5px; position: relative; }
+  .card.own { border-color: rgba(229,237,238,.55); }
+  .card.open-detail { box-shadow: inset 0 0 0 1px var(--c-primary); border-color: var(--c-primary); }
+  .chead { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .ctitle { font-weight: 700; font-size: 12px; }
+  .tog { height: 22px; min-width: 40px; border-radius: 4px; border: 1px solid var(--c-border); background: var(--c-surface); color: var(--c-muted); font-weight: 700; font-size: 10.5px; cursor: pointer; flex: none; }
+  .tog.on { background: var(--c-primary); color: #000; border-color: var(--c-primary); }
+  .own .tog.on { background: var(--c-own); border-color: var(--c-own); }
+  .tog.locked, .locked { opacity: .45; }
+  .controls.locked { pointer-events: none; }
+  .csum { display: flex; justify-content: space-between; align-items: center; gap: 4px; font-size: 10.5px; color: var(--c-muted); }
+  .csum span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .more { flex: none; height: 20px; border: 1px solid var(--c-primary); color: var(--c-primary); background: transparent; border-radius: 4px; font-size: 10.5px; cursor: pointer; padding: 0 6px; }
+  .link { display: flex; align-items: center; justify-content: space-between; gap: 4px; font-size: 10.5px; }
+  .link .state { font-weight: 700; color: var(--c-primary); white-space: nowrap; }
+  .own .link .state { color: var(--c-own); }
+  .link .state.plain { color: var(--c-muted); font-weight: 500; }
+  .link button, .sb { flex: none; border: 1px solid var(--c-border); background: var(--c-raised); color: var(--c-text); font-size: 10px; border-radius: 4px; height: 20px; padding: 0 6px; cursor: pointer; }
+  .link button.primary, .sb.primary { border-color: var(--c-primary); color: var(--c-primary); }
+  .hint { font-size: 10.5px; color: var(--c-warning); line-height: 1.4; }
+
+  /* 세부 창 (질문 5 다) */
+  .detail { position: absolute; top: 8px; bottom: 8px; right: 228px; width: 256px; background: var(--c-surface); border: 1px solid var(--c-primary); border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.65); padding: 10px; display: flex; flex-direction: column; gap: 7px; z-index: 10; overflow-y: auto; }
+  .detail.own { border-color: var(--c-own); }
+  .dhead { display: flex; justify-content: space-between; align-items: center; }
+  .dclose { border: 0; background: transparent; color: var(--c-muted); font-size: 14px; cursor: pointer; }
+  .dsub { font-size: 10.5px; color: var(--c-muted); }
+  .controls { display: flex; flex-direction: column; gap: 6px; }
+  select { width: 100%; height: 24px; background: var(--c-raised); color: var(--c-text); border: 1px solid var(--c-border); border-radius: 4px; font-size: 11px; }
+  .meta { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--c-muted); }
+  .meta b { color: var(--c-text); }
+  .seg3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 3px; }
+  .seg3 button { height: 22px; border: 1px solid var(--c-border); border-radius: 4px; background: var(--c-surface); color: var(--c-muted); font-size: 10.5px; font-weight: 600; cursor: pointer; }
+  .seg3 button[data-on="true"] { background: var(--c-raised); color: var(--c-text); border-color: var(--c-primary); font-weight: 700; }
+  input[type=range] { width: 100%; accent-color: var(--c-primary); margin: 0; height: 14px; }
+  .viz { height: 34px; border: 1px solid var(--c-border); border-radius: 4px; background: #0b1415; position: relative; }
+  .viz .band { position: absolute; top: 5px; bottom: 9px; background: rgba(0,189,206,.14); border-left: 2px solid var(--c-primary); border-right: 2px solid var(--c-primary); }
+  .viz .pin { position: absolute; top: 2px; bottom: 8px; width: 2px; background: var(--c-accent); }
+  .viz .lvl { position: absolute; bottom: 10px; height: 3px; left: 0; background: var(--c-success); border-radius: 2px; transition: width 200ms; }
+  .viz .tk { position: absolute; bottom: -1px; font-size: 8.5px; color: var(--c-muted); transform: translateX(-50%); }
+  .modbar { border: 1px dashed var(--c-warning); border-radius: 5px; padding: 5px 6px; display: flex; flex-direction: column; gap: 4px; font-size: 10.5px; color: var(--c-warning); }
+  .modbar .row { display: flex; gap: 4px; flex-wrap: wrap; }
+  .namebox { display: flex; gap: 4px; }
+  .namebox input { flex: 1; min-width: 0; height: 22px; background: var(--c-bg); border: 1px solid var(--c-border); border-radius: 4px; color: var(--c-text); padding: 0 6px; font-size: 11px; }
+  .mgr { border: 1px solid var(--c-border); border-radius: 5px; padding: 5px; display: flex; flex-direction: column; gap: 3px; }
+  .mgr .it { display: flex; align-items: center; gap: 4px; font-size: 11px; }
+  .mgr .it span { flex: 1; color: var(--c-own); }
+  .mgr .it input { flex: 1; min-width: 0; height: 20px; background: var(--c-bg); border: 1px solid var(--c-border); border-radius: 3px; color: var(--c-text); font-size: 11px; padding: 0 4px; }
+  .linkbtn { border: 0; background: transparent; color: var(--c-primary); font-size: 10.5px; cursor: pointer; padding: 0; text-align: left; }
+
+  .side { display: flex; flex-direction: column; gap: 10px; }
+  .panel { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 10px; padding: 12px 14px; line-height: 1.65; font-size: 12.5px; }
+  .panel h3 { margin: 0 0 6px; font-size: 13px; color: var(--c-primary); }
+  .panel ul { margin: 4px 0; padding-left: 18px; }
+  .task { display: flex; gap: 8px; align-items: flex-start; padding: 3px 0; }
+  .task .ck { width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--c-border); flex: none; margin-top: 2px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
+  .task.done .ck { background: var(--c-success); border-color: var(--c-success); color: #000; }
+  .task.done span { color: var(--c-muted); text-decoration: line-through; }
+  .resetall { margin-top: 6px; height: 26px; padding: 0 10px; border-radius: 5px; border: 1px solid var(--c-border); background: var(--c-raised); color: var(--c-text); cursor: pointer; }
+  .legend span.sw { display: inline-block; width: 16px; height: 14px; border-radius: 3px; vertical-align: -2px; margin-right: 4px; font-size: 9px; text-align: center; font-weight: 800; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="q-head">
+    <div class="q-kicker">1.2.0 고급 FX 개편 · 질문 8 (v9-8 통합 시안 + 지적 1~3 반영)</div>
+    <div class="q-title">상태색을 어떻게 나눌까요? — 음소거 띠·빗금은 이미 고쳐 넣었습니다</div>
+    <div class="q-why">
+      <b>고친 것(모든 판 공통)</b>: ② 음소거하면 1.1.0처럼 위쪽 띠가 빨갛게 됩니다. ③ "페이더는 높은데 실제로는 덜 들리거나 안 들리는 몫"을 모두 같은 <b>빗금</b>으로 그리고, 빗금 색이 원인을 말합니다:
+      Focus로 깎임 = Focus 색, Solo 때문에 꺼짐 = Solo 색, 음소거 = 빨강. 페이더 아래 채움은 "실제로 들리는 몫"입니다.
+      <b>고를 것</b>: ① 1.1.0은 보통 채널의 채움도 청록이라 Focus의 청록이 Focus만의 색이 아닙니다. 위 버튼으로 판을 바꾸고, 채널의 M·S·F를 눌러 보세요(지금 soundcloud가 Focus입니다).
+    </div>
+    <div class="opt-row" id="optRow"></div>
+  </section>
+
+  <div class="stage">
+    <div class="popup-frame">
+      <div class="popup" id="popup">
+        <div class="deck" id="deck"></div>
+        <div class="body" id="body">
+          <div class="strips" id="strips"></div>
+          <div class="master" id="master"></div>
+          <div class="rack" id="rack"></div>
+        </div>
+      </div>
+      <div class="popup-cap"><span>Chrome 팝업 상한 600px</span></div>
+    </div>
+    <div class="side">
+      <div class="panel">
+        <h3>해 볼 과제</h3>
+        <div id="tasks"></div>
+        <button class="resetall" id="resetAll">처음 상태로</button>
+      </div>
+      <div class="panel legend">
+        <h3>읽는 법</h3>
+        <div><b>떠오른 칸</b> = 랙이 지금 고치는 대상 (채널 하나, 또는 MASTER BUS = 모든 채널)</div>
+        <div><span class="sw" style="background:rgba(0,189,206,.12);color:var(--c-primary);border:1px solid rgba(0,189,206,.55)">N</span>청록 = 모든 채널 설정을 따라 켜짐</div>
+        <div><span class="sw" style="background:var(--c-own);color:#000">N</span>흰색 = 이 채널만 따로 켜짐</div>
+        <div><span class="sw" style="border:1px solid var(--c-border);color:#56666a">N</span>꺼짐 · P는 최종 패닝이 가운데가 아닐 때 켜짐</div>
+        <div style="color:var(--c-muted);margin-top:6px">테두리 청록 = Focus, 주황 = Solo (1.1.0 그대로). "이 채널만"은 Solo와 겹치지 않게 흰색으로 바꿨습니다.</div>
+      </div>
+      <div class="panel">
+        <h3>들어간 결정</h3>
+        <ul>
+          <li>범위: 랙 위 탭 + MASTER BUS의 전체 FX (질문 1 C)</li>
+          <li>모든 채널 패닝 = 각 채널에 더해지는 전체 밸런스 (질문 2 나)</li>
+          <li>따르는 카드는 잠김, "이 채널만 따로"로 풂 (질문 3 가)</li>
+          <li>프리셋 고르기 · 내 프리셋 저장(복사) · 덮어쓰기 · 이름 바꾸기·지우기 (질문 4 나)</li>
+          <li>요약 카드 + 세부 창 (질문 5 다)</li>
+          <li>활성 채널 = 바탕이 떠오름, 1px 청록 테두리 없앰 (질문 7 가)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const BUILTIN = {
+  classical: { name: "클래식", target: -16, speed: "slow", low: -28, high: -13, tension: 0.5 },
+  music: { name: "음악", target: -16, speed: "slow", low: -32, high: -10, tension: 0.35 },
+  standard: { name: "표준", target: -16, speed: "std", low: -36, high: -8, tension: 0.25 },
+  night: { name: "야간", target: -18, speed: "fast", low: -42, high: -6, tension: 0.15 },
+};
+const SPEED = { slow: "완만", std: "표준", fast: "민감" };
+const MODS = ["norm", "gate", "comp", "pan"];
+const MOD_NAME = { norm: "노멀라이저", gate: "노이즈 게이트", comp: "컴프레서", pan: "패닝" };
+const VK = ["target", "speed", "low", "high", "tension"];
+let CH, S;
+function fresh() {
+  CH = [
+    { id: 1, host: "youtube", title: "설명을 포기하는 가…", db: "0.0", playing: true, muted: false, solo: false, focus: false },
+    { id: 2, host: "soundcloud", title: "Lo-fi Beats Radio", db: "-6.0", playing: true, muted: false, solo: false, focus: true },
+    { id: 3, host: "twitch", title: "생방송 게임 중계", db: "-3.5", playing: true, muted: false, solo: false, focus: false },
+    { id: 4, host: "podcast", title: "주간 IT 뉴스 312화", db: "-2.0", playing: true, muted: true, solo: false, focus: false },
+  ];
+  S = {
+    scope: "channel", sel: 1, detail: null, hint: null, naming: false, managing: false, renaming: null, npop: false, uid: 0,
+    presets: JSON.parse(JSON.stringify(BUILTIN)),
+    global: { norm: { on: true, presetId: "music", ...BUILTIN.music, modified: false }, gate: { on: false, th: -48 }, comp: { on: false, ratio: 4 } },
+    globalPan: 0, own: { 1: {}, 2: {}, 3: {}, 4: {} }, pan: { 1: 0, 2: 0, 3: 0, 4: 0 },
+    seen: {},
+  };
+  delete S.global.norm.name;
+}
+fresh();
+
+const clamp = (v) => Math.max(-100, Math.min(100, v));
+const fmtPan = (v) => (v === 0 ? "C" : v < 0 ? "L" + -v : "R" + v);
+function eff(id, m) {
+  if (m === "pan") return { v: clamp(S.pan[id] + S.globalPan), own: S.pan[id] !== 0 };
+  return m in S.own[id] ? { v: S.own[id][m], own: true } : { v: S.global[m], own: false };
+}
+function cur(m) {
+  if (S.scope === "global") return m === "pan" ? { v: S.globalPan, own: false } : { v: S.global[m], own: false };
+  return eff(S.sel, m);
+}
+const isLocked = (m) => m !== "pan" && S.scope === "channel" && !(m in S.own[S.sel]);
+function presetLabel(slot) {
+  const p = S.presets[slot.presetId];
+  const n = p ? p.name : "사용자 지정";
+  return n + (slot.modified ? " (수정됨)" : "");
+}
+function summary(m, v) {
+  if (m === "norm") return v.on ? `${presetLabel(v)} · ${v.target} LUFS` : "꺼짐";
+  if (m === "gate") return v.on ? `바닥 ${v.th} dB` : "꺼짐";
+  if (m === "comp") return v.on ? `비율 ${v.ratio}:1` : "꺼짐";
+  if (S.scope === "global") return `전체 ${fmtPan(S.globalPan)}`;
+  return `최종 ${fmtPan(eff(S.sel, "pan").v)}`;
+}
+function el(tag, attrs = {}, html = "") {
+  const e = document.createElement(tag);
+  for (const [a, v] of Object.entries(attrs)) {
+    if (a === "class") e.className = v; else if (a.startsWith("on")) e[a] = v; else e.setAttribute(a, v);
+  }
+  if (html) e.innerHTML = html;
+  return e;
+}
+const stop = (fn) => (e) => { e.stopPropagation(); fn(e); };
+
+/* ── 동작 ── */
+function selectChannel(id) { S.sel = id; S.scope = "channel"; S.hint = null; S.naming = false; render(); }
+function selectGlobal() { S.scope = "global"; S.hint = null; S.naming = false; render(); }
+function change(m, patch) {
+  if (m === "pan") { if (S.scope === "global") S.globalPan = patch; else S.pan[S.sel] = patch; return render(); }
+  if (S.scope === "global") { S.global[m] = { ...S.global[m], ...patch }; return render(); }
+  if (isLocked(m)) { S.hint = m; return render(); }
+  S.own[S.sel][m] = { ...S.own[S.sel][m], ...patch };
+  render();
+}
+function tweakNorm(patch) { change("norm", { ...patch, modified: true }); }
+function slotRef() { return S.scope === "global" ? S.global : S.own[S.sel]; }
+function pickPreset(pid) {
+  const p = S.presets[pid];
+  const vals = {}; VK.forEach((k) => (vals[k] = p[k]));
+  change("norm", { presetId: pid, ...vals, modified: false });
+}
+function saveAs(name) {
+  const slot = slotRef().norm;
+  const id = "u" + (++S.uid);
+  S.presets[id] = { name, user: true };
+  VK.forEach((k) => (S.presets[id][k] = slot[k]));
+  slot.presetId = id; slot.modified = false; S.naming = false;
+  render();
+}
+function overwrite() {
+  const slot = slotRef().norm; const p = S.presets[slot.presetId];
+  VK.forEach((k) => (p[k] = slot[k])); slot.modified = false; render();
+}
+function revert() { pickPreset(slotRef().norm.presetId); }
+const detach = (m) => { S.own[S.sel][m] = JSON.parse(JSON.stringify(S.global[m])); S.hint = null; render(); };
+const relink = (m) => { delete S.own[S.sel][m]; render(); };
+function toggleCh(c, k) {
+  if (k === "muted") c.muted = !c.muted;
+  if (k === "solo" || k === "focus") { const v = !c[k]; CH.forEach((x) => { x.solo = false; x.focus = false; }); c[k] = v; }
+  if (k === "playing") c.playing = !c.playing;
+  render();
+}
+
+/* ── 그리기 ── */
+function renderDeck() {
+  const d = document.getElementById("deck"); d.innerHTML = "";
+  d.appendChild(el("span", { class: "logo" }, "FADEDESK"));
+  d.appendChild(el("span", { class: "deck-sp" }));
+  d.appendChild(el("span", { class: "pill tabular", style: "cursor:default" }, "Focus α 0.70"));
+  const sp = el("span", { class: "split" });
+  const on = S.global.norm.on;
+  sp.appendChild(el("button", { class: "pill" + (on ? " on" : ""), onclick: stop(() => { S.global.norm.on = !S.global.norm.on; render(); }) }, "균일 N"));
+  sp.appendChild(el("button", { class: "pill" + (on ? " on" : ""), onclick: stop(() => { S.npop = !S.npop; render(); }) }, S.npop ? "▴" : "▾"));
+  d.appendChild(sp);
+  d.appendChild(el("span", { class: "pill on", style: "cursor:default" }, "고급 FX ◂"));
+  if (S.npop) {
+    const p = el("div", { class: "npop", onclick: (e) => e.stopPropagation() });
+    p.appendChild(el("h4", {}, "모든 채널 노멀라이저 프리셋"));
+    p.appendChild(el("div", { class: "sub" }, "여기서 고르면 \"모든 채널 따름\" 채널에 걸립니다. 채널마다 따로 고르려면 고급 FX에서 그 채널을 고르세요."));
+    for (const [id, pr] of Object.entries(S.presets)) {
+      const row = el("div", { class: "pr", "data-on": String(S.global.norm.presetId === id && !S.global.norm.modified) },
+        `<span class="${pr.user ? "user" : ""}">${pr.user ? "★ " : ""}${pr.name}</span><span class="tabular">${pr.target} · ${SPEED[pr.speed]}</span>`);
+      row.onclick = () => { const v = {}; VK.forEach((k) => (v[k] = pr[k])); S.global.norm = { ...S.global.norm, presetId: id, ...v, modified: false, on: true }; S.npop = false; render(); };
+      p.appendChild(row);
+    }
+    d.appendChild(p);
+  }
+}
+// dB → 페이더 높이(%) 근사: -60..+12 dB
+const pctOf = (db) => Math.max(0, Math.min(100, ((db + 60) / 72) * 100));
+function faderFor(c) {
+  const anyFocus = CH.some((x) => x.focus), anySolo = CH.some((x) => x.solo);
+  const user = Number(c.db);
+  let eff = user, hc = null;
+  if (!c.playing) { eff = user; }
+  else if (c.muted) { eff = -60; hc = "var(--c-danger)"; }
+  else if (anySolo && !c.solo) { eff = -60; hc = "var(--c-accent)"; }
+  else if (anyFocus && !c.focus) { eff = user - 12; hc = "var(--c-focus)"; }
+  const up = pctOf(user), ep = pctOf(eff);
+  const f = el("div", { class: "fader" });
+  const inner = el("div", { style: "position:absolute;left:0;right:0;top:10px;bottom:10px" });
+  const fill = el("span", { class: "fill" }); fill.style.bottom = "0"; fill.style.height = ep + "%"; inner.appendChild(fill);
+  if (hc && up - ep > 0.5) {
+    const band = el("span", { class: "band" }); band.style.bottom = ep + "%"; band.style.height = up - ep + "%"; band.style.setProperty("--hc", hc); inner.appendChild(band);
+  }
+  const knob = el("i"); knob.style.top = "auto"; knob.style.bottom = `calc(${up}% - 6px)`; inner.appendChild(knob);
+  f.appendChild(inner);
+  return f;
+}
+const OPTS = [
+  { key: "now", label: "v9-8 그대로 (1.1.0 색)" },
+  { key: "A", label: "가 · 보통 채널은 중립색, 청록은 Focus 전용" },
+  { key: "B", label: "나 · Focus에 새 고유색" },
+];
+let opt = new URLSearchParams(location.search).get("opt") || "A";
+function renderOpts() {
+  document.getElementById("popup").className = "popup opt-" + opt;
+  const row = document.getElementById("optRow"); row.innerHTML = "";
+  for (const o of OPTS) row.appendChild(el("button", { class: "opt-btn" + (o.key === "now" ? " now" : ""), "data-on": String(o.key === opt), onclick: () => { opt = o.key; render(); } }, o.label));
+}
+function renderStrips() {
+  const box = document.getElementById("strips"); box.innerHTML = "";
+  const mk = (c) => {
+    const cls = ["strip", c.playing ? "playing" : "paused"];
+    if (c.solo) cls.push("solo"); if (c.focus) cls.push("focus"); if (c.muted) cls.push("muted");
+    if (S.scope === "channel" && S.sel === c.id) cls.push("sel");
+    const s = el("div", { class: cls.join(" "), onclick: stop(() => { S.detail = S.detail && S.detail; selectChannel(c.id); }) });
+    s.appendChild(el("div", { class: "topband" }));
+    s.appendChild(el("div", { class: "shead" }, `<div class="host">● ${c.host}</div><div class="stitle">${c.title}</div>`));
+    const mid = el("div", { class: "smid" });
+    mid.appendChild(faderFor(c));
+    mid.appendChild(el("div", { class: "readout tabular" }, c.db + " dB"));
+    const b = el("div", { class: "badges" });
+    for (const [m, L] of [["norm", "N"], ["gate", "G"], ["comp", "C"], ["pan", "P"]]) {
+      const e = eff(c.id, m);
+      const lit = m === "pan" ? e.v !== 0 : e.v.on;
+      b.appendChild(el("span", { class: "bdg" + (lit ? (e.own ? " o" : " g") : "") }, L));
+    }
+    mid.appendChild(b);
+    s.appendChild(mid);
+    const d = el("div", { class: "sdeck" });
+    const r1 = el("div", { class: "row1" });
+    r1.appendChild(el("button", { class: "sbtn", onclick: stop(() => toggleCh(c, "playing")) }, c.playing ? "⏸ 정지" : "▶ 대기"));
+    r1.appendChild(el("button", { class: "sbtn" }, "📌"));
+    d.appendChild(r1);
+    const r2 = el("div", { class: "row2" });
+    r2.appendChild(el("button", { class: "sbtn m" + (c.muted ? " on" : ""), onclick: stop(() => toggleCh(c, "muted")) }, `<span class="pip"></span>M`));
+    r2.appendChild(el("button", { class: "sbtn s" + (c.solo ? " on" : ""), onclick: stop(() => toggleCh(c, "solo")) }, `<span class="pip"></span>S`));
+    r2.appendChild(el("button", { class: "sbtn f" + (c.focus ? " on" : ""), onclick: stop(() => toggleCh(c, "focus")) }, `<span class="pip"></span>F`));
+    d.appendChild(r2);
+    s.appendChild(d);
+    return s;
+  };
+  CH.filter((c) => c.playing).forEach((c) => box.appendChild(mk(c)));
+  const paused = CH.filter((c) => !c.playing);
+  if (paused.length) box.appendChild(el("div", { class: "divider" }, "<span>대기</span>"));
+  paused.forEach((c) => box.appendChild(mk(c)));
+}
+function renderMaster() {
+  const m = document.getElementById("master");
+  m.className = "master" + (S.scope === "global" ? " sel" : "");
+  m.innerHTML = ""; m.onclick = stop(selectGlobal);
+  m.appendChild(el("div", { class: "mk" }, "MASTER BUS"));
+  m.appendChild(el("div", { class: "mt" }, "전체 출력"));
+  m.appendChild(el("button", { class: "mfx" }, "전체 FX"));
+  m.appendChild(el("div", { class: "fader" }, `<span class="fill"></span><i></i>`));
+  m.appendChild(el("div", { class: "readout tabular" }, "0.0 dB"));
+  m.appendChild(el("div", { class: "mbtn" }, "▶ 전체 재생"));
+  m.appendChild(el("div", { class: "mbtn" }, "전체 음소거"));
+}
+function linkRow(m, own) {
+  if (m === "pan") return null;
+  if (S.scope === "global") {
+    const n = CH.filter((c) => m in S.own[c.id]).length;
+    return el("div", { class: "link" }, `<span class="state plain">${n ? `따로 정한 채널 ${n}개 제외` : "모든 채널에 걸림"}</span>`);
+  }
+  const link = el("div", { class: "link" });
+  link.appendChild(el("span", { class: "state" }, own ? "● 이 채널만" : "🔗 모든 채널 따름"));
+  link.appendChild(own ? el("button", { class: "primary", onclick: stop(() => relink(m)) }, "모든 채널 따르기")
+                       : el("button", { onclick: stop(() => detach(m)) }, "이 채널만 따로"));
+  return link;
+}
+function hintFor(m) { return S.hint === m ? el("div", { class: "hint" }, "모든 채널 값을 따르는 중입니다. 먼저 '이 채널만 따로'를 누르세요.") : null; }
+function renderRack() {
+  const r = document.getElementById("rack"); r.innerHTML = "";
+  const c = CH.find((x) => x.id === S.sel);
+  const global = S.scope === "global";
+  const tabs = el("div", { class: "scope-tabs" });
+  tabs.appendChild(el("button", { "data-on": String(global), onclick: stop(selectGlobal) }, "모든 채널"));
+  tabs.appendChild(el("button", { "data-on": String(!global), onclick: stop(() => selectChannel(S.sel)) }, "이 채널 · " + c.host));
+  r.appendChild(tabs);
+  const h = el("div", { class: "rhead" });
+  if (global) {
+    h.appendChild(el("div", { class: "rtitle" }, "모든 채널 기본 설정"));
+    h.appendChild(el("div", { class: "rsub" }, `여기서 바꾸면 <b>채널 ${CH.length}개</b>에 걸립니다`));
+  } else {
+    h.appendChild(el("div", { class: "rrow" }, `<span class="rtitle">${c.title}</span><span class="trim tabular">보정 +1.6dB</span>`));
+    h.appendChild(el("div", { class: "rsub" }, `${c.host} · 이 채널에 걸린 효과`));
+  }
+  r.appendChild(h);
+  for (const m of MODS) {
+    const { v, own } = cur(m);
+    const card = el("div", { class: "card" + (own && m !== "pan" ? " own" : "") + (S.detail === m ? " open-detail" : "") });
+    const head = el("div", { class: "chead" });
+    head.appendChild(el("span", { class: "ctitle" }, m === "pan" && global ? "전체 밸런스" : MOD_NAME[m]));
+    if (m !== "pan") {
+      head.appendChild(el("button", { class: "tog" + (v.on ? " on" : "") + (isLocked(m) ? " locked" : ""), onclick: stop(() => change(m, { on: !v.on })) }, v.on ? "ON" : "OFF"));
+    } else head.appendChild(el("b", { class: "tabular" }, global ? fmtPan(S.globalPan) : fmtPan(eff(S.sel, "pan").v)));
+    card.appendChild(head);
+    const sm = el("div", { class: "csum" });
+    sm.appendChild(el("span", { class: "tabular" }, summary(m, v)));
+    sm.appendChild(el("button", { class: "more", onclick: stop(() => { S.detail = S.detail === m ? null : m; S.naming = false; S.managing = false; render(); }) }, S.detail === m ? "세부 ◂" : "세부 ▸"));
+    card.appendChild(sm);
+    const lr = linkRow(m, own); if (lr) card.appendChild(lr);
+    const ht = hintFor(m); if (ht && S.detail !== m) card.appendChild(ht);
+    r.appendChild(card);
+  }
+}
+function normControls(v) {
+  const c = el("div", { class: "controls" });
+  const sel = el("select");
+  for (const [id, p] of Object.entries(S.presets)) {
+    const o = el("option", { value: id }, (p.user ? "★ " : "") + p.name + (id === v.presetId && v.modified ? " (수정됨)" : ""));
+    if (id === v.presetId) o.selected = true;
+    sel.appendChild(o);
+  }
+  if (!S.presets[v.presetId]) { const o = el("option", { value: "" }, "사용자 지정"); o.selected = true; sel.prepend(o); }
+  sel.onchange = () => sel.value && pickPreset(sel.value);
+  c.appendChild(sel);
+  if (Object.values(S.presets).some((p) => p.user)) c.appendChild(el("button", { class: "linkbtn", onclick: stop(() => { S.managing = !S.managing; render(); }) }, S.managing ? "내 프리셋 관리 닫기" : "내 프리셋 관리…"));
+  if (S.managing) {
+    const g = el("div", { class: "mgr" });
+    for (const [id, p] of Object.entries(S.presets)) {
+      if (!p.user) continue;
+      const it = el("div", { class: "it" });
+      if (S.renaming === id) {
+        const inp = el("input", { value: p.name, maxlength: "12" });
+        it.appendChild(inp);
+        it.appendChild(el("button", { class: "sb primary", onclick: stop(() => { p.name = inp.value.trim() || p.name; S.renaming = null; render(); }) }, "확인"));
+      } else {
+        it.appendChild(el("span", {}, "★ " + p.name));
+        it.appendChild(el("button", { class: "sb", onclick: stop(() => { S.renaming = id; render(); }) }, "이름"));
+        it.appendChild(el("button", { class: "sb", onclick: stop(() => { delete S.presets[id]; render(); }) }, "지우기"));
+      }
+      g.appendChild(it);
+    }
+    g.appendChild(el("div", { class: "dsub" }, "지워도 이미 이 프리셋을 고른 채널의 값은 그대로 남습니다(사용자 지정)."));
+    c.appendChild(g);
+  }
+  const viz = el("div", { class: "viz" });
+  const pos = (l) => ((l + 50) / 46) * 100;
+  const band = el("div", { class: "band" }); band.style.left = pos(v.low) + "%"; band.style.width = pos(v.high) - pos(v.low) + "%"; viz.appendChild(band);
+  const pin = el("div", { class: "pin" }); pin.style.left = pos(v.target) + "%"; viz.appendChild(pin);
+  const lvl = el("div", { class: "lvl", "data-lvl": "1" }); lvl.style.width = "55%"; viz.appendChild(lvl);
+  for (const t of [-48, -36, -24, -12]) { const tk = el("span", { class: "tk" }, String(t)); tk.style.left = pos(t) + "%"; viz.appendChild(tk); }
+  c.appendChild(viz);
+  c.appendChild(el("div", { class: "meta" }, `<span>대표 구간</span><b class="tabular">${v.low} ~ ${v.high} LUFS</b>`));
+  c.appendChild(el("div", { class: "meta" }, `<span>목표 음압</span><b class="tabular">${v.target} LUFS</b>`));
+  const tr = el("input", { type: "range", min: "-20", max: "-12", step: "1", value: String(v.target) });
+  tr.onchange = () => tweakNorm({ target: Number(tr.value) });
+  c.appendChild(tr);
+  const seg = el("div", { class: "seg3" });
+  for (const k of ["slow", "std", "fast"]) seg.appendChild(el("button", { "data-on": String(v.speed === k), onclick: stop(() => tweakNorm({ speed: k })) }, SPEED[k]));
+  c.appendChild(seg);
+  c.appendChild(el("div", { class: "meta" }, `<span>0dB 회귀 텐션</span><b class="tabular">${v.tension.toFixed(2)} dB/s</b>`));
+  const tn = el("input", { type: "range", min: "5", max: "150", step: "5", value: String(Math.round(v.tension * 100)) });
+  tn.onchange = () => tweakNorm({ tension: Number(tn.value) / 100 });
+  c.appendChild(tn);
+  if (v.modified) {
+    const p = S.presets[v.presetId];
+    const mb = el("div", { class: "modbar" });
+    mb.appendChild(el("span", {}, p ? `"${p.name}"에서 바뀜` : "사용자 지정 값"));
+    const row = el("div", { class: "row" });
+    row.appendChild(el("button", { class: "sb primary", onclick: stop(() => { S.naming = true; render(); }) }, "내 프리셋으로 저장"));
+    if (p && p.user) row.appendChild(el("button", { class: "sb", onclick: stop(overwrite) }, `"${p.name}" 덮어쓰기`));
+    if (p) row.appendChild(el("button", { class: "sb", onclick: stop(revert) }, "되돌리기"));
+    mb.appendChild(row);
+    if (S.naming) {
+      const nb = el("div", { class: "namebox" });
+      const inp = el("input", { type: "text", value: "심야 대사", maxlength: "12" });
+      nb.appendChild(inp);
+      nb.appendChild(el("button", { class: "sb primary", onclick: stop(() => saveAs(inp.value.trim() || "내 프리셋")) }, "저장"));
+      mb.appendChild(nb);
+    }
+    c.appendChild(mb);
+  }
+  return c;
+}
+function otherControls(m, v) {
+  const c = el("div", { class: "controls" });
+  if (m === "gate") {
+    c.appendChild(el("div", { class: "meta" }, `<span>바닥 차단</span><b class="tabular">${v.th} dB</b>`));
+    const r = el("input", { type: "range", min: "-65", max: "-30", step: "1", value: String(v.th) });
+    r.onchange = () => change("gate", { th: Number(r.value) });
+    c.appendChild(r);
+    c.appendChild(el("div", { class: "dsub" }, "이보다 작은 소리(배경 잡음)를 막습니다."));
+  } else if (m === "comp") {
+    const seg = el("div", { class: "seg3" });
+    for (const k of [2, 4, 8]) seg.appendChild(el("button", { "data-on": String(v.ratio === k), onclick: stop(() => change("comp", { ratio: k })) }, ["약", "중", "강"][[2, 4, 8].indexOf(k)] + " " + k + ":1"));
+    c.appendChild(seg);
+  } else {
+    const global = S.scope === "global";
+    const val = global ? S.globalPan : S.pan[S.sel];
+    c.appendChild(el("div", { class: "meta" }, `<span>L100</span><span>C</span><span>R100</span>`));
+    const r = el("input", { type: "range", min: "-100", max: "100", step: "10", value: String(val) });
+    r.onchange = () => change("pan", Number(r.value));
+    c.appendChild(r);
+    if (global) c.appendChild(el("div", { class: "dsub" }, "모든 채널의 패닝에 더해집니다. 채널끼리의 좌우 배치는 그대로 두고 전체를 옮깁니다."));
+    else c.appendChild(el("div", { class: "meta tabular" }, `<span>최종 <b>${fmtPan(eff(S.sel, "pan").v)}</b></span><span>이 채널 ${fmtPan(val)} + 전체 ${fmtPan(S.globalPan)}</span>`));
+  }
+  return c;
+}
+function renderDetail() {
+  const body = document.getElementById("body");
+  body.querySelectorAll(".detail").forEach((d) => d.remove());
+  if (!S.detail) return;
+  const m = S.detail;
+  const { v, own } = cur(m);
+  const d = el("div", { class: "detail" + (own && m !== "pan" ? " own" : ""), onclick: (e) => e.stopPropagation() });
+  const h = el("div", { class: "dhead" });
+  h.appendChild(el("span", { class: "ctitle" }, (m === "pan" && S.scope === "global" ? "전체 밸런스" : MOD_NAME[m]) + " 세부"));
+  h.appendChild(el("button", { class: "dclose", onclick: stop(() => { S.detail = null; render(); }) }, "✕"));
+  d.appendChild(h);
+  const c = CH.find((x) => x.id === S.sel);
+  d.appendChild(el("div", { class: "dsub" }, S.scope === "global" ? "모든 채널 기본 설정" : `${c.host} · ${m === "pan" ? "이 채널" : own ? "이 채널만" : "모든 채널 따름 (잠김)"}`));
+  const ctr = m === "norm" ? normControls(v) : otherControls(m, v);
+  if (isLocked(m)) { ctr.classList.add("locked"); d.addEventListener("click", () => { S.hint = m; render(); }); }
+  d.appendChild(ctr);
+  const lr = linkRow(m, own); if (lr) d.appendChild(lr);
+  const ht = hintFor(m); if (ht) d.appendChild(ht);
+  body.appendChild(d);
+}
+const userPreset = () => Object.entries(S.presets).find(([, p]) => p.user);
+const TASKS = [
+  { t: "상단 균일 N ▾를 열고 \"표준\"을 고르세요. 따르는 채널들이 모두 표준이 됩니다(카드 요약에서 확인).", c: () => S.global.norm.presetId === "standard" },
+  { t: "youtube를 고르고 노멀라이저 \"세부 ▸\" → \"이 채널만 따로\" → 목표를 -20으로 → \"내 프리셋으로 저장\".", c: () => Boolean(userPreset()) },
+  { t: "twitch를 고르고 노멀라이저를 따로 풀어 ★ 프리셋을 고르세요. twitch 채널 아래 N이 흰색이 됩니다.", c: () => { const u = userPreset(); return u && S.own[3].norm && S.own[3].norm.presetId === u[0]; } },
+  { t: "MASTER BUS를 눌러(채널 대신 마스터가 떠오름) 컴프레서를 켜고, 패닝(전체 밸런스)을 R20으로 옮기세요.", c: () => S.global.comp.on && S.globalPan === 20 },
+  { t: "아무 채널의 노멀라이저 세부 창에서 \"내 프리셋 관리…\"로 ★ 프리셋 이름을 바꿔 보세요.", c: () => { const u = userPreset(); return u && u[1].name !== "심야 대사"; } },
+];
+function renderTasks() {
+  const box = document.getElementById("tasks"); box.innerHTML = "";
+  TASKS.forEach((x, i) => {
+    if (x.c()) S.seen[i] = true;
+    const done = S.seen[i];
+    box.appendChild(el("div", { class: "task" + (done ? " done" : "") }, `<span class="ck">${done ? "✓" : i + 1}</span><span>${x.t}</span>`));
+  });
+}
+function render() { renderOpts(); renderDeck(); renderStrips(); renderMaster(); renderRack(); renderDetail(); renderTasks(); }
+document.getElementById("resetAll").onclick = () => { fresh(); render(); };
+document.body.addEventListener("click", () => { if (S.detail || S.npop) { S.detail = null; S.npop = false; render(); } });
+setInterval(() => document.querySelectorAll('[data-lvl="1"]').forEach((l) => (l.style.width = 45 + Math.random() * 20 + "%")), 400);
+const q = new URLSearchParams(location.search);
+if (q.get("detail")) S.detail = q.get("detail");
+if (q.get("global")) S.scope = "global";
+render();
+</script>
+</body>
+</html>

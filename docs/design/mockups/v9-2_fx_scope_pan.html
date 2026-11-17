@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fadedesk v9-2 — 모든 채널 패닝의 뜻</title>
+<style>
+  :root {
+    --c-bg: #091112; --c-surface: #131d1e; --c-raised: #1d292a; --c-border: #2d3b3c;
+    --c-text: #e5edee; --c-muted: #98a4a6;
+    --c-primary: #00bdce; --c-on-primary: #000000;
+    --c-accent: #e69732; --c-on-accent: #000000;
+    --c-success: #4fc678; --c-warning: #eda922; --c-danger: #f5605b;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: #060b0c; color: var(--c-text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Pretendard, "Malgun Gothic", sans-serif; font-size: 12px; }
+  .tabular { font-variant-numeric: tabular-nums; font-family: Consolas, Menlo, monospace; }
+  button { font-family: inherit; }
+  .wrap { max-width: 1240px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  .q-head { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 10px; padding: 12px 16px; }
+  .q-kicker { font-size: 10px; font-weight: 700; color: var(--c-primary); letter-spacing: .08em; }
+  .q-title { font-size: 16px; font-weight: 700; margin: 4px 0 6px; }
+  .q-why { color: var(--c-muted); line-height: 1.6; font-size: 12.5px; }
+  .q-why b { color: var(--c-text); }
+  .opt-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .opt-btn { height: 32px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--c-border);
+    background: var(--c-raised); color: var(--c-text); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+  .opt-btn[data-on="true"] { background: var(--c-primary); color: var(--c-on-primary); border-color: var(--c-primary); font-weight: 700; }
+  .stage { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; }
+  @media (max-width: 1100px) { .stage { grid-template-columns: 1fr; } }
+  .popup { width: 790px; background: var(--c-bg); border: 1px solid var(--c-border); border-radius: 8px; overflow: hidden; }
+  .deck { height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-bottom: 1px solid var(--c-border); }
+  .logo { border: 1px solid var(--c-primary); color: var(--c-primary); font-weight: 800; font-size: 11px; letter-spacing: .08em; padding: 3px 8px; border-radius: 4px; }
+  .deck-sp { flex: 1; }
+  .pill { height: 26px; padding: 0 10px; display: inline-flex; align-items: center; border-radius: 5px; border: 1px solid var(--c-border); background: var(--c-raised); font-weight: 700; font-size: 11.5px; }
+  .pill.on { background: var(--c-primary); color: var(--c-on-primary); border-color: var(--c-primary); }
+  .body { display: flex; height: 470px; }
+  .strips { flex: 1; display: flex; gap: 6px; padding: 8px; overflow: hidden; }
+  .strip { width: 94px; border: 1px solid var(--c-border); border-radius: 7px; background: var(--c-surface);
+    display: flex; flex-direction: column; padding: 6px; gap: 6px; cursor: pointer; transition: box-shadow 120ms; }
+  .strip[data-sel="true"] { border-color: var(--c-primary); box-shadow: inset 0 0 0 1px var(--c-primary); }
+  .strip[data-target="all"] { border-color: var(--c-primary); border-style: dashed; }
+  .strip[data-glow="true"] { box-shadow: 0 0 0 2px var(--c-primary), 0 0 14px rgba(0,189,206,.45); }
+  .host { font-size: 10px; color: var(--c-muted); }
+  .stitle { font-size: 11.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fader { flex: 1; border: 1px solid var(--c-border); border-radius: 5px; background: #0d1718; position: relative; }
+  .fader::before { content: ""; position: absolute; left: 50%; top: 10px; bottom: 10px; width: 4px; margin-left: -2px; background: #2a3a3b; border-radius: 2px; }
+  .fader i { position: absolute; left: 50%; width: 24px; height: 12px; margin-left: -12px; top: 38%; background: var(--c-raised); border: 1px solid var(--c-muted); border-radius: 3px; }
+  .readout { text-align: center; font-weight: 700; }
+  .panmeter { border: 1px solid var(--c-border); border-radius: 4px; padding: 3px 4px; display: flex; flex-direction: column; gap: 3px; }
+  .panmeter .bar { height: 6px; background: #0d1718; border-radius: 3px; position: relative; }
+  .panmeter .bar::after { content: ""; position: absolute; left: 50%; top: -1px; bottom: -1px; width: 1px; background: #3a4a4b; }
+  .panmeter .dot { position: absolute; top: -2px; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: var(--c-muted); }
+  .panmeter .dot.g { background: var(--c-primary); }
+  .panmeter .dot.c { background: var(--c-accent); }
+  .panmeter .txt { display: flex; justify-content: space-between; font-size: 10px; color: var(--c-muted); }
+  .panmeter .txt b { color: var(--c-text); }
+  .msf { display: grid; grid-template-columns: repeat(3,1fr); gap: 3px; }
+  .msf span { height: 20px; border: 1px solid var(--c-border); border-radius: 3px; display: flex; align-items: center; justify-content: center; color: var(--c-muted); font-size: 10px; font-weight: 700; }
+  .master { width: 112px; margin: 8px 0; border: 1px solid var(--c-border); border-top: 3px solid var(--c-primary); border-radius: 7px;
+    background: var(--c-surface); padding: 6px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; }
+  .master[data-sel="true"] { border-color: var(--c-primary); box-shadow: inset 0 0 0 1px var(--c-primary), 0 0 14px rgba(0,189,206,.35); }
+  .mk { font-size: 9.5px; font-weight: 800; letter-spacing: .1em; color: var(--c-primary); text-align: center; }
+  .mt { font-size: 12px; font-weight: 700; text-align: center; }
+  .mfx { height: 24px; border-radius: 4px; border: 1px solid var(--c-primary); color: var(--c-primary); background: transparent; font-weight: 700; font-size: 11px; cursor: pointer; }
+  .master[data-sel="true"] .mfx { background: var(--c-primary); color: var(--c-on-primary); }
+  .mbtn { height: 24px; border: 1px solid var(--c-border); border-radius: 4px; display: flex; align-items: center; justify-content: center; color: var(--c-muted); font-size: 10.5px; }
+  .rack { width: 220px; border-left: 1px solid var(--c-border); background: var(--c-bg); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .scope-tabs { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--c-border); border-radius: 6px; overflow: hidden; }
+  .scope-tabs button { height: 28px; border: 0; background: var(--c-surface); color: var(--c-muted); font-weight: 700; font-size: 11px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 6px; }
+  .scope-tabs button[data-on="true"] { background: var(--c-primary); color: var(--c-on-primary); }
+  .scope-tabs button.ch[data-on="true"] { background: var(--c-raised); color: var(--c-text); box-shadow: inset 0 -2px 0 var(--c-primary); }
+  .rhead { border-bottom: 1px solid var(--c-border); padding-bottom: 6px; }
+  .rtitle { font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rsub { font-size: 10.5px; color: var(--c-muted); margin-top: 2px; }
+  .rsub b { color: var(--c-primary); }
+  .card { border: 1px solid var(--c-border); background: var(--c-surface); border-radius: 7px; padding: 7px 8px; display: flex; flex-direction: column; gap: 6px; }
+  .card.mute { opacity: .5; }
+  .chead { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .ctitle { font-weight: 700; font-size: 12px; }
+  .tag { font-size: 9.5px; font-weight: 700; padding: 1px 5px; border-radius: 3px; border: 1px solid var(--c-border); color: var(--c-muted); white-space: nowrap; }
+  .tag.own { color: var(--c-accent); border-color: rgba(230,151,50,.6); }
+  .note { font-size: 10.5px; color: var(--c-muted); line-height: 1.5; }
+  .note b { color: var(--c-text); }
+  .reset { border: 0; background: transparent; color: var(--c-primary); font-size: 10.5px; cursor: pointer; padding: 0; text-align: left; }
+  input[type=range] { width: 100%; accent-color: var(--c-primary); }
+  .pan-row { display: flex; justify-content: space-between; color: var(--c-muted); font-size: 10px; }
+  .side { display: flex; flex-direction: column; gap: 10px; }
+  .panel { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 10px; padding: 12px 14px; line-height: 1.65; font-size: 12.5px; }
+  .panel h3 { margin: 0 0 6px; font-size: 13px; color: var(--c-primary); }
+  .panel ol, .panel ul { margin: 4px 0; padding-left: 18px; }
+  .panel .cost { color: var(--c-warning); }
+  .task { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; }
+  .task .ck { width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--c-border); flex: none; margin-top: 2px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
+  .task.done .ck { background: var(--c-success); border-color: var(--c-success); color: #000; }
+  .task.done span { color: var(--c-muted); text-decoration: line-through; }
+  .resetall { margin-top: 6px; height: 26px; padding: 0 10px; border-radius: 5px; border: 1px solid var(--c-border); background: var(--c-raised); color: var(--c-text); cursor: pointer; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="q-head">
+    <div class="q-kicker">1.2.0 고급 FX 개편 · 질문 2 (질문 1의 답 C를 반영한 화면)</div>
+    <div class="q-title">"모든 채널"에서 패닝을 움직이면 무슨 일이 일어나야 할까요?</div>
+    <div class="q-why">
+      게이트·컴프레서는 "모든 채널" 값을 그대로 물려받으면 됩니다. 패닝은 뜻이 둘로 갈립니다.
+      예를 들어 <b>youtube를 왼쪽(L30)에 두어 놓고</b> 나중에 "모든 채널"에서 오른쪽으로 R20을 움직였다고 합시다.
+      youtube는 L30에 그대로 남아야 할까요, 아니면 같이 오른쪽으로 밀려 L10이 되어야 할까요?
+      아래 세 판을 바꿔 가며 과제를 해 보세요. 채널 아래 막대가 그 채널의 <b>실제 최종 패닝</b>입니다.
+    </div>
+    <div class="opt-row" id="optRow"></div>
+  </section>
+
+  <div class="stage">
+    <div class="popup">
+      <div class="deck">
+        <span class="logo">FADEDESK</span><span class="deck-sp"></span>
+        <span class="pill tabular">Focus α 0.70</span><span class="pill on">균일 N ▾</span><span class="pill on">고급 FX ◂</span>
+      </div>
+      <div class="body">
+        <div class="strips" id="strips"></div>
+        <div class="master" id="master"></div>
+        <div class="rack" id="rack"></div>
+      </div>
+    </div>
+    <div class="side">
+      <div class="panel" id="explain"></div>
+      <div class="panel">
+        <h3>해 볼 과제 (순서대로)</h3>
+        <div id="tasks"></div>
+        <button class="resetall" id="resetAll">처음 상태로</button>
+      </div>
+      <div class="panel">
+        <h3>채널 아래 막대 읽는 법</h3>
+        <div style="color:var(--c-muted)">점의 위치가 최종 패닝입니다. 청록 점은 "모든 채널" 값을 따르는 중, 주황 점은 이 채널 값이 들어간 상태입니다.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const OPTIONS = [
+  { key: "inherit", label: "가 · 다른 효과처럼 물려받기" },
+  { key: "offset", label: "나 · 채널 위에 더해지는 전체 밸런스" },
+  { key: "none", label: "다 · 패닝은 채널에서만" },
+];
+const EXPLAIN = {
+  inherit: `<h3>가 · 다른 효과처럼 물려받기</h3>
+    <ol>
+      <li>"모든 채널"의 패닝은 <b>아직 따로 정하지 않은 채널</b>의 기본값입니다.</li>
+      <li>youtube처럼 이미 따로 정한 채널은 "모든 채널"을 움직여도 그대로 남습니다.</li>
+      <li>youtube도 따라오게 하려면 youtube 카드에서 "↺ 되돌리기"를 눌러 따로 정한 값을 지워야 합니다(그러면 L30도 사라짐).</li>
+    </ol>
+    <div class="cost">게이트·컴프레서와 규칙이 같아 배울 것이 하나입니다. 대신 "전부 조금 오른쪽으로"는 따로 정한 채널에 닿지 않습니다.</div>`,
+  offset: `<h3>나 · 채널 위에 더해지는 전체 밸런스</h3>
+    <ol>
+      <li>"모든 채널"의 패닝은 <b>밸런스</b>입니다. 모든 채널의 패닝에 더해집니다.</li>
+      <li>youtube L30에 전체 R20을 더하면 youtube는 L10, 나머지는 R20이 됩니다.</li>
+      <li>채널끼리의 좌우 배치(youtube가 다른 채널보다 왼쪽)는 유지되고, 전체가 함께 움직입니다.</li>
+      <li>패닝 카드에는 "이 채널만 / 따름" 표시 대신 "최종 L10 = 채널 L30 + 전체 R20"이 보입니다.</li>
+    </ol>
+    <div class="cost">한쪽 이어폰·스피커가 약할 때 쓰기 좋습니다. 대신 패닝만 다른 효과와 규칙이 달라 따로 익혀야 합니다.</div>`,
+  none: `<h3>다 · 패닝은 채널에서만</h3>
+    <ol>
+      <li>"모든 채널" 화면에서는 패닝 카드가 흐려지고 "패닝은 채널마다 정합니다"라고 적힙니다.</li>
+      <li>패닝을 바꾸려면 채널을 하나씩 골라야 합니다.</li>
+    </ol>
+    <div class="cost">가장 단순합니다. 대신 과제 2는 채널마다 따로 해야 하고, 전체를 한 번에 옮길 수 없습니다.</div>`,
+};
+const CHANNELS = [
+  { id: 1, host: "youtube", title: "설명을 포기하는 가…", db: "0.0" },
+  { id: 2, host: "soundcloud", title: "Lo-fi Beats Radio", db: "-6.0" },
+  { id: 3, host: "twitch", title: "생방송 게임 중계", db: "-3.5" },
+];
+let opt = "inherit";
+let state;
+const fresh = () => ({ scope: "channel", sel: 1, globalPan: 0, own: {}, hover: false });
+state = fresh();
+const clamp = (v) => Math.max(-100, Math.min(100, v));
+const fmt = (v) => (v === 0 ? "C" : v < 0 ? "L" + -v : "R" + v);
+
+function eff(id) {
+  const hasOwn = id in state.own;
+  if (opt === "inherit") return { v: hasOwn ? state.own[id] : state.globalPan, own: hasOwn };
+  if (opt === "offset") return { v: clamp((state.own[id] ?? 0) + state.globalPan), own: hasOwn && state.own[id] !== 0 };
+  return { v: state.own[id] ?? 0, own: hasOwn && state.own[id] !== 0 };
+}
+function el(tag, attrs = {}, html = "") {
+  const e = document.createElement(tag);
+  for (const [a, v] of Object.entries(attrs)) {
+    if (a === "class") e.className = v; else if (a.startsWith("on")) e[a] = v; else e.setAttribute(a, v);
+  }
+  if (html) e.innerHTML = html;
+  return e;
+}
+function renderOptions() {
+  const row = document.getElementById("optRow"); row.innerHTML = "";
+  for (const o of OPTIONS) row.appendChild(el("button", { class: "opt-btn", "data-on": String(o.key === opt),
+    onclick: () => { opt = o.key; state = fresh(); renderAll(); } }, o.label));
+  document.getElementById("explain").innerHTML = EXPLAIN[opt];
+}
+const selectChannel = (id) => { state.sel = id; state.scope = "channel"; renderAll(); };
+const selectGlobal = () => { state.scope = "global"; renderAll(); };
+
+function renderStrips() {
+  const box = document.getElementById("strips"); box.innerHTML = "";
+  const global = state.scope === "global";
+  for (const ch of CHANNELS) {
+    const s = el("div", { class: "strip" });
+    s.dataset.sel = String(!global && state.sel === ch.id);
+    s.dataset.target = global ? "all" : "";
+    let glow = false;
+    if (state.hover) {
+      if (!global) glow = state.sel === ch.id;
+      else if (opt === "inherit") glow = !(ch.id in state.own);
+      else if (opt === "offset") glow = true;
+    }
+    s.dataset.glow = String(glow);
+    s.onclick = () => selectChannel(ch.id);
+    s.appendChild(el("div", { class: "host" }, "● " + ch.host));
+    s.appendChild(el("div", { class: "stitle" }, ch.title));
+    s.appendChild(el("div", { class: "fader" }, "<i></i>"));
+    s.appendChild(el("div", { class: "readout tabular" }, ch.db + " dB"));
+    const e = eff(ch.id);
+    const pm = el("div", { class: "panmeter" });
+    const bar = el("div", { class: "bar" });
+    const dot = el("span", { class: "dot " + (e.own ? "c" : (e.v !== 0 ? "g" : "")) });
+    dot.style.left = (50 + e.v / 2) + "%";
+    bar.appendChild(dot); pm.appendChild(bar);
+    pm.appendChild(el("div", { class: "txt" }, `<span>패닝</span><b class="tabular">${fmt(e.v)}</b>`));
+    s.appendChild(pm);
+    s.appendChild(el("div", { class: "msf" }, "<span>M</span><span>S</span><span>F</span>"));
+    box.appendChild(s);
+  }
+}
+function renderMaster() {
+  const m = document.getElementById("master");
+  m.dataset.sel = String(state.scope === "global");
+  m.innerHTML = ""; m.onclick = selectGlobal;
+  m.appendChild(el("div", { class: "mk" }, "MASTER BUS"));
+  m.appendChild(el("div", { class: "mt" }, "전체 출력"));
+  m.appendChild(el("button", { class: "mfx" }, "전체 FX"));
+  m.appendChild(el("div", { class: "fader" }, "<i></i>"));
+  m.appendChild(el("div", { class: "readout tabular" }, "0.0 dB"));
+  m.appendChild(el("div", { class: "mbtn" }, "▶ 전체 재생"));
+  m.appendChild(el("div", { class: "mbtn" }, "전체 음소거"));
+}
+function simpleCard(title, sub, tagText) {
+  const c = el("div", { class: "card" });
+  c.appendChild(el("div", { class: "chead" }, `<span class="ctitle">${title}</span><span class="tag">${tagText}</span>`));
+  c.appendChild(el("div", { class: "note" }, sub));
+  return c;
+}
+function renderRack() {
+  const r = document.getElementById("rack"); r.innerHTML = "";
+  const ch = CHANNELS.find((c) => c.id === state.sel);
+  const global = state.scope === "global";
+  const tabs = el("div", { class: "scope-tabs" });
+  tabs.appendChild(el("button", { "data-on": String(global), onclick: selectGlobal }, "모든 채널"));
+  tabs.appendChild(el("button", { class: "ch", "data-on": String(!global), onclick: () => selectChannel(state.sel) }, "이 채널 · " + ch.host));
+  r.appendChild(tabs);
+  const head = el("div", { class: "rhead" });
+  if (global) {
+    head.appendChild(el("div", { class: "rtitle" }, "모든 채널 기본 설정"));
+    head.appendChild(el("div", { class: "rsub" }, `여기서 바꾸면 <b>채널 ${CHANNELS.length}개</b>에 걸립니다`));
+  } else {
+    head.appendChild(el("div", { class: "rtitle" }, ch.title));
+    head.appendChild(el("div", { class: "rsub" }, `${ch.host} · <b>이 채널에만</b> 걸립니다`));
+  }
+  r.appendChild(head);
+  r.appendChild(simpleCard("노멀라이저", "프리셋: 음악 (-16 LUFS · 완만)", "ON"));
+  r.appendChild(simpleCard("노이즈 게이트", "바닥 차단 -48 dB", "OFF"));
+  r.appendChild(simpleCard("컴프레서", "비율 4:1", "OFF"));
+
+  // 패닝 카드
+  const p = el("div", { class: "card" });
+  p.onmouseenter = () => { state.hover = true; renderStrips(); };
+  p.onmouseleave = () => { state.hover = false; renderStrips(); };
+  const title = global && opt === "offset" ? "전체 밸런스" : "패닝";
+  if (global && opt === "none") {
+    p.classList.add("mute");
+    p.appendChild(el("div", { class: "chead" }, `<span class="ctitle">패닝</span><span class="tag">채널 전용</span>`));
+    p.appendChild(el("div", { class: "note" }, "패닝은 채널마다 정합니다.<br>채널을 눌러 고르세요."));
+    p.onmouseenter = null;
+    r.appendChild(p); return;
+  }
+  let cur;
+  if (global) cur = state.globalPan;
+  else if (opt === "inherit") cur = eff(state.sel).v;
+  else cur = state.own[state.sel] ?? 0;
+  p.appendChild(el("div", { class: "chead" }, `<span class="ctitle">${title}</span><span class="tag tabular" id="panVal">${fmt(cur)}</span>`));
+  p.appendChild(el("div", { class: "pan-row" }, "<span>L100</span><span>C</span><span>R100</span>"));
+  const rng = el("input", { type: "range", min: "-100", max: "100", step: "10", value: String(cur) });
+  rng.oninput = () => { document.getElementById("panVal").textContent = fmt(Number(rng.value)); };
+  rng.onchange = () => {
+    const v = Number(rng.value);
+    if (global) state.globalPan = v; else state.own[state.sel] = v;
+    renderAll();
+  };
+  p.appendChild(rng);
+  if (!global && opt === "inherit") {
+    const own = state.sel in state.own;
+    const w = el("div", { style: "display:flex;gap:6px;align-items:center" });
+    w.appendChild(el("span", { class: "tag" + (own ? " own" : "") }, own ? "이 채널만" : "모든 채널 따름"));
+    if (own) w.appendChild(el("button", { class: "reset", onclick: () => { delete state.own[state.sel]; renderAll(); } }, "↺ 되돌리기"));
+    p.appendChild(w);
+  }
+  if (!global && opt === "offset") {
+    const e = eff(state.sel);
+    p.appendChild(el("div", { class: "note tabular" }, `최종 <b>${fmt(e.v)}</b> = 이 채널 ${fmt(state.own[state.sel] ?? 0)} + 전체 ${fmt(state.globalPan)}`));
+  }
+  if (global && opt === "offset") {
+    p.appendChild(el("div", { class: "note" }, "모든 채널의 패닝에 <b>더해집니다</b>."));
+  }
+  if (global && opt === "inherit") {
+    const n = CHANNELS.filter((c) => c.id in state.own).length;
+    p.appendChild(el("div", { class: "note" }, n ? `따로 정한 채널 <b>${n}개</b>에는 닿지 않습니다.` : "아직 따로 정한 채널이 없습니다."));
+  }
+  r.appendChild(p);
+}
+const TASKS = [
+  { text: "youtube를 골라 패닝을 L30으로 옮기세요.", check: () => state.own[1] === -30 },
+  { text: "이제 \"모든 채널\"로 가서 전체를 오른쪽으로 R20만큼 옮기세요. 세 채널이 모두 오른쪽으로 움직였는지 보세요.", check: () => state.globalPan === 20 },
+  { text: "결과 확인: youtube가 다른 두 채널보다 여전히 왼쪽에 있고, 셋 다 처음보다 오른쪽으로 갔나요?", check: () => eff(1).v < eff(2).v && eff(1).v > -30 && eff(2).v > 0 && eff(3).v > 0 },
+];
+function renderTasks() {
+  const box = document.getElementById("tasks"); box.innerHTML = "";
+  TASKS.forEach((t, i) => {
+    const done = t.check();
+    box.appendChild(el("div", { class: "task" + (done ? " done" : "") }, `<span class="ck">${done ? "✓" : i + 1}</span><span>${t.text}</span>`));
+  });
+}
+function renderAll() { renderOptions(); renderStrips(); renderMaster(); renderRack(); renderTasks(); }
+document.getElementById("resetAll").onclick = () => { state = fresh(); renderAll(); };
+renderAll();
+</script>
+</body>
+</html>

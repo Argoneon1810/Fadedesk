@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fadedesk v9-7 — 채널 상태 표현 (클래식 / 모던)</title>
+<style>
+  :root {
+    --c-bg: #091112; --c-surface: #131d1e; --c-raised: #1d292a; --c-border: #2d3b3c;
+    --c-text: #e5edee; --c-muted: #98a4a6;
+    --c-primary: #00bdce; --c-on-primary: #000000;
+    --c-accent: #e69732; --c-on-accent: #000000;
+    --c-success: #4fc678; --c-warning: #eda922; --c-danger: #f5605b;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: #060b0c; color: var(--c-text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Pretendard, "Malgun Gothic", sans-serif; font-size: 12px; }
+  .tabular { font-variant-numeric: tabular-nums; font-family: Consolas, Menlo, monospace; }
+  button { font-family: inherit; }
+  .wrap { max-width: 1280px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  .q-head { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 10px; padding: 12px 16px; }
+  .q-kicker { font-size: 10px; font-weight: 700; color: var(--c-primary); letter-spacing: .08em; }
+  .q-title { font-size: 16px; font-weight: 700; margin: 4px 0 6px; }
+  .q-why { color: var(--c-muted); line-height: 1.6; font-size: 12.5px; }
+  .q-why b { color: var(--c-text); }
+  .opt-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
+  .opt-row .grp { color: var(--c-muted); font-size: 11px; font-weight: 700; margin: 0 4px 0 8px; }
+  .opt-btn { height: 32px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--c-border);
+    background: var(--c-raised); color: var(--c-text); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+  .opt-btn[data-on="true"] { background: var(--c-primary); color: var(--c-on-primary); border-color: var(--c-primary); font-weight: 700; }
+  .opt-btn.mod[data-on="true"] { background: var(--c-accent); border-color: var(--c-accent); }
+  .stage { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; }
+  @media (max-width: 1150px) { .stage { grid-template-columns: 1fr; } }
+
+  .popup { width: 790px; height: 600px; background: var(--c-bg); border: 1px solid var(--c-border); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; position: relative; }
+  .deck { height: 44px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-bottom: 1px solid var(--c-border); }
+  .dot { width: 18px; height: 18px; border-radius: 50%; background: var(--c-primary); border: 2px solid var(--c-raised); cursor: pointer; box-shadow: 0 0 0 1px var(--c-border); }
+  .logo { border: 1px solid var(--c-primary); color: var(--c-primary); font-weight: 800; font-size: 11px; letter-spacing: .08em; padding: 3px 8px; border-radius: 4px; }
+  .deck-sp { flex: 1; }
+  .pill { height: 26px; padding: 0 10px; display: inline-flex; align-items: center; border-radius: 5px; border: 1px solid var(--c-border); background: var(--c-raised); font-weight: 700; font-size: 11.5px; }
+  .pill.on { background: var(--c-primary); color: var(--c-on-primary); border-color: var(--c-primary); }
+  .body { flex: 1; display: flex; min-height: 0; }
+  .strips { flex: 1; display: flex; gap: 6px; padding: 12px 8px 8px; overflow: hidden; align-items: stretch; }
+  .divider { width: 14px; flex: none; display: flex; align-items: center; justify-content: center; }
+  .divider span { writing-mode: vertical-rl; color: var(--c-muted); font-size: 10px; letter-spacing: .2em; border-left: 1px dashed var(--c-border); padding-left: 3px; }
+
+  /* ── 공통 스트립 뼈대 ── */
+  .strip { width: 92px; flex: none; border-radius: 7px; display: flex; flex-direction: column; cursor: pointer; position: relative;
+    transition: background 160ms, box-shadow 160ms, transform 160ms, opacity 160ms; overflow: hidden; }
+  .shead { padding: 5px 6px 4px; display: flex; flex-direction: column; gap: 2px; }
+  .host { font-size: 10px; color: var(--c-muted); display: flex; justify-content: space-between; align-items: center; gap: 4px; }
+  .stitle { font-size: 11.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .smid { flex: 1; display: flex; flex-direction: column; gap: 5px; padding: 0 6px 6px; min-height: 0; }
+  .fader { flex: 1; border-radius: 5px; background: rgba(0,0,0,.28); position: relative; border: 1px solid var(--c-border); }
+  .fader::before { content: ""; position: absolute; left: 50%; top: 10px; bottom: 10px; width: 4px; margin-left: -2px; background: rgba(255,255,255,.10); border-radius: 2px; }
+  .fader .fill { position: absolute; left: 50%; width: 4px; margin-left: -2px; bottom: 10px; height: 52%; border-radius: 2px; background: var(--c-primary); opacity: .8; }
+  .fader i { position: absolute; left: 50%; width: 24px; height: 12px; margin-left: -12px; top: 42%; background: var(--c-raised); border: 1px solid var(--c-muted); border-radius: 3px; }
+  .readout { text-align: center; font-weight: 700; }
+  .badges { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; }
+  .bdg { height: 16px; border-radius: 3px; border: 1px solid var(--c-border); color: #56666a; font-size: 9.5px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  .bdg.g { color: var(--c-primary); border-color: rgba(0,189,206,.55); }
+  .stchip { display: none; font-size: 9px; font-weight: 800; padding: 0 4px; border-radius: 3px; line-height: 14px; white-space: nowrap; flex: none; }
+  .host > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sbtn { padding: 0; min-width: 0; }
+
+  /* ═════ 클래식 (1.1.0 기반) ═════ */
+  .look-classic .strip { border: 1px solid var(--c-border); background: var(--c-surface); }
+  .look-classic .strip.playing { background: var(--c-raised); }
+  .look-classic .strip.paused { opacity: .74; }
+  .look-classic .strip .topband { height: 3px; background: transparent; }
+  .look-classic .strip.focus { border-color: var(--c-primary); }
+  .look-classic .strip.focus .topband { background: var(--c-primary); }
+  .look-classic .strip.solo { border-color: var(--c-accent); }
+  .look-classic .strip.solo .topband { background: var(--c-accent); }
+  .look-classic .strip.focus .fader i { background: var(--c-primary); border-color: var(--c-primary); }
+  .look-classic .strip.solo .fader i { background: var(--c-accent); border-color: var(--c-accent); }
+  .look-classic .strip.solo .fader .fill { background: var(--c-accent); }
+  .look-classic .strip.muted .fader .fill { background: var(--c-muted); opacity: .25; }
+  .look-classic .strip.muted .readout { color: var(--c-danger); }
+  /* 클래식 1.1.0 그대로: 1px 안쪽 청록 */
+  .sel-now .strip.sel { box-shadow: inset 0 0 0 1px var(--c-primary); }
+  /* 클래식 가: 바탕 한 단계 더 밝게 + 떠오름 */
+  .sel-A .strip.sel, .sel-C .strip.sel { background: color-mix(in srgb, #ffffff 9%, var(--c-raised)); box-shadow: 0 8px 18px rgba(0,0,0,.6); transform: translateY(-4px); opacity: 1; }
+  /* 클래식 나: 제목 줄 채움 (활성 창 제목 표시줄처럼) */
+  .sel-B .strip.sel .shead, .sel-C .strip.sel .shead { background: var(--c-text); }
+  .sel-B .strip.sel .shead .host, .sel-C .strip.sel .shead .host { color: #2b3637; }
+  .sel-B .strip.sel .shead .stitle, .sel-C .strip.sel .shead .stitle { color: #091112; }
+  /* 클래식 스위치 뱅크: 백라이트 버튼 */
+  .look-classic .sdeck { padding: 0 6px 6px; display: flex; flex-direction: column; gap: 4px; }
+  .look-classic .sdeck .row1 { display: grid; grid-template-columns: 1fr 26px; gap: 3px; }
+  .look-classic .sdeck .row2 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+  .look-classic .sbtn { height: 22px; border: 1px solid var(--c-border); border-radius: 4px; background: var(--c-surface); color: var(--c-muted);
+    font-size: 10.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 3px; cursor: pointer; }
+  .look-classic .sbtn .pip { width: 5px; height: 5px; border-radius: 50%; background: #3a4a4b; }
+  .look-classic .sbtn.m.on { background: var(--c-danger); color: #000; border-color: var(--c-danger); }
+  .look-classic .sbtn.s.on { background: var(--c-accent); color: #000; border-color: var(--c-accent); }
+  .look-classic .sbtn.f.on { background: var(--c-primary); color: #000; border-color: var(--c-primary); }
+  .look-classic .sbtn.on .pip { background: #000; }
+  .look-classic .sbtn .lbl-long { display: none; }
+
+  /* ═════ 모던 (2.0.0 방향) ═════ */
+  .look-modern .strips { gap: 8px; }
+  .look-modern .strip { --tint: var(--c-surface); background: var(--tint); border: 0; }
+  .look-modern .strip.focus { --tint: color-mix(in srgb, var(--c-primary) 17%, var(--c-surface)); }
+  .look-modern .strip.solo { --tint: color-mix(in srgb, var(--c-accent) 19%, var(--c-surface)); }
+  .look-modern .strip.muted { --tint: color-mix(in srgb, var(--c-danger) 19%, var(--c-surface)); }
+  .look-modern .strip.paused { opacity: .62; }
+  .look-modern .strip.paused .fader { filter: grayscale(.7); }
+  .look-modern .strip .topband { display: none; }
+  .look-modern .strip .fader { border-color: rgba(255,255,255,.06); }
+  .look-modern .strip.focus .fader .fill, .look-modern .strip.focus .fader i { background: var(--c-primary); border-color: var(--c-primary); }
+  .look-modern .strip.solo .fader .fill, .look-modern .strip.solo .fader i { background: var(--c-accent); border-color: var(--c-accent); }
+  .look-modern .strip.muted .fader .fill { background: var(--c-danger); opacity: .35; }
+  .look-modern .strip.muted .fader i { background: var(--c-danger); border-color: var(--c-danger); }
+  .look-modern .strip.muted .readout { color: var(--c-danger); }
+  .look-modern .stchip { display: inline-block; }
+  .look-modern .strip.focus .stchip { background: var(--c-primary); color: #000; }
+  .look-modern .strip.solo .stchip { background: var(--c-accent); color: #000; }
+  .look-modern .strip.muted .stchip { background: var(--c-danger); color: #000; }
+  /* 모던 선택: 테두리 없이 채널 전체가 밝아지고 떠오름 */
+  .look-modern .strip.sel { background: color-mix(in srgb, #ffffff 10%, var(--tint)); box-shadow: 0 10px 22px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.14); transform: translateY(-5px); opacity: 1; }
+  .look-modern .strip.sel .stitle { color: #ffffff; }
+  /* 모던 하단 덱: GUI 툴바 */
+  .look-modern .sdeck { margin-top: auto; border-top: 1px solid rgba(255,255,255,.07); background: rgba(0,0,0,.22); display: flex; flex-direction: column; }
+  .look-modern .sdeck .row1 { display: none; }
+  .look-modern .sdeck .row2 { display: grid; grid-template-columns: repeat(5, 1fr); }
+  .look-modern .sbtn { height: 30px; border: 0; background: transparent; color: var(--c-muted); font-size: 11px; font-weight: 700;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; cursor: pointer; position: relative; }
+  .look-modern .sbtn + .sbtn { border-left: 1px solid rgba(255,255,255,.05); }
+  .look-modern .sbtn:hover { background: rgba(255,255,255,.05); color: var(--c-text); }
+  .look-modern .sbtn .pip { display: none; }
+  .look-modern .sbtn.on::after { content: ""; position: absolute; left: 4px; right: 4px; bottom: 0; height: 2px; border-radius: 1px; background: currentColor; }
+  .look-modern .sbtn.m.on { color: var(--c-danger); }
+  .look-modern .sbtn.s.on { color: var(--c-accent); }
+  .look-modern .sbtn.f.on { color: var(--c-primary); }
+  .look-modern .sbtn.play.on { color: var(--c-success); }
+  .look-modern .sbtn.pin.on { color: var(--c-accent); }
+  .look-modern .sbtn .lbl-long { display: none; }
+
+  .master { width: 108px; flex: none; margin: 12px 0 8px; border: 1px solid var(--c-border); border-top: 3px solid var(--c-primary); border-radius: 7px;
+    background: var(--c-surface); padding: 6px; display: flex; flex-direction: column; gap: 6px; }
+  .look-modern .master { border: 0; background: color-mix(in srgb, var(--c-primary) 8%, var(--c-surface)); }
+  .mk { font-size: 9.5px; font-weight: 800; letter-spacing: .1em; color: var(--c-primary); text-align: center; }
+  .mt { font-size: 12px; font-weight: 700; text-align: center; }
+  .mfx { height: 24px; border-radius: 4px; border: 1px solid var(--c-primary); color: var(--c-primary); background: transparent; font-weight: 700; font-size: 11px; }
+  .mbtn { height: 24px; border: 1px solid var(--c-border); border-radius: 4px; display: flex; align-items: center; justify-content: center; color: var(--c-muted); font-size: 10.5px; }
+
+  .rack { width: 214px; flex: none; border-left: 1px solid var(--c-border); background: var(--c-bg); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .scope-tabs { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--c-border); border-radius: 6px; overflow: hidden; }
+  .scope-tabs span { height: 28px; display: flex; align-items: center; justify-content: center; background: var(--c-surface); color: var(--c-muted); font-weight: 700; font-size: 11px; white-space: nowrap; overflow: hidden; padding: 0 6px; }
+  .scope-tabs span.on { background: var(--c-raised); color: var(--c-text); }
+  .rtitle { font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rsub { font-size: 10.5px; color: var(--c-muted); }
+  .card { border: 1px solid var(--c-border); background: var(--c-surface); border-radius: 7px; padding: 7px 8px; display: flex; justify-content: space-between; color: var(--c-muted); font-size: 11px; }
+  .card b { color: var(--c-text); }
+
+  /* 테마 팝오버 (10번: 모양 교환) */
+  .theme-pop { position: absolute; left: 8px; top: 40px; width: 250px; background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.6); padding: 10px; display: none; flex-direction: column; gap: 8px; z-index: 10; }
+  .theme-pop.open { display: flex; }
+  .theme-pop h4 { margin: 0; font-size: 11px; color: var(--c-muted); font-weight: 700; }
+  .seg2 { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .seg2 button { height: 44px; border: 1px solid var(--c-border); border-radius: 6px; background: var(--c-bg); color: var(--c-text); font-size: 11.5px; font-weight: 700; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+  .seg2 button small { color: var(--c-muted); font-weight: 500; font-size: 10px; }
+  .seg2 button[data-on="true"] { border-color: var(--c-primary); box-shadow: inset 0 0 0 1px var(--c-primary); }
+  .swrow { display: flex; gap: 6px; }
+  .sw { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--c-raised); }
+
+  .side { display: flex; flex-direction: column; gap: 10px; }
+  .panel { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 10px; padding: 12px 14px; line-height: 1.65; font-size: 12.5px; }
+  .panel h3 { margin: 0 0 6px; font-size: 13px; color: var(--c-primary); }
+  .panel ol, .panel ul { margin: 4px 0; padding-left: 18px; }
+  .panel .cost { color: var(--c-warning); }
+  table.enc { border-collapse: collapse; width: 100%; font-size: 12px; }
+  table.enc td, table.enc th { border: 1px solid var(--c-border); padding: 4px 6px; text-align: left; vertical-align: top; }
+  table.enc th { color: var(--c-muted); font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="q-head">
+    <div class="q-kicker">1.2.0 고급 FX 개편 · 질문 7 (+ 2.0.0 모던 방향 미리보기)</div>
+    <div class="q-title">채널 상태를 테두리 대신 "채널 자체"로 보여 주기 — 클래식과 모던</div>
+    <div class="q-why">
+      원칙: <b>시각 요소 하나에 뜻 하나</b>. 1.1.0은 바탕 밝기가 이미 "재생 중"을 뜻하고, 청록 테두리가 "Focus"와 "선택"을 함께 뜻해서 겹쳤습니다.
+      채널을 누르면 선택, 아래 버튼으로 음소거·솔로·포커스·재생을 바꿀 수 있습니다. 왼쪽 위 <b>색 점</b>을 누르면 테마 패널에서 모양(클래식/모던)을 바꿀 수 있습니다.
+      이번에 고를 것은 <b>1.2.0 클래식의 선택 표시</b>입니다. 모던은 2.0.0 방향을 미리 보여 드리는 것이라 이번에 고르지 않습니다.
+    </div>
+    <div class="opt-row" id="optRow"></div>
+  </section>
+
+  <div class="stage">
+    <div class="popup" id="popup">
+      <div class="deck">
+        <span class="dot" id="themeDot" title="테마"></span>
+        <span class="logo">FADEDESK</span><span class="deck-sp"></span>
+        <span class="pill tabular">Focus α 0.70</span><span class="pill on">균일 N ▾</span><span class="pill on">고급 FX ◂</span>
+      </div>
+      <div class="theme-pop" id="themePop">
+        <h4>모양</h4>
+        <div class="seg2" id="lookSeg"></div>
+        <h4>색</h4>
+        <div class="swrow">
+          <span class="sw" style="background:#00bdce"></span><span class="sw" style="background:#eb992e"></span>
+          <span class="sw" style="background:#6591e1"></span><span class="sw" style="background:#49bf7b"></span>
+        </div>
+      </div>
+      <div class="body">
+        <div class="strips" id="strips"></div>
+        <div class="master">
+          <div class="mk">MASTER BUS</div><div class="mt">전체 출력</div>
+          <button class="mfx">전체 FX</button>
+          <div class="fader"><span class="fill"></span><i></i></div>
+          <div class="readout tabular">0.0 dB</div>
+          <div class="mbtn">▶ 전체 재생</div><div class="mbtn">전체 음소거</div>
+        </div>
+        <div class="rack" id="rack"></div>
+      </div>
+    </div>
+    <div class="side">
+      <div class="panel" id="explain"></div>
+      <div class="panel">
+        <h3>무엇이 무엇을 뜻하나</h3>
+        <table class="enc" id="enc"></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const OPTS = [
+  { key: "now", look: "classic", label: "1.1.0 그대로", grp: "1.2.0 클래식" },
+  { key: "A", look: "classic", label: "가 · 채널 바탕이 떠오름" },
+  { key: "B", look: "classic", label: "나 · 제목 줄 채움" },
+  { key: "C", look: "classic", label: "다 · 가 + 나" },
+  { key: "M", look: "modern", label: "모던 미리보기", grp: "2.0.0 방향" },
+];
+const EXPLAIN = {
+  now: `<h3>1.1.0 그대로</h3><ul><li>선택 = 1px 청록 안쪽 테두리. twitch(Focus)의 청록 테두리와 거의 같습니다.</li><li>바탕 밝기 = 재생 중(밝음) / 대기(어둡고 흐림).</li></ul>`,
+  A: `<h3>가 · 채널 바탕이 떠오름</h3><ol><li>테두리는 1.1.0 그대로 두고(Focus 청록, Solo 주황), 선택된 채널만 바탕이 한 단계 더 밝아지고 그림자와 함께 4px 떠오릅니다.</li><li>재생 중 채널(밝은 바탕)보다도 확실히 밝아야 하므로 "재생 중"보다 한 단계 위의 밝기를 씁니다.</li></ol><div class="cost">테두리를 하나도 쓰지 않습니다. 대신 재생 중/대기의 밝기 차이와 나란히 있어 밝기 단계가 셋이 됩니다.</div>`,
+  B: `<h3>나 · 제목 줄 채움</h3><ol><li>선택된 채널의 위쪽 제목 줄(사이트·제목)이 밝게 채워지고 글자가 어두워집니다. 운영체제에서 활성 창의 제목 표시줄이 바뀌는 것과 같은 비유입니다.</li><li>나머지는 1.1.0 그대로입니다.</li></ol><div class="cost">밝기 단계와 겹치지 않습니다. 대신 채널의 일부만 바뀌어 "채널 전체"의 느낌은 약합니다.</div>`,
+  C: `<h3>다 · 가 + 나</h3><ol><li>선택된 채널이 떠오르고, 제목 줄도 채워집니다.</li></ol><div class="cost">가장 눈에 띕니다. 클래식의 절제된 인상에서는 조금 멀어집니다.</div>`,
+  M: `<h3>모던 미리보기 (2.0.0 방향 · 이번에 고르지 않음)</h3><ol>
+      <li><b>테두리가 없습니다.</b> 채널의 바탕 색조가 소리 상태를 말합니다: 음소거 = 빨간 기운, 솔로 = 주황 기운, 포커스 = 청록 기운. 셋 다 테마의 상태색을 바탕에 약하게 섞은 것이라 테마를 바꾸면 함께 바뀝니다.</li>
+      <li>색만으로는 색각이 다른 사람이 구분하기 어려워, 제목 옆에 <b>음소거 / 솔로 / 포커스</b> 글자 칩을 함께 붙입니다.</li>
+      <li><b>선택</b>은 색조가 아니라 <b>밝기와 높이</b>로 말합니다: 채널 전체가 밝아지고 떠오릅니다. 그래서 "음소거된 채로 선택됨"도 겹치지 않습니다.</li>
+      <li><b>대기</b>는 불투명도로 말하고, 재생/대기 구역이 이미 갈라져 있어 바탕 밝기를 재생 표시에 쓰지 않습니다.</li>
+      <li>아래 버튼은 백라이트 버튼이 아니라 <b>GUI 하단 툴바</b>입니다: 재생 · 음소거 · 솔로 · 포커스 · 핀이 한 줄로 붙어 있고, 켜진 것은 그 상태 색 글자와 밑줄로만 보입니다(상태는 이미 채널 바탕이 말하므로).</li>
+      <li>우선순위: 음소거 &gt; 솔로 &gt; 포커스. 음소거된 채널은 실제로 소리가 나지 않으므로 빨간 기운이 이깁니다.</li></ol>`,
+};
+const ENC = {
+  classic: [["테두리 색", "Focus(청록) · Solo(주황)"], ["바탕 밝기", "재생 중 / 대기"], ["불투명도", "대기"], ["선택", "고르는 안에 따라: 1px 청록 / 떠오름 / 제목 줄"], ["백라이트 버튼", "M·S·F 켜짐"]],
+  modern: [["바탕 색조", "음소거(빨강) · 솔로(주황) · 포커스(청록) · 보통(중립)"], ["글자 칩", "같은 상태를 글자로 (색각 보조)"], ["밝기 + 높이", "선택 (랙이 고치는 채널)"], ["불투명도 + 구역", "대기"], ["하단 툴바 밑줄", "어느 버튼이 켜졌는지"]],
+};
+let opt = new URLSearchParams(location.search).get("opt") || "A";
+let sel = 1;
+const CH = [
+  { id: 1, host: "youtube", title: "설명을 포기하는 가…", db: "0.0", playing: true, muted: false, solo: false, focus: false, pin: false },
+  { id: 2, host: "soundcloud", title: "Lo-fi Beats Radio", db: "-6.0", playing: true, muted: false, solo: false, focus: true, pin: true },
+  { id: 3, host: "podcast", title: "주간 IT 뉴스 312화", db: "-2.0", playing: true, muted: true, solo: false, focus: false, pin: false },
+  { id: 4, host: "twitch", title: "생방송 게임 중계", db: "-3.5", playing: false, muted: false, solo: false, focus: false, pin: false },
+];
+const lookOf = () => OPTS.find((o) => o.key === opt).look;
+
+function el(tag, attrs = {}, html = "") {
+  const e = document.createElement(tag);
+  for (const [a, v] of Object.entries(attrs)) {
+    if (a === "class") e.className = v; else if (a.startsWith("on")) e[a] = v; else e.setAttribute(a, v);
+  }
+  if (html) e.innerHTML = html;
+  return e;
+}
+function stateLabel(c) { return c.muted ? "음소거" : c.solo ? "솔로" : c.focus ? "포커스" : ""; }
+function toggle(c, k, ev) {
+  ev.stopPropagation();
+  if (k === "muted") c.muted = !c.muted;
+  if (k === "solo") { const v = !c.solo; CH.forEach((x) => { x.solo = false; x.focus = false; }); c.solo = v; }
+  if (k === "focus") { const v = !c.focus; CH.forEach((x) => { x.solo = false; x.focus = false; }); c.focus = v; }
+  if (k === "playing") c.playing = !c.playing;
+  if (k === "pin") c.pin = !c.pin;
+  render();
+}
+function strip(c) {
+  const cls = ["strip", c.playing ? "playing" : "paused"];
+  if (c.muted) cls.push("muted"); else if (c.solo) cls.push("solo"); else if (c.focus) cls.push("focus");
+  if (lookOf() === "classic") { if (c.solo) cls.push("solo"); if (c.focus) cls.push("focus"); if (c.muted) cls.push("muted"); }
+  if (sel === c.id) cls.push("sel");
+  const s = el("div", { class: [...new Set(cls)].join(" ") });
+  s.onclick = () => { sel = c.id; render(); };
+  s.appendChild(el("div", { class: "topband" }));
+  const h = el("div", { class: "shead" });
+  const lab = stateLabel(c);
+  h.appendChild(el("div", { class: "host" }, `<span>● ${c.host}</span>${lab ? `<span class="stchip">${lab}</span>` : ""}`));
+  h.appendChild(el("div", { class: "stitle" }, c.title));
+  s.appendChild(h);
+  const mid = el("div", { class: "smid" });
+  mid.appendChild(el("div", { class: "fader" }, `<span class="fill"></span><i></i>`));
+  mid.appendChild(el("div", { class: "readout tabular" }, c.db + " dB"));
+  mid.appendChild(el("div", { class: "badges" }, `<span class="bdg g">N</span><span class="bdg">G</span><span class="bdg">C</span><span class="bdg">P</span>`));
+  s.appendChild(mid);
+  const d = el("div", { class: "sdeck" });
+  const r1 = el("div", { class: "row1" });
+  r1.appendChild(Object.assign(el("button", { class: "sbtn play" + (c.playing ? " on" : "") }, c.playing ? "⏸ 정지" : "▶ 대기"), { onclick: (e) => toggle(c, "playing", e) }));
+  r1.appendChild(Object.assign(el("button", { class: "sbtn pin" + (c.pin ? " on" : "") }, "📌"), { onclick: (e) => toggle(c, "pin", e) }));
+  d.appendChild(r1);
+  const r2 = el("div", { class: "row2" });
+  const modern = lookOf() === "modern";
+  if (modern) r2.appendChild(Object.assign(el("button", { class: "sbtn play" + (c.playing ? " on" : ""), title: "재생/정지" }, c.playing ? "⏸" : "▶"), { onclick: (e) => toggle(c, "playing", e) }));
+  r2.appendChild(Object.assign(el("button", { class: "sbtn m" + (c.muted ? " on" : ""), title: "음소거" }, `<span class="pip"></span>${modern ? "🔇" : "M"}`), { onclick: (e) => toggle(c, "muted", e) }));
+  r2.appendChild(Object.assign(el("button", { class: "sbtn s" + (c.solo ? " on" : ""), title: "솔로" }, `<span class="pip"></span>S`), { onclick: (e) => toggle(c, "solo", e) }));
+  r2.appendChild(Object.assign(el("button", { class: "sbtn f" + (c.focus ? " on" : ""), title: "포커스" }, `<span class="pip"></span>F`), { onclick: (e) => toggle(c, "focus", e) }));
+  if (modern) r2.appendChild(Object.assign(el("button", { class: "sbtn pin" + (c.pin ? " on" : ""), title: "도메인 핀" }, "📌"), { onclick: (e) => toggle(c, "pin", e) }));
+  d.appendChild(r2);
+  s.appendChild(d);
+  return s;
+}
+function render() {
+  const look = lookOf();
+  document.getElementById("popup").className = `popup look-${look} sel-${opt}`;
+  const row = document.getElementById("optRow"); row.innerHTML = "";
+  for (const o of OPTS) {
+    if (o.grp) row.appendChild(el("span", { class: "grp" }, o.grp));
+    row.appendChild(el("button", { class: "opt-btn" + (o.look === "modern" ? " mod" : ""), "data-on": String(o.key === opt), onclick: () => { opt = o.key; render(); } }, o.label));
+  }
+  document.getElementById("explain").innerHTML = EXPLAIN[opt];
+  document.getElementById("enc").innerHTML = `<tr><th>보이는 것</th><th>뜻</th></tr>` + ENC[look].map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join("");
+
+  const box = document.getElementById("strips"); box.innerHTML = "";
+  const playing = CH.filter((c) => c.playing), paused = CH.filter((c) => !c.playing);
+  playing.forEach((c) => box.appendChild(strip(c)));
+  if (paused.length) box.appendChild(el("div", { class: "divider" }, "<span>대기</span>"));
+  paused.forEach((c) => box.appendChild(strip(c)));
+
+  const c = CH.find((x) => x.id === sel);
+  const r = document.getElementById("rack"); r.innerHTML = "";
+  r.appendChild(el("div", { class: "scope-tabs" }, `<span>모든 채널</span><span class="on">이 채널 · ${c.host}</span>`));
+  r.appendChild(el("div", {}, `<div class="rtitle">${c.title}</div><div class="rsub">${c.host} · 보정 +1.6 dB</div>`));
+  for (const [t, v] of [["노멀라이저", "음악 · ON"], ["노이즈 게이트", "OFF"], ["컴프레서", "OFF"], ["패닝", "C"]]) r.appendChild(el("div", { class: "card" }, `<b>${t}</b><span>${v}</span>`));
+
+  const seg = document.getElementById("lookSeg"); seg.innerHTML = "";
+  seg.appendChild(el("button", { "data-on": String(look === "classic"), onclick: () => { opt = opt === "M" ? "A" : opt; render(); } }, `클래식<small>믹서 콘솔 · 백라이트 버튼</small>`));
+  seg.appendChild(el("button", { "data-on": String(look === "modern"), onclick: () => { opt = "M"; render(); } }, `모던<small>채널 색 · 하단 툴바</small>`));
+}
+document.getElementById("themeDot").onclick = (e) => { e.stopPropagation(); document.getElementById("themePop").classList.toggle("open"); };
+document.getElementById("themePop").onclick = (e) => e.stopPropagation();
+document.body.onclick = () => document.getElementById("themePop").classList.remove("open");
+render();
+</script>
+</body>
+</html>

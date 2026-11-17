@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fadedesk v9-3 — 따르는 채널에서 값을 만지면</title>
+<style>
+  :root {
+    --c-bg: #091112; --c-surface: #131d1e; --c-raised: #1d292a; --c-border: #2d3b3c;
+    --c-text: #e5edee; --c-muted: #98a4a6;
+    --c-primary: #00bdce; --c-on-primary: #000000;
+    --c-accent: #e69732; --c-on-accent: #000000;
+    --c-success: #4fc678; --c-warning: #eda922; --c-danger: #f5605b;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: #060b0c; color: var(--c-text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Pretendard, "Malgun Gothic", sans-serif; font-size: 12px; }
+  .tabular { font-variant-numeric: tabular-nums; font-family: Consolas, Menlo, monospace; }
+  button, select { font-family: inherit; }
+  .wrap { max-width: 1240px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  .q-head { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 10px; padding: 12px 16px; }
+  .q-kicker { font-size: 10px; font-weight: 700; color: var(--c-primary); letter-spacing: .08em; }
+  .q-title { font-size: 16px; font-weight: 700; margin: 4px 0 6px; }
+  .q-why { color: var(--c-muted); line-height: 1.6; font-size: 12.5px; }
+  .q-why b { color: var(--c-text); }
+  .opt-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .opt-btn { height: 32px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--c-border);
+    background: var(--c-raised); color: var(--c-text); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+  .opt-btn[data-on="true"] { background: var(--c-primary); color: var(--c-on-primary); border-color: var(--c-primary); font-weight: 700; }
+  .stage { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; }
+  @media (max-width: 1100px) { .stage { grid-template-columns: 1fr; } }
+  .popup { width: 790px; background: var(--c-bg); border: 1px solid var(--c-border); border-radius: 8px; overflow: hidden; }
+  .deck { height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-bottom: 1px solid var(--c-border); }
+  .logo { border: 1px solid var(--c-primary); color: var(--c-primary); font-weight: 800; font-size: 11px; letter-spacing: .08em; padding: 3px 8px; border-radius: 4px; }
+  .deck-sp { flex: 1; }
+  .pill { height: 26px; padding: 0 10px; display: inline-flex; align-items: center; border-radius: 5px; border: 1px solid var(--c-border); background: var(--c-raised); font-weight: 700; font-size: 11.5px; }
+  .pill.on { background: var(--c-primary); color: var(--c-on-primary); border-color: var(--c-primary); }
+  .body { display: flex; min-height: 540px; }
+  .strips { flex: 1; display: flex; gap: 6px; padding: 8px; overflow: hidden; }
+  .strip { width: 94px; border: 1px solid var(--c-border); border-radius: 7px; background: var(--c-surface);
+    display: flex; flex-direction: column; padding: 6px; gap: 6px; cursor: pointer; transition: box-shadow 120ms; }
+  .strip[data-sel="true"] { border-color: var(--c-primary); box-shadow: inset 0 0 0 1px var(--c-primary); }
+  .strip[data-target="all"] { border-color: var(--c-primary); border-style: dashed; }
+  .strip[data-glow="true"] { box-shadow: 0 0 0 2px var(--c-primary), 0 0 14px rgba(0,189,206,.45); }
+  .host { font-size: 10px; color: var(--c-muted); }
+  .stitle { font-size: 11.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fader { flex: 1; border: 1px solid var(--c-border); border-radius: 5px; background: #0d1718; position: relative; }
+  .fader::before { content: ""; position: absolute; left: 50%; top: 10px; bottom: 10px; width: 4px; margin-left: -2px; background: #2a3a3b; border-radius: 2px; }
+  .fader i { position: absolute; left: 50%; width: 24px; height: 12px; margin-left: -12px; top: 38%; background: var(--c-raised); border: 1px solid var(--c-muted); border-radius: 3px; }
+  .readout { text-align: center; font-weight: 700; }
+  .fxlist { border: 1px solid var(--c-border); border-radius: 4px; padding: 3px 5px; display: flex; flex-direction: column; gap: 2px; font-size: 10px; }
+  .fxlist div { display: flex; justify-content: space-between; color: #4a5859; }
+  .fxlist div.g { color: var(--c-primary); }
+  .fxlist div.c { color: var(--c-accent); }
+  .msf { display: grid; grid-template-columns: repeat(3,1fr); gap: 3px; }
+  .msf span { height: 20px; border: 1px solid var(--c-border); border-radius: 3px; display: flex; align-items: center; justify-content: center; color: var(--c-muted); font-size: 10px; font-weight: 700; }
+  .master { width: 112px; margin: 8px 0; border: 1px solid var(--c-border); border-top: 3px solid var(--c-primary); border-radius: 7px;
+    background: var(--c-surface); padding: 6px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; }
+  .master[data-sel="true"] { border-color: var(--c-primary); box-shadow: inset 0 0 0 1px var(--c-primary), 0 0 14px rgba(0,189,206,.35); }
+  .mk { font-size: 9.5px; font-weight: 800; letter-spacing: .1em; color: var(--c-primary); text-align: center; }
+  .mt { font-size: 12px; font-weight: 700; text-align: center; }
+  .mfx { height: 24px; border-radius: 4px; border: 1px solid var(--c-primary); color: var(--c-primary); background: transparent; font-weight: 700; font-size: 11px; cursor: pointer; }
+  .master[data-sel="true"] .mfx { background: var(--c-primary); color: var(--c-on-primary); }
+  .mbtn { height: 24px; border: 1px solid var(--c-border); border-radius: 4px; display: flex; align-items: center; justify-content: center; color: var(--c-muted); font-size: 10.5px; }
+  .rack { width: 220px; border-left: 1px solid var(--c-border); background: var(--c-bg); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .scope-tabs { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--c-border); border-radius: 6px; overflow: hidden; }
+  .scope-tabs button { height: 28px; border: 0; background: var(--c-surface); color: var(--c-muted); font-weight: 700; font-size: 11px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 6px; }
+  .scope-tabs button[data-on="true"] { background: var(--c-primary); color: var(--c-on-primary); }
+  .scope-tabs button.ch[data-on="true"] { background: var(--c-raised); color: var(--c-text); box-shadow: inset 0 -2px 0 var(--c-primary); }
+  .rhead { border-bottom: 1px solid var(--c-border); padding-bottom: 6px; }
+  .rtitle { font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rsub { font-size: 10.5px; color: var(--c-muted); margin-top: 2px; }
+  .rsub b { color: var(--c-primary); }
+  .card { border: 1px solid var(--c-border); background: var(--c-surface); border-radius: 7px; padding: 7px 8px; display: flex; flex-direction: column; gap: 6px; position: relative; }
+  .card.own { border-color: rgba(230,151,50,.55); }
+  .chead { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .ctitle { font-weight: 700; font-size: 12px; }
+  .tog { height: 22px; min-width: 40px; border-radius: 4px; border: 1px solid var(--c-border); background: var(--c-surface); color: var(--c-muted); font-weight: 700; font-size: 10.5px; cursor: pointer; }
+  .tog.on { background: var(--c-primary); color: var(--c-on-primary); border-color: var(--c-primary); }
+  .card.own .tog.on { background: var(--c-accent); border-color: var(--c-accent); }
+  .link { display: flex; align-items: center; justify-content: space-between; gap: 4px; font-size: 10.5px; }
+  .link .state { font-weight: 700; color: var(--c-muted); }
+  .card.own .link .state { color: var(--c-accent); }
+  .link button { border: 1px solid var(--c-border); background: var(--c-raised); color: var(--c-text); font-size: 10px; border-radius: 4px; height: 20px; padding: 0 6px; cursor: pointer; }
+  .link button.primary { border-color: var(--c-primary); color: var(--c-primary); }
+  .controls { display: flex; flex-direction: column; gap: 5px; }
+  .controls.locked { opacity: .45; }
+  .controls.locked > * { pointer-events: none; }
+  .lockhit { position: absolute; inset: 0; cursor: not-allowed; }
+  .hint { font-size: 10.5px; color: var(--c-warning); line-height: 1.4; }
+  .ask { border: 1px solid var(--c-primary); background: var(--c-raised); border-radius: 5px; padding: 6px; display: flex; flex-direction: column; gap: 5px; font-size: 10.5px; }
+  .ask div { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .ask button { height: 22px; border-radius: 4px; border: 1px solid var(--c-border); background: var(--c-surface); color: var(--c-text); font-size: 10.5px; cursor: pointer; }
+  .ask button.a { border-color: var(--c-accent); color: var(--c-accent); }
+  .ask button.g { border-color: var(--c-primary); color: var(--c-primary); }
+  .seg3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 3px; }
+  .seg3 button { height: 22px; border: 1px solid var(--c-border); border-radius: 4px; background: var(--c-surface); color: var(--c-muted); font-size: 10.5px; font-weight: 600; cursor: pointer; }
+  .seg3 button[data-on="true"] { background: var(--c-raised); color: var(--c-text); border-color: var(--c-primary); font-weight: 700; }
+  select { width: 100%; height: 24px; background: var(--c-raised); color: var(--c-text); border: 1px solid var(--c-border); border-radius: 4px; font-size: 11px; }
+  .meta { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--c-muted); }
+  .meta b { color: var(--c-text); }
+  input[type=range] { width: 100%; accent-color: var(--c-primary); margin: 0; }
+  .card.own input[type=range] { accent-color: var(--c-accent); }
+  .side { display: flex; flex-direction: column; gap: 10px; }
+  .panel { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 10px; padding: 12px 14px; line-height: 1.65; font-size: 12.5px; }
+  .panel h3 { margin: 0 0 6px; font-size: 13px; color: var(--c-primary); }
+  .panel ol, .panel ul { margin: 4px 0; padding-left: 18px; }
+  .panel .cost { color: var(--c-warning); }
+  .task { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; }
+  .task .ck { width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--c-border); flex: none; margin-top: 2px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
+  .task.done .ck { background: var(--c-success); border-color: var(--c-success); color: #000; }
+  .task.done span { color: var(--c-muted); text-decoration: line-through; }
+  .resetall { margin-top: 6px; height: 26px; padding: 0 10px; border-radius: 5px; border: 1px solid var(--c-border); background: var(--c-raised); color: var(--c-text); cursor: pointer; }
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11.5px; }
+  .compare div { border: 1px solid var(--c-border); border-radius: 6px; padding: 6px 8px; }
+  .compare b { color: var(--c-primary); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="q-head">
+    <div class="q-kicker">1.2.0 고급 FX 개편 · 질문 3 (질문 1 = C, 질문 2 = 나 를 반영한 화면)</div>
+    <div class="q-title">"모든 채널 따름"인 채널에서 값을 만지면 어떻게 반응해야 할까요?</div>
+    <div class="q-why">
+      이 시안에서는 1.1.0의 <b>전역 따름 / 개별 ON / 개별 OFF</b> 한 줄을 두 축으로 나눴습니다.
+      카드 아래쪽 줄은 <b>따를지</b>("모든 채널 따름" ↔ "이 채널만")이고, 카드 위쪽 ON/OFF와 값은 <b>어떻게 걸지</b>입니다.
+      그래서 1.1.0의 "개별 OFF"는 이제 "이 채널만 + OFF"입니다.
+      남은 질문은, 따르는 중인 채널에서 ON/OFF나 값을 만지는 순간 무엇이 일어나야 하느냐입니다.
+      (1.1.0에서는 아무 표시 없이 "개별 ON"으로 바뀌었습니다.)
+    </div>
+    <div class="opt-row" id="optRow"></div>
+  </section>
+
+  <div class="stage">
+    <div class="popup">
+      <div class="deck">
+        <span class="logo">FADEDESK</span><span class="deck-sp"></span>
+        <span class="pill tabular">Focus α 0.70</span><span class="pill on">균일 N ▾</span><span class="pill on">고급 FX ◂</span>
+      </div>
+      <div class="body">
+        <div class="strips" id="strips"></div>
+        <div class="master" id="master"></div>
+        <div class="rack" id="rack"></div>
+      </div>
+    </div>
+    <div class="side">
+      <div class="panel" id="explain"></div>
+      <div class="panel">
+        <h3>해 볼 과제</h3>
+        <div id="tasks"></div>
+        <button class="resetall" id="resetAll">처음 상태로</button>
+      </div>
+      <div class="panel">
+        <h3>1.1.0과 이 시안의 노멀라이저 대응</h3>
+        <div class="compare">
+          <div>1.1.0 <b>전역 따름</b></div><div>모든 채널 따름</div>
+          <div>1.1.0 <b>개별 ON</b></div><div>이 채널만 + ON (+ 프리셋 고르기)</div>
+          <div>1.1.0 <b>개별 OFF</b></div><div>이 채널만 + OFF</div>
+        </div>
+        <div style="color:var(--c-muted);margin-top:6px">채널 아래 작은 표: 청록 = 모든 채널 값을 따름, 주황 = 이 채널만 따로, 흐림 = 꺼짐.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const OPTIONS = [
+  { key: "lock", label: "가 · 잠금 (연결을 먼저 끊음)" },
+  { key: "auto", label: "나 · 만지면 자동으로 이 채널만" },
+  { key: "ask", label: "다 · 만지면 어디에 걸지 물음" },
+];
+const EXPLAIN = {
+  lock: `<h3>가 · 잠금</h3>
+    <ol>
+      <li>따르는 중인 카드는 값이 흐리게 잠겨 있습니다. 눌러도 바뀌지 않고 "먼저 '이 채널만 따로'를 누르세요"라는 안내만 뜹니다.</li>
+      <li>카드 아래 <b>이 채널만 따로</b>를 누르면 지금 값을 그대로 복사한 채 잠금이 풀립니다.</li>
+      <li>다시 따르게 하려면 <b>모든 채널 따르기</b>를 누릅니다.</li>
+    </ol>
+    <div class="cost">실수로 바뀔 일이 없습니다. 대신 한 번 더 눌러야 해서 손이 하나 더 갑니다.</div>`,
+  auto: `<h3>나 · 만지면 자동으로 이 채널만</h3>
+    <ol>
+      <li>값은 언제나 만질 수 있습니다.</li>
+      <li>따르는 중인 카드에서 무언가를 바꾸면 그 카드가 즉시 "이 채널만"으로 바뀝니다. 테두리와 값이 주황색으로 바뀌어 눈에 띕니다.</li>
+      <li>카드 아래 <b>↺ 모든 채널로</b>를 누르면 따로 바꾼 값을 버리고 다시 따릅니다.</li>
+    </ol>
+    <div class="cost">가장 빠릅니다. 1.1.0과 같은 동작이지만, 이제는 바뀐 사실이 색과 글자로 보입니다.</div>`,
+  ask: `<h3>다 · 만지면 어디에 걸지 물음</h3>
+    <ol>
+      <li>따르는 중인 카드에서 무언가를 바꾸면 카드 안에 작은 선택지가 뜹니다: <b>이 채널만</b> / <b>모든 채널</b>.</li>
+      <li>"이 채널만"을 고르면 이 채널만 바뀝니다. "모든 채널"을 고르면 모든 채널 기본값이 바뀝니다.</li>
+      <li>이미 "이 채널만"인 카드는 묻지 않고 바로 바뀝니다.</li>
+    </ol>
+    <div class="cost">채널 화면에서도 전체를 고칠 수 있습니다. 대신 매번 한 번씩 물어서, 자주 만지면 번거롭습니다.</div>`,
+};
+const CHANNELS = [
+  { id: 1, host: "youtube", title: "설명을 포기하는 가…", db: "0.0" },
+  { id: 2, host: "soundcloud", title: "Lo-fi Beats Radio", db: "-6.0" },
+  { id: 3, host: "twitch", title: "생방송 게임 중계", db: "-3.5" },
+];
+const PRESETS = { music: "음악 (-16 · 완만)", classical: "클래식 (-16 · 광대역)", standard: "표준 (-16 · 3s)", night: "야간 (-18 · 민감)" };
+const MODS = ["norm", "gate", "comp"];
+const MOD_NAME = { norm: "노멀라이저", gate: "노이즈 게이트", comp: "컴프레서" };
+
+let opt = "auto";
+let state;
+const fresh = () => ({
+  scope: "channel", sel: 1,
+  global: { norm: { on: true, preset: "music" }, gate: { on: false, th: -48 }, comp: { on: false, ratio: 4 } },
+  own: { 1: {}, 2: {}, 3: {} },
+  hint: null,          // { mod } 잠금 안내
+  pending: null,       // { mod, patch } 묻기 대기
+  hover: null,
+});
+state = fresh();
+
+const eff = (id, m) => (m in state.own[id] ? { v: state.own[id][m], own: true } : { v: state.global[m], own: false });
+function el(tag, attrs = {}, html = "") {
+  const e = document.createElement(tag);
+  for (const [a, v] of Object.entries(attrs)) {
+    if (a === "class") e.className = v; else if (a.startsWith("on")) e[a] = v; else e.setAttribute(a, v);
+  }
+  if (html) e.innerHTML = html;
+  return e;
+}
+function renderOptions() {
+  const row = document.getElementById("optRow"); row.innerHTML = "";
+  for (const o of OPTIONS) row.appendChild(el("button", { class: "opt-btn", "data-on": String(o.key === opt),
+    onclick: () => { opt = o.key; state = fresh(); renderAll(); } }, o.label));
+  document.getElementById("explain").innerHTML = EXPLAIN[opt];
+}
+const selectChannel = (id) => { state.sel = id; state.scope = "channel"; state.hint = null; state.pending = null; renderAll(); };
+const selectGlobal = () => { state.scope = "global"; state.hint = null; state.pending = null; renderAll(); };
+
+function summary(m, v) {
+  if (m === "norm") return v.on ? PRESETS[v.preset].split(" ")[0] : "OFF";
+  if (m === "gate") return v.on ? v.th + "dB" : "OFF";
+  return v.on ? v.ratio + ":1" : "OFF";
+}
+function renderStrips() {
+  const box = document.getElementById("strips"); box.innerHTML = "";
+  const global = state.scope === "global";
+  for (const ch of CHANNELS) {
+    const s = el("div", { class: "strip" });
+    s.dataset.sel = String(!global && state.sel === ch.id);
+    s.dataset.target = global ? "all" : "";
+    let glow = false;
+    if (state.hover) glow = global ? !(state.hover in state.own[ch.id]) : state.sel === ch.id;
+    s.dataset.glow = String(glow);
+    s.onclick = () => selectChannel(ch.id);
+    s.appendChild(el("div", { class: "host" }, "● " + ch.host));
+    s.appendChild(el("div", { class: "stitle" }, ch.title));
+    s.appendChild(el("div", { class: "fader" }, "<i></i>"));
+    s.appendChild(el("div", { class: "readout tabular" }, ch.db + " dB"));
+    const list = el("div", { class: "fxlist" });
+    for (const m of MODS) {
+      const e = eff(ch.id, m);
+      list.appendChild(el("div", { class: e.v.on ? (e.own ? "c" : "g") : "" }, `<span>${{ norm: "N", gate: "G", comp: "C" }[m]}</span><span class="tabular">${summary(m, e.v)}</span>`));
+    }
+    s.appendChild(list);
+    s.appendChild(el("div", { class: "msf" }, "<span>M</span><span>S</span><span>F</span>"));
+    box.appendChild(s);
+  }
+}
+function renderMaster() {
+  const m = document.getElementById("master");
+  m.dataset.sel = String(state.scope === "global");
+  m.innerHTML = ""; m.onclick = selectGlobal;
+  m.appendChild(el("div", { class: "mk" }, "MASTER BUS"));
+  m.appendChild(el("div", { class: "mt" }, "전체 출력"));
+  m.appendChild(el("button", { class: "mfx" }, "전체 FX"));
+  m.appendChild(el("div", { class: "fader" }, "<i></i>"));
+  m.appendChild(el("div", { class: "readout tabular" }, "0.0 dB"));
+  m.appendChild(el("div", { class: "mbtn" }, "▶ 전체 재생"));
+  m.appendChild(el("div", { class: "mbtn" }, "전체 음소거"));
+}
+
+// 값 변경의 단일 입구
+function change(m, patch) {
+  if (state.scope === "global") {
+    state.global[m] = { ...state.global[m], ...patch };
+    return renderAll();
+  }
+  const own = state.own[state.sel];
+  if (m in own) { own[m] = { ...own[m], ...patch }; return renderAll(); }
+  if (opt === "lock") { state.hint = { mod: m }; return renderAll(); }
+  if (opt === "auto") { own[m] = { ...state.global[m], ...patch }; return renderAll(); }
+  state.pending = { mod: m, patch }; renderAll();
+}
+function detach(m) { state.own[state.sel][m] = { ...state.global[m] }; state.hint = null; renderAll(); }
+function relink(m) { delete state.own[state.sel][m]; renderAll(); }
+
+function controlsFor(m, v) {
+  const c = el("div", { class: "controls" });
+  if (m === "norm") {
+    const sel = el("select");
+    for (const [k, label] of Object.entries(PRESETS)) {
+      const o = el("option", { value: k }, "프리셋: " + label); if (k === v.preset) o.selected = true; sel.appendChild(o);
+    }
+    sel.onchange = () => change("norm", { preset: sel.value });
+    c.appendChild(sel);
+  } else if (m === "gate") {
+    c.appendChild(el("div", { class: "meta" }, `<span>바닥 차단</span><b class="tabular" id="gth">${v.th} dB</b>`));
+    const r = el("input", { type: "range", min: "-65", max: "-30", step: "1", value: String(v.th) });
+    r.oninput = () => (document.getElementById("gth").textContent = r.value + " dB");
+    r.onchange = () => change("gate", { th: Number(r.value) });
+    c.appendChild(r);
+  } else {
+    const seg = el("div", { class: "seg3" });
+    for (const k of [2, 4, 8]) seg.appendChild(el("button", { "data-on": String(v.ratio === k), onclick: () => change("comp", { ratio: k }) }, ["약", "중", "강"][[2, 4, 8].indexOf(k)] + " " + k + ":1"));
+    c.appendChild(seg);
+  }
+  return c;
+}
+
+function renderCard(m) {
+  const global = state.scope === "global";
+  const e = global ? { v: state.global[m], own: false } : eff(state.sel, m);
+  const card = el("div", { class: "card" + (e.own ? " own" : "") });
+  card.onmouseenter = () => { state.hover = m; renderStrips(); };
+  card.onmouseleave = () => { state.hover = null; renderStrips(); };
+  const head = el("div", { class: "chead" });
+  head.appendChild(el("span", { class: "ctitle" }, MOD_NAME[m]));
+  head.appendChild(el("button", { class: "tog" + (e.v.on ? " on" : ""), onclick: () => change(m, { on: !e.v.on }) }, e.v.on ? "ON" : "OFF"));
+  card.appendChild(head);
+  const ctr = controlsFor(m, e.v);
+  const locked = !global && opt === "lock" && !e.own;
+  card.appendChild(ctr);
+
+  if (!global) {
+    const link = el("div", { class: "link" });
+    link.appendChild(el("span", { class: "state" }, e.own ? "● 이 채널만" : "🔗 모든 채널 따름"));
+    if (e.own) link.appendChild(el("button", { class: "primary", onclick: () => relink(m) }, opt === "lock" ? "모든 채널 따르기" : "↺ 모든 채널로"));
+    else if (opt === "lock") link.appendChild(el("button", { onclick: () => detach(m) }, "이 채널만 따로"));
+    card.appendChild(link);
+  } else {
+    const n = CHANNELS.filter((c) => m in state.own[c.id]).length;
+    card.appendChild(el("div", { class: "meta" }, n ? `<span>따로 정한 채널 ${n}개는 제외</span>` : `<span>모든 채널에 걸림</span>`));
+  }
+
+  if (locked) {
+    ctr.classList.add("locked");
+    head.querySelector(".tog").style.opacity = ".45";
+    const hit = el("div", { class: "lockhit" });
+    hit.onclick = (ev) => { ev.stopPropagation(); state.hint = { mod: m }; renderAll(); };
+    hit.style.bottom = "28px";
+    card.appendChild(hit);
+    if (state.hint && state.hint.mod === m) card.appendChild(el("div", { class: "hint" }, "모든 채널 값을 따르는 중입니다. 먼저 아래 '이 채널만 따로'를 누르세요."));
+  }
+  if (state.pending && state.pending.mod === m) {
+    const ask = el("div", { class: "ask" });
+    ask.appendChild(el("span", {}, "이 변경을 어디에 걸까요?"));
+    const row = el("div");
+    row.appendChild(el("button", { class: "a", onclick: () => { state.own[state.sel][m] = { ...state.global[m], ...state.pending.patch }; state.pending = null; renderAll(); } }, "이 채널만"));
+    row.appendChild(el("button", { class: "g", onclick: () => { state.global[m] = { ...state.global[m], ...state.pending.patch }; state.pending = null; renderAll(); } }, "모든 채널"));
+    ask.appendChild(row);
+    ask.appendChild(el("button", { onclick: () => { state.pending = null; renderAll(); } }, "취소"));
+    card.appendChild(ask);
+  }
+  return card;
+}
+
+function renderRack() {
+  const r = document.getElementById("rack"); r.innerHTML = "";
+  const ch = CHANNELS.find((c) => c.id === state.sel);
+  const global = state.scope === "global";
+  const tabs = el("div", { class: "scope-tabs" });
+  tabs.appendChild(el("button", { "data-on": String(global), onclick: selectGlobal }, "모든 채널"));
+  tabs.appendChild(el("button", { class: "ch", "data-on": String(!global), onclick: () => selectChannel(state.sel) }, "이 채널 · " + ch.host));
+  r.appendChild(tabs);
+  const head = el("div", { class: "rhead" });
+  if (global) {
+    head.appendChild(el("div", { class: "rtitle" }, "모든 채널 기본 설정"));
+    head.appendChild(el("div", { class: "rsub" }, `여기서 바꾸면 <b>채널 ${CHANNELS.length}개</b>에 걸립니다`));
+  } else {
+    head.appendChild(el("div", { class: "rtitle" }, ch.title));
+    head.appendChild(el("div", { class: "rsub" }, `${ch.host} · 카드마다 따름/따로 표시`));
+  }
+  r.appendChild(head);
+  for (const m of MODS) r.appendChild(renderCard(m));
+}
+
+const TASKS = [
+  { text: "twitch만 노멀라이저를 끄세요. (youtube·soundcloud는 켜진 채로)", check: () => !eff(3, "norm").v.on && eff(1, "norm").v.on && eff(2, "norm").v.on },
+  { text: "youtube만 노이즈 게이트를 켜고 바닥을 -40 dB로 올리세요.", check: () => eff(1, "gate").v.on && eff(1, "gate").v.th === -40 && !eff(2, "gate").v.on },
+  { text: "soundcloud 채널 화면에 머문 채로, 모든 채널의 컴프레서를 켜 보세요.", check: () => state.global.comp.on && CHANNELS.every((c) => !("comp" in state.own[c.id])) },
+  { text: "twitch의 노멀라이저를 다시 모든 채널 설정으로 돌려놓으세요.", check: () => Boolean(state.t1Seen) && !("norm" in state.own[3]) && state.global.norm.on && eff(3, "norm").v.on },
+];
+function renderTasks() {
+  const box = document.getElementById("tasks"); box.innerHTML = "";
+  if (TASKS[0].check()) state.t1Seen = true;
+  TASKS.forEach((t, i) => {
+    const done = t.check();
+    box.appendChild(el("div", { class: "task" + (done ? " done" : "") }, `<span class="ck">${done ? "✓" : i + 1}</span><span>${t.text}</span>`));
+  });
+}
+function renderAll() { renderOptions(); renderStrips(); renderMaster(); renderRack(); renderTasks(); }
+document.getElementById("resetAll").onclick = () => { state = fresh(); renderAll(); };
+renderAll();
+</script>
+</body>
+</html>

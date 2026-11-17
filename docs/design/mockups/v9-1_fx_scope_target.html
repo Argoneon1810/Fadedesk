@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fadedesk v9-1 — 전체 적용을 어디서 고를까</title>
+<style>
+  :root {
+    --c-bg: #091112; --c-surface: #131d1e; --c-raised: #1d292a; --c-border: #2d3b3c;
+    --c-text: #e5edee; --c-muted: #98a4a6;
+    --c-primary: #00bdce; --c-on-primary: #000000;
+    --c-accent: #e69732; --c-on-accent: #000000;
+    --c-success: #4fc678; --c-warning: #eda922; --c-danger: #f5605b;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; padding: 16px; background: #060b0c; color: var(--c-text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Pretendard, "Malgun Gothic", sans-serif; font-size: 12px; }
+  .tabular { font-variant-numeric: tabular-nums; font-family: Consolas, Menlo, monospace; }
+  button { font-family: inherit; }
+  .wrap { max-width: 1240px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+
+  /* 질문 머리 */
+  .q-head { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 10px; padding: 12px 16px; }
+  .q-kicker { font-size: 10px; font-weight: 700; color: var(--c-primary); letter-spacing: .08em; }
+  .q-title { font-size: 16px; font-weight: 700; margin: 4px 0 6px; }
+  .q-why { color: var(--c-muted); line-height: 1.6; font-size: 12.5px; }
+  .opt-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .opt-btn { height: 32px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--c-border);
+    background: var(--c-raised); color: var(--c-text); font-size: 12.5px; font-weight: 600; cursor: pointer; }
+  .opt-btn[data-on="true"] { background: var(--c-primary); color: var(--c-on-primary); border-color: var(--c-primary); font-weight: 700; }
+  .opt-btn.now[data-on="true"] { background: var(--c-muted); border-color: var(--c-muted); }
+
+  .stage { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; }
+  @media (max-width: 1100px) { .stage { grid-template-columns: 1fr; } }
+
+  /* 팝업 복제 */
+  .popup { width: 790px; background: var(--c-bg); border: 1px solid var(--c-border); border-radius: 8px; overflow: hidden; }
+  .deck { height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-bottom: 1px solid var(--c-border); }
+  .logo { border: 1px solid var(--c-primary); color: var(--c-primary); font-weight: 800; font-size: 11px; letter-spacing: .08em; padding: 3px 8px; border-radius: 4px; }
+  .deck-sp { flex: 1; }
+  .pill { height: 26px; padding: 0 10px; display: inline-flex; align-items: center; border-radius: 5px; border: 1px solid var(--c-border); background: var(--c-raised); font-weight: 700; font-size: 11.5px; }
+  .pill.on { background: var(--c-primary); color: var(--c-on-primary); border-color: var(--c-primary); }
+  .body { display: flex; height: 470px; }
+  .strips { flex: 1; display: flex; gap: 6px; padding: 8px; overflow: hidden; }
+  .strip { width: 94px; border: 1px solid var(--c-border); border-radius: 7px; background: var(--c-surface);
+    display: flex; flex-direction: column; padding: 6px; gap: 6px; cursor: pointer; position: relative; transition: box-shadow 120ms, border-color 120ms; }
+  .strip[data-sel="true"] { border-color: var(--c-primary); box-shadow: inset 0 0 0 1px var(--c-primary); }
+  .strip[data-target="all"] { border-color: var(--c-primary); border-style: dashed; }
+  .strip[data-glow="true"] { box-shadow: 0 0 0 2px var(--c-primary), 0 0 14px rgba(0,189,206,.45); }
+  .host { font-size: 10px; color: var(--c-muted); }
+  .stitle { font-size: 11.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fader { flex: 1; border: 1px solid var(--c-border); border-radius: 5px; background: #0d1718; position: relative; }
+  .fader::before { content: ""; position: absolute; left: 50%; top: 10px; bottom: 10px; width: 4px; margin-left: -2px; background: #2a3a3b; border-radius: 2px; }
+  .fader i { position: absolute; left: 50%; width: 24px; height: 12px; margin-left: -12px; top: 38%; background: var(--c-raised); border: 1px solid var(--c-muted); border-radius: 3px; }
+  .readout { text-align: center; font-weight: 700; }
+  .badges { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; }
+  .bdg { height: 18px; border-radius: 3px; border: 1px solid var(--c-border); color: #4a5859; font-size: 10px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center; }
+  .bdg.g { background: rgba(0,189,206,.16); color: var(--c-primary); border-color: rgba(0,189,206,.55); }
+  .bdg.c { background: rgba(230,151,50,.18); color: var(--c-accent); border-color: rgba(230,151,50,.6); }
+  .msf { display: grid; grid-template-columns: repeat(3,1fr); gap: 3px; }
+  .msf span { height: 20px; border: 1px solid var(--c-border); border-radius: 3px; display: flex; align-items: center; justify-content: center; color: var(--c-muted); font-size: 10px; font-weight: 700; }
+
+  .master { width: 112px; margin: 8px 0; border: 1px solid var(--c-border); border-top: 3px solid var(--c-primary); border-radius: 7px;
+    background: var(--c-surface); padding: 6px; display: flex; flex-direction: column; gap: 6px; position: relative; }
+  .master.clickable { cursor: pointer; }
+  .master[data-sel="true"] { border-color: var(--c-primary); box-shadow: inset 0 0 0 1px var(--c-primary), 0 0 14px rgba(0,189,206,.35); }
+  .mk { font-size: 9.5px; font-weight: 800; letter-spacing: .1em; color: var(--c-primary); text-align: center; }
+  .mt { font-size: 12px; font-weight: 700; text-align: center; }
+  .mfx { height: 24px; border-radius: 4px; border: 1px solid var(--c-primary); color: var(--c-primary); background: transparent; font-weight: 700; font-size: 11px; cursor: pointer; }
+  .master[data-sel="true"] .mfx { background: var(--c-primary); color: var(--c-on-primary); }
+  .mbtn { height: 24px; border: 1px solid var(--c-border); border-radius: 4px; display: flex; align-items: center; justify-content: center; color: var(--c-muted); font-size: 10.5px; }
+
+  .rack { width: 220px; border-left: 1px solid var(--c-border); background: var(--c-bg); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+  .scope-tabs { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--c-border); border-radius: 6px; overflow: hidden; }
+  .scope-tabs button { height: 28px; border: 0; background: var(--c-surface); color: var(--c-muted); font-weight: 700; font-size: 11px; cursor: pointer;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 6px; }
+  .scope-tabs button[data-on="true"] { background: var(--c-primary); color: var(--c-on-primary); }
+  .scope-tabs button.ch[data-on="true"] { background: var(--c-raised); color: var(--c-text); box-shadow: inset 0 -2px 0 var(--c-primary); }
+  .rhead { border-bottom: 1px solid var(--c-border); padding-bottom: 6px; }
+  .rtitle { font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rsub { font-size: 10.5px; color: var(--c-muted); margin-top: 2px; }
+  .rsub b { color: var(--c-primary); }
+  .card { border: 1px solid var(--c-border); background: var(--c-surface); border-radius: 7px; padding: 7px 8px; display: flex; flex-direction: column; gap: 6px; }
+  .card:hover { border-color: #3f5253; }
+  .chead { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .ctitle { font-weight: 700; font-size: 12px; }
+  .tag { font-size: 9.5px; font-weight: 700; padding: 1px 5px; border-radius: 3px; border: 1px solid var(--c-border); color: var(--c-muted); white-space: nowrap; }
+  .tag.own { color: var(--c-accent); border-color: rgba(230,151,50,.6); }
+  .tog { height: 22px; min-width: 40px; border-radius: 4px; border: 1px solid var(--c-border); background: var(--c-surface); color: var(--c-muted); font-weight: 700; font-size: 10.5px; cursor: pointer; }
+  .tog.on { background: var(--c-primary); color: var(--c-on-primary); border-color: var(--c-primary); }
+  .tog.on.own { background: var(--c-accent); border-color: var(--c-accent); }
+  .seg3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 3px; }
+  .seg3 button { height: 24px; border: 1px solid var(--c-border); border-radius: 4px; background: var(--c-surface); color: var(--c-muted); font-size: 10.5px; font-weight: 600; cursor: pointer; }
+  .seg3 button[data-on="true"] { background: var(--c-primary); color: var(--c-on-primary); border-color: var(--c-primary); font-weight: 700; }
+  .seg3 button.acc[data-on="true"] { background: var(--c-accent); border-color: var(--c-accent); }
+  .reset { border: 0; background: transparent; color: var(--c-primary); font-size: 10.5px; cursor: pointer; padding: 0; text-align: left; }
+  input[type=range] { width: 100%; accent-color: var(--c-primary); }
+  .pan-row { display: flex; justify-content: space-between; color: var(--c-muted); font-size: 10px; }
+  .card.dis { opacity: .45; pointer-events: none; }
+
+  /* 오른쪽 설명 */
+  .side { display: flex; flex-direction: column; gap: 10px; }
+  .panel { background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 10px; padding: 12px 14px; line-height: 1.65; font-size: 12.5px; }
+  .panel h3 { margin: 0 0 6px; font-size: 13px; color: var(--c-primary); }
+  .panel ol, .panel ul { margin: 4px 0; padding-left: 18px; }
+  .panel .cost { color: var(--c-warning); }
+  .task { display: flex; gap: 8px; align-items: flex-start; padding: 4px 0; }
+  .task .ck { width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--c-border); flex: none; margin-top: 2px;
+    display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; }
+  .task.done .ck { background: var(--c-success); border-color: var(--c-success); color: #000; }
+  .task.done span { color: var(--c-muted); text-decoration: line-through; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; color: var(--c-muted); font-size: 11.5px; }
+  .legend .bdg { width: 18px; display: inline-flex; vertical-align: middle; margin-right: 4px; }
+  .resetall { margin-top: 6px; height: 26px; padding: 0 10px; border-radius: 5px; border: 1px solid var(--c-border); background: var(--c-raised); color: var(--c-text); cursor: pointer; }
+  .toast { min-height: 20px; color: var(--c-warning); font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="q-head">
+    <div class="q-kicker">1.2.0 고급 FX 개편 · 질문 1</div>
+    <div class="q-title">"모든 채널에 걸기"와 "이 채널에만 걸기"를 어디서 고르게 할까요?</div>
+    <div class="q-why">
+      지금(1.1.0)은 고급 FX 랙이 늘 채널 하나만 고칩니다. 마스터 스트립은 눌러도 아무 일이 없어서, 게이트·컴프레서·패닝을 모든 탭에 거는 방법이 없습니다.
+      아래 네 판을 바꿔 가며 오른쪽 과제를 직접 해 보세요. 랙의 카드에 마우스를 올리면 그 조작이 닿는 채널이 빛납니다.
+      채널 아래의 <b>N G C P</b> 칸은 그 채널에 실제로 걸린 효과입니다.
+    </div>
+    <div class="opt-row" id="optRow"></div>
+  </section>
+
+  <div class="stage">
+    <div class="popup">
+      <div class="deck">
+        <span class="logo">FADEDESK</span>
+        <span class="deck-sp"></span>
+        <span class="pill tabular">Focus α 0.70</span>
+        <span class="pill on" id="deckNorm">균일 N ▾</span>
+        <span class="pill on">고급 FX ◂</span>
+      </div>
+      <div class="body">
+        <div class="strips" id="strips"></div>
+        <div class="master" id="master"></div>
+        <div class="rack" id="rack"></div>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="panel" id="explain"></div>
+      <div class="panel">
+        <h3>해 볼 과제</h3>
+        <div id="tasks"></div>
+        <div class="toast" id="toast"></div>
+        <button class="resetall" id="resetAll">처음 상태로</button>
+      </div>
+      <div class="panel">
+        <h3>채널 아래 칸 읽는 법</h3>
+        <div class="legend">
+          <span><span class="bdg g">N</span>모든 채널 설정을 따라 켜짐</span>
+          <span><span class="bdg c">N</span>이 채널만 따로 켜짐</span>
+          <span><span class="bdg">N</span>꺼짐</span>
+        </div>
+        <div style="color:var(--c-muted);margin-top:6px">N 노멀라이저 · G 노이즈 게이트 · C 컴프레서 · P 패닝</div>
+        <div style="color:var(--c-muted);margin-top:6px">카드 안의 "모든 채널 따름 / 이 채널만" 표시를 어떻게 보여 줄지는 질문 3에서 따로 묻습니다. 여기서는 임시 모양입니다.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const OPTIONS = [
+  { key: "now", label: "지금 (1.1.0)" },
+  { key: "A", label: "A · 랙 맨 위 범위 탭" },
+  { key: "B", label: "B · MASTER BUS를 눌러 고름" },
+  { key: "C", label: "C · A와 B 둘 다" },
+];
+const EXPLAIN = {
+  now: `<h3>지금 (1.1.0)</h3>
+    <ul>
+      <li>랙은 언제나 <b>선택한 채널 하나</b>만 고칩니다. 랙 제목이 그 채널 이름입니다.</li>
+      <li>MASTER BUS는 눌러도 선택되지 않습니다.</li>
+      <li>"모든 채널"에 해당하는 것은 상단 <b>균일 N</b>(노멀라이저) 하나뿐입니다. 게이트·컴프레서·패닝은 채널마다 하나씩 따로 켜야 합니다.</li>
+      <li>노멀라이저 카드의 <b>전역 따름 / 개별 ON / 개별 OFF</b>가 "따를지"와 "켤지"를 한 줄에 섞어 둔 버튼입니다.</li>
+    </ul>`,
+  A: `<h3>A · 랙 맨 위 범위 탭</h3>
+    <ol>
+      <li>랙 맨 위에 <b>[모든 채널 | 이 채널]</b> 두 칸이 늘 보입니다.</li>
+      <li>"모든 채널"을 누르면 랙이 모든 채널의 기본 설정을 고칩니다. 채널 테두리가 점선으로 바뀌어 "모두 대상"임을 보여 줍니다.</li>
+      <li>채널 스트립을 누르면 자동으로 "이 채널" 칸으로 넘어가고, 그 채널만 고칩니다.</li>
+      <li>MASTER BUS는 지금처럼 볼륨만 다룹니다.</li>
+    </ol>
+    <div class="cost">대가: 랙이 한 줄(약 28px) 높아집니다. 팝업 세로 상한 600px에 그만큼 가까워집니다.</div>`,
+  B: `<h3>B · MASTER BUS를 눌러 고름</h3>
+    <ol>
+      <li>MASTER BUS 위쪽에 <b>전체 FX</b> 버튼이 생깁니다. 마스터 스트립 어디를 눌러도 됩니다.</li>
+      <li>누르면 마스터가 선택 표시되고, 랙 제목이 "모든 채널"로 바뀝니다.</li>
+      <li>채널 스트립을 누르면 그 채널로 돌아갑니다.</li>
+      <li>랙에는 탭 줄이 없고 제목 줄만 바뀝니다.</li>
+    </ol>
+    <div class="cost">대가: 실제 믹서 콘솔처럼 동작하지만, "마스터를 누를 수 있다"는 걸 알아야 찾을 수 있습니다. 랙만 보고 있으면 범위를 바꾸는 법이 보이지 않습니다.</div>`,
+  C: `<h3>C · A와 B 둘 다</h3>
+    <ol>
+      <li>랙 맨 위의 범위 탭(A)이 늘 보입니다.</li>
+      <li>MASTER BUS를 눌러도 같은 "모든 채널"로 넘어갑니다(B). 둘은 같은 스위치의 다른 손잡이입니다.</li>
+      <li>채널 스트립을 누르면 "이 채널"로 넘어갑니다.</li>
+    </ol>
+    <div class="cost">대가: A와 같은 높이 한 줄. 같은 일을 하는 길이 두 개라 설명할 것이 하나 늘어납니다.</div>`,
+};
+
+const CHANNELS = [
+  { id: 1, host: "youtube", title: "설명을 포기하는 가…", db: "0.0" },
+  { id: 2, host: "soundcloud", title: "Lo-fi Beats Radio", db: "-6.0" },
+  { id: 3, host: "twitch", title: "생방송 게임 중계", db: "-3.5" },
+];
+const FX_KEYS = ["norm", "gate", "comp", "pan"];
+const FX_LETTER = { norm: "N", gate: "G", comp: "C", pan: "P" };
+
+let opt = "A";
+let state;
+function freshState() {
+  return {
+    scope: "channel",            // "global" | "channel"
+    sel: 1,
+    global: { norm: true, gate: false, comp: false, pan: 0 },
+    ovr: { 1: {}, 2: {}, 3: {} }, // 채널별 따로 값
+    legacyNorm: { 1: "follow", 2: "follow", 3: "follow" }, // 1.1.0 재현용
+    legacyFx: { 1: { gate: false, comp: false, pan: 0 }, 2: { gate: false, comp: false, pan: 0 }, 3: { gate: false, comp: false, pan: 0 } },
+    hoverKey: null,
+  };
+}
+state = freshState();
+
+function eff(chId, k) {
+  if (opt === "now") {
+    if (k === "norm") {
+      const m = state.legacyNorm[chId];
+      return { v: m === "follow" ? state.global.norm : m === "on", own: m !== "follow" };
+    }
+    return { v: state.legacyFx[chId][k], own: true };
+  }
+  const o = state.ovr[chId];
+  if (k in o) return { v: o[k], own: true };
+  return { v: state.global[k], own: false };
+}
+const isOn = (k, v) => (k === "pan" ? v !== 0 : Boolean(v));
+
+function el(tag, attrs = {}, html = "") {
+  const e = document.createElement(tag);
+  for (const [a, v] of Object.entries(attrs)) {
+    if (a === "class") e.className = v;
+    else if (a.startsWith("on")) e[a] = v;
+    else e.setAttribute(a, v);
+  }
+  if (html) e.innerHTML = html;
+  return e;
+}
+
+function renderOptions() {
+  const row = document.getElementById("optRow");
+  row.innerHTML = "";
+  for (const o of OPTIONS) {
+    row.appendChild(el("button", { class: "opt-btn" + (o.key === "now" ? " now" : ""), "data-on": String(o.key === opt),
+      onclick: () => { opt = o.key; state = freshState(); toast(""); renderAll(); } }, o.label));
+  }
+  document.getElementById("explain").innerHTML = EXPLAIN[opt];
+}
+
+function selectChannel(id) {
+  state.sel = id;
+  state.scope = "channel";
+  renderAll();
+}
+function selectGlobal() {
+  state.scope = "global";
+  renderAll();
+}
+
+function renderStrips() {
+  const box = document.getElementById("strips");
+  box.innerHTML = "";
+  for (const ch of CHANNELS) {
+    const s = el("div", { class: "strip" });
+    const target = opt !== "now" && state.scope === "global";
+    s.dataset.sel = String(!target && state.sel === ch.id);
+    s.dataset.target = target ? "all" : "";
+    const hk = state.hoverKey;
+    s.dataset.glow = String(Boolean(hk) && (target ? !(opt !== "now" && hk in state.ovr[ch.id]) : state.sel === ch.id));
+    s.onclick = () => selectChannel(ch.id);
+    s.appendChild(el("div", { class: "host" }, "● " + ch.host));
+    s.appendChild(el("div", { class: "stitle" }, ch.title));
+    s.appendChild(el("div", { class: "fader" }, "<i></i>"));
+    s.appendChild(el("div", { class: "readout tabular" }, ch.db + " dB"));
+    const b = el("div", { class: "badges" });
+    for (const k of FX_KEYS) {
+      const r = eff(ch.id, k);
+      const on = isOn(k, r.v);
+      b.appendChild(el("span", { class: "bdg" + (on ? (r.own ? " c" : " g") : ""), title: k }, FX_LETTER[k]));
+    }
+    s.appendChild(b);
+    s.appendChild(el("div", { class: "msf" }, "<span>M</span><span>S</span><span>F</span>"));
+    box.appendChild(s);
+  }
+}
+
+function renderMaster() {
+  const m = document.getElementById("master");
+  const canClick = opt === "B" || opt === "C";
+  m.className = "master" + (canClick ? " clickable" : "");
+  m.dataset.sel = String(canClick && state.scope === "global");
+  m.innerHTML = "";
+  m.onclick = canClick ? () => selectGlobal() : () => { if (opt === "now") toast("1.1.0에서는 MASTER BUS를 눌러도 아무 일이 일어나지 않습니다."); };
+  m.appendChild(el("div", { class: "mk" }, "MASTER BUS"));
+  m.appendChild(el("div", { class: "mt" }, "전체 출력"));
+  if (canClick) m.appendChild(el("button", { class: "mfx" }, "전체 FX"));
+  m.appendChild(el("div", { class: "fader" }, "<i></i>"));
+  m.appendChild(el("div", { class: "readout tabular" }, "0.0 dB"));
+  m.appendChild(el("div", { class: "mbtn" }, "▶ 전체 재생"));
+  m.appendChild(el("div", { class: "mbtn" }, "전체 음소거"));
+}
+
+function setValue(k, v) {
+  if (opt === "now") {
+    state.legacyFx[state.sel][k] = v;
+  } else if (state.scope === "global") {
+    state.global[k] = v;
+  } else {
+    state.ovr[state.sel][k] = v;
+  }
+  renderAll();
+}
+function clearOwn(k) {
+  delete state.ovr[state.sel][k];
+  renderAll();
+}
+
+function cardHover(card, k) {
+  card.onmouseenter = () => { state.hoverKey = k; renderStrips(); };
+  card.onmouseleave = () => { state.hoverKey = null; renderStrips(); };
+}
+
+function scopeTag(k) {
+  if (opt === "now" || state.scope === "global") return null;
+  const own = k in state.ovr[state.sel];
+  const wrap = el("div", { style: "display:flex;gap:6px;align-items:center" });
+  wrap.appendChild(el("span", { class: "tag" + (own ? " own" : "") }, own ? "이 채널만" : "모든 채널 따름"));
+  if (own) wrap.appendChild(el("button", { class: "reset", onclick: () => clearOwn(k) }, "↺ 되돌리기"));
+  return wrap;
+}
+
+function renderRack() {
+  const r = document.getElementById("rack");
+  r.innerHTML = "";
+  const ch = CHANNELS.find((c) => c.id === state.sel);
+  const global = opt !== "now" && state.scope === "global";
+
+  if (opt === "A" || opt === "C") {
+    const tabs = el("div", { class: "scope-tabs" });
+    tabs.appendChild(el("button", { "data-on": String(global), onclick: () => selectGlobal() }, "모든 채널"));
+    tabs.appendChild(el("button", { class: "ch", "data-on": String(!global), onclick: () => selectChannel(state.sel) }, "이 채널 · " + ch.host));
+    r.appendChild(tabs);
+  }
+
+  const head = el("div", { class: "rhead" });
+  if (global) {
+    head.appendChild(el("div", { class: "rtitle" }, "모든 채널 기본 설정"));
+    const nOwn = (k) => CHANNELS.filter((c) => !(k in state.ovr[c.id])).length;
+    head.appendChild(el("div", { class: "rsub" }, `여기서 바꾸면 <b>채널 ${CHANNELS.length}개</b>에 걸립니다<br>(따로 정한 채널은 제외)`));
+  } else {
+    head.appendChild(el("div", { class: "rtitle" }, ch.title));
+    head.appendChild(el("div", { class: "rsub" }, opt === "now" ? `${ch.host} · 전역 균일(음악)` : `${ch.host} · <b>이 채널에만</b> 걸립니다`));
+  }
+  r.appendChild(head);
+
+  // 노멀라이저
+  const nCard = el("div", { class: "card" });
+  cardHover(nCard, "norm");
+  if (opt === "now") {
+    nCard.appendChild(el("div", { class: "chead" }, `<span class="ctitle">노멀라이저</span><span class="tag">음악 -16</span>`));
+    const seg = el("div", { class: "seg3" });
+    const modes = [["follow", "전역 따름"], ["on", "개별 ON"], ["off", "개별 OFF"]];
+    for (const [m, label] of modes) {
+      seg.appendChild(el("button", { class: m === "on" ? "acc" : "", "data-on": String(state.legacyNorm[state.sel] === m),
+        onclick: () => { state.legacyNorm[state.sel] = m; renderAll(); } }, label));
+    }
+    nCard.appendChild(seg);
+    nCard.appendChild(el("div", { style: "color:var(--c-muted);font-size:10.5px" }, "목표 -16 LUFS · 완만 / 표준 / 민감"));
+  } else {
+    const e = global ? { v: state.global.norm, own: false } : eff(state.sel, "norm");
+    const h = el("div", { class: "chead" });
+    h.appendChild(el("span", { class: "ctitle" }, "노멀라이저"));
+    h.appendChild(el("button", { class: "tog" + (e.v ? " on" : "") + (e.own ? " own" : ""), onclick: () => setValue("norm", !e.v) }, e.v ? "ON" : "OFF"));
+    nCard.appendChild(h);
+    nCard.appendChild(el("div", { style: "color:var(--c-muted);font-size:10.5px" }, "프리셋: 음악 (-16 LUFS · 완만)"));
+    const t = scopeTag("norm"); if (t) nCard.appendChild(t);
+  }
+  r.appendChild(nCard);
+
+  // 게이트·컴프
+  for (const [k, title, sub] of [["gate", "노이즈 게이트", "바닥 차단 -48 dB"], ["comp", "컴프레서", "비율 4:1"]]) {
+    const c = el("div", { class: "card" });
+    cardHover(c, k);
+    const e = global ? { v: state.global[k], own: false } : eff(state.sel, k);
+    const h = el("div", { class: "chead" });
+    h.appendChild(el("span", { class: "ctitle" }, title));
+    h.appendChild(el("button", { class: "tog" + (e.v ? " on" : "") + (e.own && opt !== "now" ? " own" : ""), onclick: () => setValue(k, !e.v) }, e.v ? "ON" : "OFF"));
+    c.appendChild(h);
+    c.appendChild(el("div", { style: "color:var(--c-muted);font-size:10.5px" }, sub));
+    const t = scopeTag(k); if (t) c.appendChild(t);
+    r.appendChild(c);
+  }
+
+  // 패닝
+  const p = el("div", { class: "card" });
+  cardHover(p, "pan");
+  const pe = global ? { v: state.global.pan, own: false } : eff(state.sel, "pan");
+  const fmt = (v) => (v === 0 ? "C" : v < 0 ? "L" + -v : "R" + v);
+  p.appendChild(el("div", { class: "chead" }, `<span class="ctitle">패닝</span><span class="tag tabular" id="panVal">${fmt(pe.v)}</span>`));
+  p.appendChild(el("div", { class: "pan-row" }, "<span>L100</span><span>C</span><span>R100</span>"));
+  const rng = el("input", { type: "range", min: "-100", max: "100", step: "10", value: String(pe.v) });
+  rng.oninput = () => { document.getElementById("panVal").textContent = fmt(Number(rng.value)); };
+  rng.onchange = () => setValue("pan", Number(rng.value));
+  p.appendChild(rng);
+  const pt = scopeTag("pan"); if (pt) p.appendChild(pt);
+  r.appendChild(p);
+}
+
+const TASKS = [
+  { text: "모든 채널에 컴프레서를 켜 보세요.", check: () => CHANNELS.every((c) => eff(c.id, "comp").v) },
+  { text: "youtube 채널에만 노이즈 게이트를 켜 보세요. (다른 채널은 꺼진 채로)", check: () => eff(1, "gate").v && !eff(2, "gate").v && !eff(3, "gate").v },
+  { text: "twitch만 노멀라이저를 끄고, 나머지는 켜 둔 채로 두세요.", check: () => !eff(3, "norm").v && eff(1, "norm").v && eff(2, "norm").v },
+];
+function renderTasks() {
+  const box = document.getElementById("tasks");
+  box.innerHTML = "";
+  TASKS.forEach((t, i) => {
+    const done = t.check();
+    box.appendChild(el("div", { class: "task" + (done ? " done" : "") }, `<span class="ck">${done ? "✓" : i + 1}</span><span>${t.text}</span>`));
+  });
+}
+
+let toastTimer = 0;
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  clearTimeout(toastTimer);
+  if (msg) toastTimer = setTimeout(() => (t.textContent = ""), 3500);
+}
+
+function renderAll() {
+  renderOptions();
+  renderStrips();
+  renderMaster();
+  renderRack();
+  renderTasks();
+}
+document.getElementById("resetAll").onclick = () => { state = freshState(); toast(""); renderAll(); };
+renderAll();
+</script>
+</body>
+</html>

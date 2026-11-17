@@ -1,0 +1,109 @@
+# 3단계 설계 기록: 고급 FX의 적용 범위와 노멀라이저 두 축 분리 (`05_fx_scope_redesign.md`)
+
+작성 시각: 2026-11-17
+상태: **시안 문답 진행 중 (`1.2.0` 대상)**
+
+---
+
+## 1. 왜 고치는가
+
+- `1.1.0`의 고급 FX 랙은 언제나 탭 채널 하나만 고친다. MASTER BUS는 선택되지 않고 FX 값도 없다. 그래서 게이트·컴프레서·패닝을 모든 탭에 거는 방법이 없다. 도움말 문구도 처음부터 "채널별 FX"였다.
+- 노멀라이저는 `normMode = "follow" | "on" | "off"` 값 하나에 두 축이 섞여 있다. a축은 "전역을 따르는가"이고, b축은 "따르지 않을 때 켜는가 끄는가"이다. 화면에는 버튼 세 개짜리 한 그룹으로 나온다.
+- 채널에서는 프리셋을 고를 수 없고 사용자 프리셋도 없다.
+- "전역 따름" 상태에서 목표·속도·구간을 만지면 표시 없이 `"on"`으로 바뀐다(`fx-rack-view.ts`, `norm-visualizer.ts`).
+- 기술 제약: 탭마다 소리가 그 탭 페이지 안에서 처리되므로 진짜 마스터 버스는 없다. "모든 채널"은 모든 채널이 물려받는(또는 더해 받는) 값으로만 만들 수 있다.
+
+## 2. 사용자 결정 (시안으로 문답)
+
+| # | 질문 | 시안 | 결정 |
+|---|---|---|---|
+| 1 | "모든 채널" / "이 채널"을 어디서 고르나 | `mockups/v9-1_fx_scope_target.html` | **C**: 랙 맨 위 범위 탭 `[모든 채널 \| 이 채널]`과 MASTER BUS 클릭(`전체 FX` 버튼)을 **둘 다** 둔다. 채널 스트립을 누르면 "이 채널"로 넘어간다 |
+| 2 | "모든 채널"의 패닝은 무슨 뜻인가 | `mockups/v9-2_fx_scope_pan.html` | **나**: 모든 채널의 패닝은 **전체 밸런스**다. 각 채널 패닝에 **더해진다**(최종 = 채널 + 전체, ±100에서 자름). 패닝 카드에는 "최종 L10 = 이 채널 L30 + 전체 R20"을 보여 준다 |
+| 3 | "모든 채널 따름"인 채널에서 값을 만지면 | `mockups/v9-3_fx_follow_detach.html` | **가 · 잠금**: 따르는 카드는 값이 잠겨 흐리게 보인다. 누르면 안내만 뜬다. `이 채널만 따로`를 눌러야 현재 값을 복사한 채 풀린다. `모든 채널 따르기`로 다시 연결한다. 노멀라이저·게이트·컴프레서에 같은 규칙을 적용한다 |
+| 4 | 노멀라이저 프리셋과 내 프리셋 | `mockups/v9-4_norm_presets.html` | **나 · 저장 + 고를 때 복사**: 프리셋은 "모든 채널"과 "이 채널" 양쪽에서 고른다. 세부 값을 만지면 "수정됨"이 붙고, `내 프리셋으로 저장` / `되돌리기`(내 프리셋이면 `덮어쓰기`)를 쓸 수 있다. 고를 때 값을 복사하므로, 덮어써도 이미 고른 채널은 바뀌지 않는다. 상단 `균일 N ▾` 팝오버도 같은 목록을 쓴다 |
+| 5 | 늘어난 랙을 팝업 상한 600px 안에 담는 법 | `mockups/v9-5_rack_layout.html` | **다 · 요약 카드 + 세부 창**: 랙에는 카드 네 개가 ON/OFF·요약 한 줄·따름 줄로 늘 다 보인다. `세부 ▸`를 누르면 랙 왼쪽에 세부 창(약 250px)이 떠서 시각화·슬라이더를 다룬다. 채널 스트립을 잠시 가리고, 바깥을 누르거나 ✕로 닫는다 |
+
+| 6 | 랙이 고치는 채널(활성 채널)을 어떻게 표시하나 | `mockups/v9-6_active_channel.html` | **세 안 모두 기각, 사용자 안을 들은 뒤 다시 정함.** 1.1.0은 1px 청록 안쪽 테두리라 Focus(청록 테두리)와 겹친다. 나(랙까지 이어지는 흰 줄)가 가장 나쁘다는 평가. 다(나머지 흐리게)는 일시정지 채널의 흐린 모습과 겹친다. 가(흰 테두리 + `FX 편집 중` 꼬리표)는 당장 기각할 이유는 없지만 1.1.0보다 나아진 점이 없다 |
+
+| 7 | 1.2.0 클래식의 활성 채널 표시 | `mockups/v9-7_channel_state_look.html` | **가 · 채널 바탕이 떠오름**: 테두리는 1.1.0 그대로 둔다(Focus 청록, Solo 주황). 선택된 채널만 바탕이 "재생 중"보다 한 단계 더 밝아지고(`raised`에 흰색 약 9%를 섞음), 그림자와 함께 4px 떠오른다. 1px 청록 안쪽 테두리는 없앤다 |
+
+| 8 | 채널 상태색 나누기 (+ 음소거 띠·빗금 정정) | `mockups/v9-9_integrated_color_hatch.html` (통합 후보 `v9-8`에 사용자 지적 1~3 반영) | **나 · Focus에 새 고유색**: 보통 채널은 청록 그대로 두고 Focus에만 테마별 새 색을 준다. 채널 안에서 청록은 보통, 새 색은 Focus, 주황은 Solo, 빨강은 음소거다. 함께 고친 것은 두 가지다. ② 음소거하면 1.1.0처럼 위쪽 띠가 빨갛다(v9-8 시안이 빠뜨렸음). ③ "페이더는 높지만 덜/안 들리는 몫"을 모두 빗금으로 그리고 빗금 색이 원인을 말한다(Focus 감쇠 = Focus 색, Solo로 꺼짐 = Solo 색, 음소거 = 빨강). 1.1.0 `strip-view.ts`가 음소거를 빗금에서 빼던 예외(`!ch.muted`)를 없앤다. 새 Focus 색은 테마 4종 × 다크/라이트 8벌을 만들어 대비를 검증한 뒤 `color-preset.md`에 더한다 |
+
+남은 정리 거리(2.0.0 모양 작업 때): 도메인 핀(📌)도 Solo와 같은 주황(accent)을 쓴다.
+
+### 사용자가 정한 모양 방향 (2026-11-17)
+
+- 실물 믹서가 백라이트 버튼으로 상태를 보여 주는 것은 하드웨어 단가 때문이다. 이 앱은 처음부터 화면에 그려지는 무료 오픈소스 인디 앱이므로 그 제약을 따를 이유가 없다.
+- 그래서 **모던** 모양을 만든다. 활성 채널은 테두리 대신 채널 자체를 강조하고, 음소거·솔로·포커스는 채널 바탕을 테마에 맞는 색으로 칠한다. 스위치 뱅크는 백라이트 버튼이 아니라 GUI 하단 덱으로 바꾼다.
+- **클래식** 모양은 활성 채널 강조만 개선해 계속 제공한다. 테마 패널에서 두 모양을 바꿀 수 있게 한다.
+- 순서는 다음과 같다.
+  1. `1.2.0`: FX 범위 개편과 클래식 활성 표시 개선.
+  2. 버그 수정은 `1.2.x`로 올린다.
+  3. `2.0.0-preview`: 두 모양을 유지보수 부담 없이 함께 제공하는 방법을 모색한다.
+  4. `2.0.0` 출시.
+- 시안 `mockups/v9-7_channel_state_look.html`의 원칙은 "시각 요소 하나에 뜻 하나"다. 바탕 색조 = 소리 상태, 밝기와 높이 = 선택, 불투명도와 구역 = 대기, 글자 칩 = 색각 보조, 우선순위는 음소거 > 솔로 > 포커스.
+
+### 결정에서 따라 나오는 모델
+
+- 카드마다 축을 둘로 나눈다. **따를지**는 카드 아래 줄의 `🔗 모든 채널 따름` ↔ `● 이 채널만`이고, **어떻게 걸지**는 카드 위쪽의 ON/OFF·프리셋·값이다.
+- `1.1.0` `normMode` 대응: `follow` → 모든 채널 따름, `on` → 이 채널만 + ON, `off` → 이 채널만 + OFF. 저장된 옛 설정은 이 표대로 자동 변환해 보존한다(마이너 버전 근거).
+- 패닝만 "따름/따로" 대신 "더하기" 규칙을 쓴다.
+
+## 3. 남은 질문
+
+- ~~랙 배치~~ → 질문 5에서 결정함.
+- 내 프리셋 관리(이름 바꾸기·지우기)를 어디서 할 것인가.
+- (이번 판 밖 후보) 채널 개별 값을 도메인 단위로 기억할 것인가. 지금은 탭을 닫으면 사라진다.
+
+## 4. 1.2.0 구현 계획과 진행 기록
+
+가지: `work/fx-scope-ux` (`main`의 `b41b457`에서 땀). 승인 시안: `mockups/v9-8` + `v9-9`(색·빗금) + `v9-10`(Focus 색).
+
+### 경계
+- 콘텐츠 쪽(`dsp-chain.ts`, `audio-hook.ts`)이 받는 `DspConfigPayload` 모양은 바꾸지 않는다. 바꾸는 것은 그 앞단의 설정 구조(백그라운드)와 팝업이다.
+
+### 데이터 구조 (`types.ts`)
+- `NormParams { targetLufs, speed, rangeLowLufs, rangeHighLufs, zeroReturnRate }`
+- `NormSlot = NormParams + { enabled, presetId, modified }`. `presetId`는 기본 4종 키, 내 프리셋 `u…`, 또는 `""`(사용자 지정)이다.
+- `GateSlot { enabled, thresholdDb }`, `CompSlot { enabled, ratio }`, `FxLayer { norm, gate, comp }`
+- `ChannelFxState { own: Partial<FxLayer>; pan }`. `own`에 모듈이 없으면 "모든 채널 따름"이다.
+- `PersistedSettings`에서 `autoNormEnabled`·`autoNormPreset`을 빼고 `globalFx: FxLayer`, `globalPan`, `userPresets[]`를 더한다.
+- `modified`는 비교로 계산하지 않고 저장한다. "고를 때 복사"이므로, 덮어쓴 뒤 다른 채널에 수정됨이 붙으면 안 된다.
+
+### 옛 설정 변환
+- 설정: `autoNormEnabled`/`autoNormPreset` → `globalFx.norm`.
+- 세션(탭별 fx)
+  - `normMode follow` → 따름
+  - `on` → `own.norm{enabled:true, presetId:"", 옛 값}`
+  - `off` → `own.norm{enabled:false, …}`
+  - gate/comp는 켜져 있거나 기본값과 다를 때만 `own`으로 옮긴다.
+
+### 메시지
+- 기존 `UPDATE_TAB_FX`는 `EDIT_FX { target: "global" | tabId, edit }` 하나로 바꾼다. `edit`은 detach / relink / set(module, patch) / pan / pickPreset이다.
+- 새로 더할 메시지: `SAVE_USER_PRESET`, `OVERWRITE_USER_PRESET`, `RENAME_USER_PRESET`, `DELETE_USER_PRESET`.
+- 의미가 바뀌는 메시지
+  - `TOGGLE_AUTO_NORM` → `globalFx.norm.enabled`
+  - `SET_AUTO_NORM_PRESET` → 프리셋 id를 받아 전역에 적용
+
+### 팝업
+- `fx-rack-view.ts`: 범위 탭 + 요약 카드 4개 + 따름 줄로 다시 쓴다.
+- 새 모듈 `fx-detail-view.ts`: 세부 창을 맡는다. 노멀라이저 세부는 기존 `norm-visualizer` 시각화를 재사용한다.
+- `master-view.ts`: 선택 가능하게 하고 `전체 FX` 버튼을 더한다. 선택되면 떠오른다.
+- `strip-view.ts`
+  - 선택 = 떠오름(1px 청록 테두리 제거)
+  - Focus 색 토큰 사용
+  - 음소거 빗금, 빗금 색 = 원인
+  - grip 줄의 `N` 배지를 `N G C P` 칩으로 바꿈
+- `norm-popover.ts`: 내 프리셋도 목록에 넣는다.
+- `palettes.ts`, `color-preset.md`: `focus`·`onFocus` 토큰을 더한다(v9-10 값).
+- i18n 한·영 문구, 도움말 문구를 고친다.
+- 파일 700줄 상한을 지키도록 새 로직은 새 모듈(`shared/fx-model.ts`)로 뺀다.
+
+### 진행
+- [x] 가지 생성 (work/fx-scope-ux)
+- [x] shared 모델·변환 (fx-model.ts, settings-hydrate.ts) + 단위 테스트 39건 통과(tests/fx-model.test.ts 신설)
+- [x] 백그라운드 (EDIT_FX·프리셋 메시지)
+- [x] 팝업 TS·HTML·CSS (fx-controller·fx-rack-view·fx-detail-view·fx-labels·strip-bay·i18n-fx·popup-fx-scope.css)
+- [ ] 문구
+- [ ] 빌드·감사
+- [ ] 1.2.0 커밋
