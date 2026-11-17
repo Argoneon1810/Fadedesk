@@ -119,7 +119,7 @@ Identifies open tabs across browser windows that contain active or audible media
 #### `storage`
 
 ```text
-Stores the user's mixer preferences (master volume, mute, theme, pop-out window bounds, per-tab volume/FX/Focus settings, and user-pinned domain default volumes) in chrome.storage.local, and holds active tab strip state in chrome.storage.session so the Manifest V3 service worker can restore mixer strips after waking from idle. Nothing leaves the browser.
+Stores the user's mixer preferences (master volume, mute, theme, pop-out window size, all-channel FX settings, user-named presets, and user-pinned domain default volumes) in chrome.storage.local, and holds active tab strip state (tab title, URL, per-tab volume/FX/Focus settings) in chrome.storage.session so the Manifest V3 service worker can restore mixer strips after waking from idle. Nothing leaves the browser.
 ```
 
 #### `scripting`

@@ -145,7 +145,7 @@ Fadedesk **collects nothing and transmits nothing off your device.** Extension p
 | Permission | Why It Is Needed |
 | --- | --- |
 | `tabs` | Lists open audible/media tabs with their title, domain label, and favicon, jumps to a tab when you click its strip header (`↗`), and matches hostnames against locally pinned default volumes. |
-| `storage` | Saves fader levels, themes, pop-out window bounds, and domain pins strictly inside `chrome.storage.local` and `chrome.storage.session`. |
+| `storage` | Saves console settings, themes, pop-out window size, My Presets, and domain pins in `chrome.storage.local`, and per-tab fader and FX states in `chrome.storage.session`—all strictly inside the browser. |
 | `scripting` | Attaches the local audio controller to media tabs that were already open before Fadedesk was installed or updated—no tab reload required. |
 | `<all_urls>` | HTML5 `<video>`, `<audio>`, and Web Audio can play on any website, so broad host access is required to apply real-time gain, pan, gate, compression, and loudness leveling wherever you listen. |
 
