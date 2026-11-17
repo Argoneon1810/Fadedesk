@@ -114,7 +114,9 @@ test("1.0.0 세션: 채널 FX(normMode·게이트·컴프·패닝)가 채널 층
   assert.equal(after.focus, true);
   assert.equal(after.domain, item.domain);
 
+  // 직렬화 모양에서 fx는 선택 칸이라, 옮긴 뒤에는 반드시 채워져 있어야 한다
   const fx = after.fx;
+  assert.ok(fx, "옮긴 세션에 fx가 없다");
   assert.equal(fx.pan, -40);
   assert.equal(fx.own.norm?.enabled, true);
   assert.equal(fx.own.norm?.targetLufs, -14);
