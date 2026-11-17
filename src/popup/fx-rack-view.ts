@@ -9,10 +9,16 @@ import type {
   ChannelNormMode,
   CompRatioPreset,
   NormSpeedPreset,
+  NormVizMode,
   PersistedSettings,
   TabChannelState,
   ThemeTokens,
 } from "../shared/types";
+import {
+  buildNormVisualizerDom,
+  syncNormVisualizerDom,
+  type NormVisualizerRefs,
+} from "./norm-visualizer";
 
 /**
  * 우측 도킹 고급 FX 사이드 랙(`#side-fx-rack`)의 영속 DOM 생성 및 비파괴 상태 동기화 모듈.
@@ -27,6 +33,7 @@ export interface FxRackRefs {
   cardsWrap: HTMLElement;
   normHintEl: HTMLElement;
   normModeBtns: Array<{ mode: ChannelNormMode; btn: HTMLButtonElement }>;
+  normViz: NormVisualizerRefs;
   normTargetValEl: HTMLElement;
   normTargetInput: HTMLInputElement;
   normSpeedBtns: Array<{ speed: NormSpeedPreset; btn: HTMLButtonElement }>;
@@ -47,6 +54,8 @@ export function buildFxRackDom(
   container: HTMLElement,
   getSelectedChannel: () => TabChannelState | undefined,
   onUpdateFx: (tabId: number, patch: Partial<ChannelFxState>) => void,
+  getSettings?: () => PersistedSettings,
+  onToggleVizMode?: (mode: NormVizMode) => void,
 ): FxRackRefs {
   const copy = ui();
   container.innerHTML = `
@@ -65,6 +74,7 @@ export function buildFxRackDom(
           <span data-ref="normHintEl" class="fx-card-hint c-muted tabular">-16</span>
         </div>
         <div data-ref="normModeGrid" class="fx-seg-grid3"></div>
+        <div data-ref="normVizSlot"></div>
         <div class="fx-meta-row">
           <span class="c-muted">${copy.fxNormTargetLabel}</span>
           <span data-ref="normTargetValEl" class="fx-meta-val tabular">-16 LUFS</span>
@@ -206,6 +216,30 @@ export function buildFxRackDom(
     onUpdateFx(ch.tabId, { compEnabled: !ch.fx.compEnabled });
   };
 
+  const normVizSlot = q("normVizSlot");
+  const normViz = buildNormVisualizerDom(
+    getSelectedChannel,
+    getSettings ??
+      (() => ({
+        theme: "teal",
+        modePref: "dark",
+        alpha: 0.7,
+        masterDb: 0,
+        masterMuted: false,
+        autoNormEnabled: true,
+        autoNormPreset: "music",
+        normVizMode: "spectrum2d",
+        onboardingDone: true,
+        advRackOpen: true,
+        popoutWidth: 780,
+        popoutHeight: 480,
+        domainDefaults: {},
+      })),
+    onUpdateFx,
+    onToggleVizMode ?? (() => {}),
+  );
+  normVizSlot.appendChild(normViz.rootEl);
+
   return {
     container,
     titleEl: q("titleEl"),
@@ -214,6 +248,7 @@ export function buildFxRackDom(
     cardsWrap: q("cardsWrap"),
     normHintEl: q("normHintEl"),
     normModeBtns,
+    normViz,
     normTargetValEl: q("normTargetValEl"),
     normTargetInput,
     normSpeedBtns,
@@ -255,6 +290,9 @@ export function syncFxRackTrimBadge(
   } else {
     r.trimBadge.textContent = copy.fxTrimOff;
     r.trimBadge.style.color = t.muted;
+  }
+  if (settings.advRackOpen) {
+    syncNormVisualizerDom(r.normViz, ch, settings, t);
   }
 }
 
@@ -342,6 +380,7 @@ export function syncFxRackDom(
   for (const { speed, btn } of r.normSpeedBtns) {
     paintMiniToggle(btn, fx.normSpeed === speed, t);
   }
+  syncNormVisualizerDom(r.normViz, ch, settings, t);
 
   r.panResetBtn.textContent = formatPan(fx.pan);
   paintMiniToggle(r.panResetBtn, fx.pan !== 0, t);

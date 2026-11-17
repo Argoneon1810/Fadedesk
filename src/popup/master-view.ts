@@ -11,6 +11,7 @@ import { attachDbInlineEditor } from "./db-inline-editor";
 import { ICONS } from "./icons";
 import {
   attachKnobDrag,
+  buildScaleDom,
   createLedColumn,
   paintLedColumn,
   type LedColumnRef,
@@ -28,6 +29,7 @@ export interface MasterStripRefs {
   fill: HTMLElement;
   knob: HTMLElement;
   knobLine: HTMLElement;
+  scaleItems: Array<{ db: number; el: HTMLDivElement }>;
   vuL: LedColumnRef;
   vuR: LedColumnRef;
   readoutBtn: HTMLElement;
@@ -92,12 +94,16 @@ export function buildMasterStripDom(
     </button>
   `;
 
+  const scale = buildScaleDom();
   const vuL = createLedColumn();
   const vuR = createLedColumn();
+  const stereoPair = document.createElement("div");
+  stereoPair.className = "stereo-vu-pair";
+  stereoPair.appendChild(vuL.col);
+  stereoPair.appendChild(vuR.col);
   const well = el.querySelector('[data-ref="faderWell"]')!;
-  const track = el.querySelector('[data-ref="track"]')!;
-  well.insertBefore(vuL.col, track);
-  well.appendChild(vuR.col);
+  well.appendChild(scale.wrap);
+  well.appendChild(stereoPair);
 
   const q = <T extends HTMLElement>(name: string): T => el.querySelector(`[data-ref="${name}"]`) as T;
   const refs: MasterStripRefs = {
@@ -107,6 +113,7 @@ export function buildMasterStripDom(
     fill: q("fill"),
     knob: q("knob"),
     knobLine: q("knobLine"),
+    scaleItems: scale.items,
     vuL,
     vuR,
     readoutBtn: q("readoutBtn"),
@@ -174,6 +181,12 @@ export function syncMasterStripDom(
   m.knob.style.bottom = `calc(${mPct}% - 7.5px)`;
   m.knob.style.borderColor = settings.masterMuted ? t.states.danger : t.text;
   m.knobLine.style.backgroundColor = settings.masterMuted ? t.states.danger : t.primary;
+
+  for (const { db, el: sEl } of m.scaleItems) {
+    sEl.style.color = db === 0 ? t.text : t.muted;
+    sEl.style.opacity = db === 0 ? "0.95" : "0.68";
+    sEl.style.fontWeight = db === 0 ? "700" : "400";
+  }
 
   paintLedColumn(m.vuL.segs, m.vuCurL, m.vuPeakL, t);
   paintLedColumn(m.vuR.segs, m.vuCurR, m.vuPeakR, t);

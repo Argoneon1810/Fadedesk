@@ -1,9 +1,10 @@
 import { getLocalizedPresetMeta, ui } from "../shared/i18n";
-import type { AutoNormPreset, PersistedSettings, ThemeTokens } from "../shared/types";
+import type { AutoNormPreset, PersistedSettings, TabChannelState, ThemeTokens } from "../shared/types";
+import { buildPopoverMiniVizDom, syncPopoverMiniVizDom } from "./norm-visualizer";
 
 /**
  * 전역 이지 노멀라이저 스플릿 버튼(#auto-norm-btn, #auto-norm-preset-btn) 및
- * 플로팅 프리셋 선택 팝오버(#norm-popover) 뷰 모듈.
+ * 플로팅 프리셋 선택 팝오버(#norm-popover, 4종 프리셋 + 미니 실시간 시각화) 뷰 모듈.
  */
 
 export function renderNormPopoverDom(
@@ -11,9 +12,10 @@ export function renderNormPopoverDom(
   open: boolean,
   t: ThemeTokens,
   onSelectPreset: (preset: AutoNormPreset) => void,
+  selectedChannel?: TabChannelState,
 ): void {
   const copy = ui();
-  const curPreset: AutoNormPreset = settings.autoNormPreset ?? "standard";
+  const curPreset: AutoNormPreset = settings.autoNormPreset ?? "music";
   const curMeta = getLocalizedPresetMeta(curPreset);
   const badgeDetail = curMeta.badge.split("·")[1]?.trim() ?? "";
   const presetDesc = badgeDetail ? `${curMeta.shortLabel} · ${badgeDetail}` : curMeta.shortLabel;
@@ -106,7 +108,9 @@ export function renderNormPopoverDom(
   listEl.setAttribute("role", "radiogroup");
   listEl.setAttribute("aria-label", copy.normListAria);
 
-  const presetKeys: AutoNormPreset[] = ["music", "standard", "night"];
+  const miniVizEl = buildPopoverMiniVizDom(selectedChannel, settings, t);
+
+  const presetKeys: AutoNormPreset[] = ["classical", "music", "standard", "night"];
   for (const key of presetKeys) {
     const meta = getLocalizedPresetMeta(key);
     const active = curPreset === key;
@@ -141,6 +145,29 @@ export function renderNormPopoverDom(
     descSpan.textContent = meta.summary;
     btn.appendChild(descSpan);
 
+    const specSpan = document.createElement("span");
+    specSpan.className = "norm-preset-spec tabular allow-wrap";
+    specSpan.textContent = meta.spec;
+    btn.appendChild(specSpan);
+
+    const showHoverPreview = (): void => {
+      if (!active) {
+        btn.style.borderColor = t.accent;
+      }
+      syncPopoverMiniVizDom(miniVizEl, selectedChannel, settings, t, key);
+    };
+    const clearHoverPreview = (): void => {
+      if (!active) {
+        btn.style.borderColor = t.border;
+      }
+      syncPopoverMiniVizDom(miniVizEl, selectedChannel, settings, t, null);
+    };
+
+    btn.addEventListener("pointerenter", showHoverPreview);
+    btn.addEventListener("focus", showHoverPreview);
+    btn.addEventListener("pointerleave", clearHoverPreview);
+    btn.addEventListener("blur", clearHoverPreview);
+
     btn.onclick = (ev) => {
       ev.stopPropagation();
       onSelectPreset(key);
@@ -150,4 +177,5 @@ export function renderNormPopoverDom(
   }
 
   pop.appendChild(listEl);
+  pop.appendChild(miniVizEl);
 }

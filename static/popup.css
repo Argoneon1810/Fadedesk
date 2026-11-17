@@ -468,20 +468,24 @@ html[data-view="window"] .side-fx-rack {
 .norm-popover {
   position: absolute;
   right: 12px;
-  top: 46px;
+  top: 44px;
   z-index: 30;
-  width: 292px;
+  width: 312px;
   max-width: calc(100% - 24px);
   border-radius: 8px;
   border: 1px solid var(--c-border);
-  padding: 10px;
+  padding: 6px 8px;
   box-shadow: 0 14px 28px rgba(0, 0, 0, 0.42);
+}
+
+.norm-popover .pop-header {
+  margin-bottom: 4px;
 }
 
 .norm-preset-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 3px;
 }
 
 .norm-preset-item {
@@ -489,9 +493,9 @@ html[data-view="window"] .side-fx-rack {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 3px;
-  padding: 7px 9px;
-  border-radius: 6px;
+  gap: 1px;
+  padding: 4px 6px;
+  border-radius: 5px;
   border: 1px solid var(--c-border);
   text-align: left;
   cursor: pointer;
@@ -512,21 +516,38 @@ html[data-view="window"] .side-fx-rack {
 }
 
 .norm-preset-name {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-  line-height: 1.25;
+  line-height: 1.2;
 }
 
 .norm-preset-badge {
   font-family: Consolas, "SFMono-Regular", Menlo, monospace;
-  font-size: 10px;
-  line-height: 1.25;
+  font-size: 9.5px;
+  line-height: 1.2;
 }
 
 .norm-preset-desc {
-  font-size: 11px;
-  line-height: 1.4;
+  font-size: 10px;
+  line-height: 1.22;
   color: var(--c-muted);
+}
+
+.norm-preset-spec {
+  font-size: 8.5px;
+  line-height: 1.15;
+  color: var(--c-muted);
+  opacity: 0.82;
+}
+
+.norm-pop-mini-viz {
+  margin-top: 4px;
+  padding: 4px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--c-border);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 /* 플로팅 테마 팝오버 */

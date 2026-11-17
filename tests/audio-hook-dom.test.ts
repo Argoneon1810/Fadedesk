@@ -504,35 +504,38 @@ test("BS.1770/EBU 3341 노멀라이저: 완만(9s) 창은 후렴 다이내믹을
   for (const speed of ["slow", "std", "fast"] as const) {
     const env = createMockAudioEnvironment();
     const controller = installAudioHook(env.win);
-    const audio = new env.FakeMediaElement();
-    audio.currentSrc = `blob:https://music.youtube.com/freeze-${speed}`;
-    await audio.play();
-    env.setSampleAmplitude(0.224); // -13 dBFS 일반 연주 구간
-    controller.dispatchCommand({
-      type: "APPLY_DSP",
-      dsp: {
-        normActive: true,
-        normTargetLufs: -16,
-        normSpeed: speed,
-        pan: 0,
-        gateEnabled: false,
-        gateThresholdDb: -48,
-        compEnabled: false,
-        compRatio: 4,
-      },
-    });
-    for (let i = 0; i < 20; i++) controller.stepTick();
-    const beforeFreezeTrim = controller.getSnapshot().normTrimDb;
+    try {
+      const audio = new env.FakeMediaElement();
+      audio.currentSrc = `blob:https://music.youtube.com/freeze-${speed}`;
+      await audio.play();
+      env.setSampleAmplitude(0.224); // -13 dBFS 일반 연주 구간
+      controller.dispatchCommand({
+        type: "APPLY_DSP",
+        dsp: {
+          normActive: true,
+          normTargetLufs: -16,
+          normSpeed: speed,
+          pan: 0,
+          gateEnabled: false,
+          gateThresholdDb: -48,
+          compEnabled: false,
+          compRatio: 4,
+        },
+      });
+      for (let i = 0; i < 20; i++) controller.stepTick();
+      const beforeFreezeTrim = controller.getSnapshot().normTrimDb;
 
-    env.setSampleAmplitude(0.025); // -32 dBFS 프리즈·리버브 잔향 (절대 무음 게이트보다 크지만 -10 LU 상대 게이트 미만)
-    for (let i = 0; i < 24; i++) controller.stepTick();
-    const endOfFreezeTrim = controller.getSnapshot().normTrimDb;
-    assert.equal(endOfFreezeTrim, beforeFreezeTrim, `Freeze must not boost gain in mode=${speed}`);
+      env.setSampleAmplitude(0.025); // -32 dBFS 프리즈·리버브 잔향 (절대 무음 게이트보다 크지만 -10 LU 상대 게이트 미만)
+      for (let i = 0; i < 24; i++) controller.stepTick();
+      const endOfFreezeTrim = controller.getSnapshot().normTrimDb;
+      assert.equal(endOfFreezeTrim, beforeFreezeTrim, `Freeze must not boost gain in mode=${speed}`);
 
-    env.setSampleAmplitude(0.5); // -6 dBFS 드럼 강타 복귀 -> 증폭 없이 즉시 감쇠 방향으로 반응
-    controller.stepTick();
-    assert.ok(controller.getSnapshot().normTrimDb <= beforeFreezeTrim);
-    controller.dispose();
+      env.setSampleAmplitude(0.5); // -6 dBFS 드럼 강타 복귀 -> 증폭 없이 즉시 감쇠 방향으로 반응
+      controller.stepTick();
+      assert.ok(controller.getSnapshot().normTrimDb <= beforeFreezeTrim);
+    } finally {
+      controller.dispose();
+    }
   }
 });
 

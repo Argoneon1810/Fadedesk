@@ -42,6 +42,10 @@ export interface HookSharedState {
   meteringActive: boolean;
   vuCur: number;
   vuPeak: number;
+  vuCurL: number;
+  vuCurR: number;
+  lastInputLufs: number;
+  lastSpectrumBins: number[];
   lastNormTrimDb: number;
   trackedElements: Set<HTMLMediaElement>;
   lastActiveElements: Set<HTMLMediaElement>;
@@ -77,6 +81,10 @@ export function getOrCreateHookState(
   if (existing && existing.schemaVersion === 1) {
     existing.delegates = delegates;
     existing.currentDsp = { ...DEFAULT_DSP_CONFIG, ...existing.currentDsp };
+    if (typeof existing.vuCurL !== "number") existing.vuCurL = existing.vuCur ?? 0;
+    if (typeof existing.vuCurR !== "number") existing.vuCurR = existing.vuCur ?? 0;
+    if (typeof existing.lastInputLufs !== "number") existing.lastInputLufs = -100;
+    if (!Array.isArray(existing.lastSpectrumBins)) existing.lastSpectrumBins = [];
     return existing;
   }
 
@@ -101,6 +109,10 @@ export function getOrCreateHookState(
     meteringActive: false,
     vuCur: 0,
     vuPeak: 0,
+    vuCurL: 0,
+    vuCurR: 0,
+    lastInputLufs: -100,
+    lastSpectrumBins: [],
     lastNormTrimDb: 0,
     trackedElements: new Set<HTMLMediaElement>(),
     lastActiveElements: new Set<HTMLMediaElement>(),

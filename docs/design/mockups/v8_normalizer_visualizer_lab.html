@@ -1,0 +1,1740 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fadedesk — Mockup v8 (노멀라이저 시각화 비교: 2D 스펙트럼 상·하 구간 vs 1D 수평 구간 + 4-2 미니 팝오버 + 6-A 스테레오 미터)</title>
+  <style>
+    :root {
+      --c-bg: #091112;
+      --c-surface: #131d1e;
+      --c-raised: #1d292a;
+      --c-border: #2d3b3c;
+      --c-text: #e5edee;
+      --c-muted: #98a4a6;
+      --c-primary: #00bdce;
+      --c-on-primary: #000000;
+      --c-accent: #e69732;
+      --c-on-accent: #000000;
+      --c-success: #4fc678;
+      --c-warning: #eda922;
+      --c-danger: #f5605b;
+      --c-on-danger: #000000;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 16px;
+      background: #060b0c;
+      color: var(--c-text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Pretendard, Roboto, sans-serif;
+      font-size: 12px;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .tabular { font-variant-numeric: tabular-nums; font-family: Consolas, "SFMono-Regular", Menlo, monospace; }
+    .hidden { display: none !important; }
+
+    /* 상단 시뮬레이션 & 비교 컨트롤 데크 */
+    .lab-container {
+      max-width: 1080px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .lab-toolbar {
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .lab-title-group {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .lab-kicker {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--c-primary);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .lab-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--c-text);
+    }
+    .lab-btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+    }
+    .lab-btn {
+      height: 28px;
+      padding: 0 10px;
+      border-radius: 6px;
+      border: 1px solid var(--c-border);
+      background: var(--c-raised);
+      color: var(--c-text);
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 100ms ease;
+    }
+    .lab-btn:hover { filter: brightness(1.1); }
+    .lab-btn[data-active="true"] {
+      background: var(--c-primary);
+      color: var(--c-on-primary);
+      border-color: var(--c-primary);
+      font-weight: 700;
+    }
+    .lab-btn[data-accent="true"] {
+      background: var(--c-accent);
+      color: var(--c-on-accent);
+      border-color: var(--c-accent);
+      font-weight: 700;
+    }
+
+    /* 1. 상단 나란히 비교 섹션 (안 A: 2D 프리퀀시 스펙트럼 상·하 구간 vs 안 B: 1D 수평 구간 바) */
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 860px) {
+      .compare-grid { grid-template-columns: 1fr; }
+    }
+    .compare-card {
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: 10px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .compare-card[data-selected="true"] {
+      border-color: var(--c-primary);
+      box-shadow: inset 0 0 0 1px var(--c-primary);
+    }
+    .compare-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      border-bottom: 1px solid var(--c-border);
+      padding-bottom: 8px;
+    }
+    .compare-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      margin-bottom: 3px;
+    }
+    .badge-user { background: color-mix(in srgb, var(--c-primary) 20%, var(--c-raised)); color: var(--c-primary); border: 1px solid var(--c-primary); }
+    .badge-agent { background: var(--c-raised); color: var(--c-muted); border: 1px solid var(--c-border); }
+    .compare-card-title { font-size: 13px; font-weight: 700; margin: 0; }
+    .compare-card-sub { font-size: 11px; color: var(--c-muted); margin-top: 2px; line-height: 1.4; }
+
+    /* 공통: 2D 스펙트럼 + 상·하 대표 구간 지정 캔버스 래퍼 */
+    .spec2d-box {
+      position: relative;
+      background: var(--c-bg);
+      border: 1px solid var(--c-border);
+      border-radius: 7px;
+      overflow: hidden;
+      height: 158px;
+      box-shadow: inset 0 1.5px 4px rgba(0,0,0,0.65);
+    }
+    .spec2d-box.compact {
+      height: 118px;
+    }
+    .spec2d-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    /* 주파수 악기 대역 가이드 태그 (사용자 첨부 이미지 개념 반영) */
+    .freq-role-strip {
+      position: absolute;
+      top: 4px;
+      left: 30px;
+      right: 6px;
+      display: flex;
+      justify-content: space-between;
+      gap: 3px;
+      pointer-events: none;
+      opacity: 0.78;
+    }
+    .freq-role-pill {
+      font-size: 9px;
+      padding: 1px 4px;
+      border-radius: 3px;
+      background: rgba(19, 29, 30, 0.82);
+      border: 1px solid var(--c-border);
+      color: var(--c-muted);
+      white-space: nowrap;
+    }
+    /* 상·하 드래그 핸들 라인 */
+    .bound-line {
+      position: absolute;
+      left: 26px;
+      right: 0;
+      height: 14px;
+      margin-top: -7px;
+      cursor: ns-resize;
+      display: flex;
+      align-items: center;
+      z-index: 5;
+    }
+    .bound-line::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: 1.5px;
+      background: var(--c-primary);
+      box-shadow: 0 0 6px rgba(0, 189, 206, 0.5);
+    }
+    .bound-line.bound-low::before {
+      border-top: 1.5px dashed var(--c-primary);
+      background: transparent;
+    }
+    .bound-handle-tag {
+      position: relative;
+      margin-left: auto;
+      margin-right: 5px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: var(--c-surface);
+      border: 1px solid var(--c-primary);
+      color: var(--c-primary);
+      font-size: 9.5px;
+      font-weight: 700;
+      line-height: 13px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.6);
+    }
+    .target-line-pin {
+      position: absolute;
+      left: 26px;
+      right: 0;
+      height: 0;
+      border-top: 1px dotted var(--c-accent);
+      pointer-events: none;
+      z-index: 4;
+    }
+    .target-line-tag {
+      position: absolute;
+      left: 4px;
+      top: -8px;
+      padding: 0 4px;
+      border-radius: 2px;
+      background: rgba(230, 151, 50, 0.18);
+      border: 1px solid var(--c-accent);
+      color: var(--c-accent);
+      font-size: 9px;
+      font-weight: 700;
+      line-height: 13px;
+    }
+
+    /* 안 B: 1D 수평 구간 브래킷 바 */
+    .bar1d-box {
+      background: var(--c-bg);
+      border: 1px solid var(--c-border);
+      border-radius: 7px;
+      padding: 12px 10px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: inset 0 1.5px 4px rgba(0,0,0,0.65);
+    }
+    .bar1d-track-wrap {
+      position: relative;
+      height: 28px;
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: 5px;
+      overflow: visible;
+    }
+    .bar1d-band {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      background: color-mix(in srgb, var(--c-primary) 18%, transparent);
+      border-left: 2.5px solid var(--c-primary);
+      border-right: 2.5px solid var(--c-primary);
+    }
+    .bar1d-handle {
+      position: absolute;
+      top: -5px;
+      bottom: -5px;
+      width: 12px;
+      margin-left: -6px;
+      cursor: ew-resize;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 6;
+    }
+    .bar1d-handle-grip {
+      width: 6px;
+      height: 18px;
+      border-radius: 2px;
+      background: var(--c-primary);
+      color: var(--c-on-primary);
+      font-size: 9px;
+      font-weight: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.6);
+    }
+    .bar1d-input-fill {
+      position: absolute;
+      left: 0;
+      top: 9px;
+      bottom: 9px;
+      border-radius: 0 3px 3px 0;
+      transition: width 60ms linear, background-color 120ms ease;
+    }
+    .bar1d-avg-marker {
+      position: absolute;
+      top: -3px;
+      bottom: -3px;
+      width: 2px;
+      background: #ffffff;
+      z-index: 4;
+    }
+    .bar1d-target-marker {
+      position: absolute;
+      top: -4px;
+      bottom: -4px;
+      width: 2px;
+      background: var(--c-accent);
+      z-index: 5;
+    }
+    .bar1d-scale {
+      display: flex;
+      justify-content: space-between;
+      font-size: 9.5px;
+      color: var(--c-muted);
+    }
+
+    /* 보정 게인 & 0.0dB 회귀 텐션 양방향 미터 */
+    .tension-box {
+      background: var(--c-bg);
+      border: 1px solid var(--c-border);
+      border-radius: 6px;
+      padding: 7px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .tension-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 10.5px;
+    }
+    .tension-status-pill {
+      padding: 1px 6px;
+      border-radius: 999px;
+      font-size: 9.5px;
+      font-weight: 700;
+      border: 1px solid var(--c-border);
+    }
+    .bipolar-track {
+      position: relative;
+      height: 10px;
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .bipolar-zero {
+      position: absolute;
+      left: 64%; /* -16dB ~ +9dB 중 0dB 위치 (16 / 25 = 64%) */
+      top: 0;
+      bottom: 0;
+      width: 1.5px;
+      background: var(--c-text);
+      z-index: 3;
+    }
+    .bipolar-bar {
+      position: absolute;
+      top: 1px;
+      bottom: 1px;
+      border-radius: 999px;
+      transition: left 60ms linear, width 60ms linear, background-color 120ms ease;
+    }
+    .tension-arrow {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      display: flex;
+      align-items: center;
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--c-warning);
+      z-index: 4;
+      pointer-events: none;
+    }
+
+    /* 2. 실제 Fadedesk 콘솔 프레임 (#console-root) 시뮬레이션 */
+    .console-section-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--c-muted);
+      font-size: 11px;
+      padding: 0 2px;
+    }
+    #console-root {
+      position: relative;
+      width: 812px;
+      background: var(--c-bg);
+      border: 1px solid var(--c-border);
+      border-radius: 12px;
+      box-shadow: 0 16px 36px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.05);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .top-deck {
+      background: var(--c-surface);
+      border-bottom: 1px solid var(--c-border);
+      padding: 6px 10px;
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .deck-left, .deck-right {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .brand-dot-btn {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      border: 1px solid var(--c-border);
+      background: var(--c-raised);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .brand-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--c-primary);
+    }
+    .brand-title {
+      font-weight: 800;
+      font-size: 12px;
+      letter-spacing: 0.06em;
+    }
+    .icon-btn {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      border: 1px solid var(--c-border);
+      background: var(--c-raised);
+      color: var(--c-text);
+      font-weight: 700;
+      font-size: 11px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .status-pill {
+      width: 124px;
+      height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      border: 1px solid var(--c-border);
+      background: var(--c-bg);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+    }
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--c-primary);
+    }
+    .alpha-box {
+      height: 26px;
+      padding: 0 8px;
+      border-radius: 6px;
+      border: 1px solid var(--c-border);
+      background: var(--c-bg);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+    }
+    .norm-split-group {
+      display: inline-flex;
+      align-items: center;
+    }
+    .norm-main-btn {
+      height: 26px;
+      padding: 0 9px;
+      border-radius: 6px 0 0 6px;
+      border: 1px solid var(--c-primary);
+      background: var(--c-primary);
+      color: var(--c-on-primary);
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .norm-preset-trigger {
+      height: 26px;
+      width: 22px;
+      border-radius: 0 6px 6px 0;
+      border: 1px solid var(--c-primary);
+      border-left: 1px solid rgba(0,0,0,0.25);
+      background: var(--c-primary);
+      color: var(--c-on-primary);
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .top-toggle-btn {
+      height: 26px;
+      padding: 0 9px;
+      border-radius: 6px;
+      border: 1px solid var(--c-primary);
+      background: var(--c-raised);
+      color: var(--c-primary);
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* 4-2 반영: 상단 균일 N ▾ 팝오버 (4종 프리셋 + 하단 실시간 미니 시각화 프리뷰) */
+    .norm-popover-demo {
+      position: absolute;
+      right: 242px;
+      top: 44px;
+      width: 312px;
+      background: var(--c-surface);
+      border: 1px solid var(--c-primary);
+      border-radius: 9px;
+      padding: 9px;
+      z-index: 30;
+      box-shadow: 0 14px 32px rgba(0,0,0,0.72);
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+    .pop-head-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 10.5px;
+    }
+    .preset-item {
+      border: 1px solid var(--c-border);
+      background: var(--c-bg);
+      border-radius: 6px;
+      padding: 6px 8px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .preset-item[data-active="true"] {
+      background: var(--c-raised);
+      border-color: var(--c-primary);
+    }
+    .preset-row1 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 700;
+      font-size: 11.5px;
+    }
+    .preset-easy-desc {
+      font-size: 10.5px;
+      color: var(--c-text);
+      opacity: 0.9;
+      line-height: 1.35;
+    }
+    .preset-expert-spec {
+      font-size: 9.5px;
+      color: var(--c-muted);
+      margin-top: 1px;
+    }
+    /* 팝오버 하단 미니 실시간 시각화 프리뷰 (4-2) */
+    .popover-mini-viz {
+      background: var(--c-bg);
+      border: 1px solid var(--c-border);
+      border-radius: 6px;
+      padding: 6px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    /* 콘솔 베이 (채널 스트립 + 마스터 + 우측 사이드 랙) */
+    .console-bay {
+      display: flex;
+      align-items: stretch;
+      min-height: 360px;
+    }
+    .channels-scroll {
+      flex: 1 1 auto;
+      display: flex;
+      align-items: stretch;
+      gap: 8px;
+      padding: 10px;
+      overflow-x: auto;
+    }
+    /* 94px 채널 스트립 + 6-A 스테레오 2열 L/R 미터 */
+    .channel-strip {
+      width: 94px;
+      flex-shrink: 0;
+      border-radius: 8px;
+      border: 1px solid var(--c-border);
+      background: var(--c-raised);
+      padding: 4px 6px 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      position: relative;
+    }
+    .channel-strip[data-selected="true"] {
+      border-color: var(--c-primary);
+      box-shadow: inset 0 0 0 1px var(--c-primary);
+    }
+    .strip-grip {
+      height: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--c-muted);
+      font-size: 9px;
+    }
+    .norm-badge {
+      padding: 0 4px;
+      border-radius: 3px;
+      background: var(--c-primary);
+      color: var(--c-on-primary);
+      font-weight: 700;
+      font-size: 9px;
+      line-height: 12px;
+    }
+    .strip-header {
+      height: 38px;
+      border-bottom: 1px solid var(--c-border);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding-bottom: 3px;
+    }
+    .strip-host { font-size: 10px; color: var(--c-muted); }
+    .strip-title { font-size: 11.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .fader-well {
+      flex: 1 1 auto;
+      min-height: 156px;
+      background: var(--c-bg);
+      border: 1px solid var(--c-border);
+      border-radius: 6px;
+      padding: 8px 6px;
+      display: flex;
+      align-items: stretch;
+      justify-content: space-between;
+      box-shadow: inset 0 1.5px 3.5px rgba(0,0,0,0.6);
+    }
+    .fader-track {
+      position: relative;
+      width: 22px;
+      display: flex;
+      justify-content: center;
+    }
+    .fader-slot {
+      width: 5px;
+      height: 100%;
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      border-radius: 999px;
+      position: relative;
+      overflow: hidden;
+    }
+    .fader-fill {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: var(--c-primary);
+      opacity: 0.85;
+    }
+    .fader-cap {
+      position: absolute;
+      width: 20px;
+      height: 13px;
+      border-radius: 3px;
+      background: var(--c-surface);
+      border: 1px solid var(--c-primary);
+      box-shadow: 0 2px 5px rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .fader-cap::after {
+      content: "";
+      width: 12px;
+      height: 1.5px;
+      background: var(--c-primary);
+    }
+    .scale-col {
+      width: 18px;
+      position: relative;
+      font-size: 9px;
+      color: var(--c-muted);
+      text-align: right;
+    }
+    /* 결정 6-A: 채널 스트립 내부 상시 스테레오 2열(L/R) 미터 (4.5px * 2 + 2px 간격 = 11px) */
+    .stereo-vu-pair {
+      display: flex;
+      align-items: stretch;
+      gap: 2px;
+      height: 100%;
+    }
+    .vu-col {
+      width: 4.5px;
+      height: 100%;
+      display: flex;
+      flex-direction: column-reverse;
+      gap: 1.5px;
+    }
+    .vu-seg {
+      width: 100%;
+      flex: 1 1 0;
+      border-radius: 1px;
+      background: var(--c-border);
+      opacity: 0.26;
+    }
+    .readout-box {
+      border: 1px solid var(--c-border);
+      background: var(--c-bg);
+      border-radius: 4px;
+      padding: 3px 4px;
+      text-align: center;
+    }
+    .readout-db { font-size: 11.5px; font-weight: 700; }
+    .readout-sub { font-size: 9.5px; color: var(--c-primary); margin-top: 1px; }
+    .switch-bank {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3px;
+      padding: 2px;
+      background: var(--c-bg);
+      border: 1px solid var(--c-border);
+      border-radius: 5px;
+    }
+    .sw-btn {
+      height: 22px;
+      border-radius: 3px;
+      border: 1px solid var(--c-border);
+      background: var(--c-raised);
+      color: var(--c-muted);
+      font-size: 10.5px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* 우측 마스터 도크 */
+    .master-dock {
+      padding: 10px 8px;
+      border-left: 1px solid var(--c-border);
+      background: var(--c-bg);
+      display: flex;
+    }
+    .master-strip {
+      width: 96px;
+      border-radius: 8px;
+      border: 1px solid var(--c-border);
+      background: var(--c-surface);
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* 우측 고급 FX 사이드 랙 (시각화 탑재) */
+    .side-fx-rack {
+      width: 234px;
+      flex-shrink: 0;
+      border-left: 1px solid var(--c-border);
+      background: var(--c-surface);
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .fx-rack-head {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid var(--c-border);
+    }
+    .fx-rack-row1 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .fx-trim-pill {
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: var(--c-bg);
+      border: 1px solid var(--c-border);
+      color: var(--c-primary);
+      font-size: 10.5px;
+      font-weight: 700;
+    }
+    .fx-card {
+      background: var(--c-bg);
+      border: 1px solid var(--c-border);
+      border-radius: 6px;
+      padding: 6px 7px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .fx-seg-grid3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 3px;
+    }
+    .fx-seg-grid4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 3px;
+    }
+    .fx-seg-btn {
+      height: 20px;
+      border-radius: 4px;
+      border: 1px solid var(--c-border);
+      background: var(--c-surface);
+      color: var(--c-muted);
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .fx-seg-btn[data-active="true"] {
+      background: var(--c-primary);
+      color: var(--c-on-primary);
+      border-color: var(--c-primary);
+      font-weight: 700;
+    }
+    .fx-meta-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 10px;
+    }
+    input[type="range"].fx-range {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 5px;
+      border-radius: 999px;
+      background: var(--c-surface);
+      border: 1px solid var(--c-border);
+      outline: none;
+    }
+    input[type="range"].fx-range::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 10px;
+      height: 13px;
+      border-radius: 3px;
+      background: var(--c-raised);
+      border: 1px solid var(--c-primary);
+      cursor: grab;
+    }
+  </style>
+</head>
+<body>
+  <div class="lab-container">
+    <!-- 상단 시뮬레이션 컨트롤 바 -->
+    <div class="lab-toolbar">
+      <div class="lab-title-group">
+        <span class="lab-kicker">Fadedesk Mockup v8 · Interactive Normalizer Lab</span>
+        <div class="lab-title">3-A 대표 음압 구간 시각화 비교: [안 A] 2D 프리퀀시 스펙트럼 상·하 구간 vs [안 B] 1D 수평 구간</div>
+      </div>
+      <div class="lab-btn-row">
+        <span style="color:var(--c-muted);font-size:11px">실시간 음원 주입:</span>
+        <button type="button" class="lab-btn" data-scene="ppp" data-active="false">① 여린 도입부 ppp (-38 LUFS)</button>
+        <button type="button" class="lab-btn" data-scene="mf" data-active="true">② 중위 주선율 mf (-21 LUFS)</button>
+        <button type="button" class="lab-btn" data-scene="fff" data-active="false">③ 오케스트라 강주 fff (-7 LUFS)</button>
+        <button type="button" class="lab-btn" data-scene="auto" data-accent="true">▶ 교향곡 자동 시나리오 재생</button>
+      </div>
+    </div>
+
+    <!-- 섹션 1: 두 가지 시각화 방식 1:1 확대 비교 데크 -->
+    <div class="compare-grid">
+      <!-- 안 A: 사용자 제안 (2D 프리퀀시 다이어그램 + 상·하 수평 임계선) -->
+      <div class="compare-card" id="card-mode-a" data-selected="true">
+        <div class="compare-head">
+          <div>
+            <span class="compare-badge badge-user">안 A · 사용자 제안 (추천)</span>
+            <h2 class="compare-card-title">2D 프리퀀시 스펙트럼 + 상·하(↕) 대표 구간 지정</h2>
+            <div class="compare-card-sub">
+              가로는 주파수(20Hz~20kHz 악기 대역), 세로는 음압(-60~0 LUFS)입니다.
+              <strong>위쪽 선(상한)</strong>과 <strong>아래쪽 선(하한)</strong>을 위아래로 끌어 대표 구간을 정합니다.
+            </div>
+          </div>
+          <button type="button" class="lab-btn" id="apply-a-to-rack" data-active="true">우측 FX 랙에 적용 중</button>
+        </div>
+
+        <div class="spec2d-box" id="spec2d-large">
+          <canvas class="spec2d-canvas" id="canvas-large-a"></canvas>
+          <div class="freq-role-strip">
+            <span class="freq-role-pill">드럼·팀파니·베이스 (20~250Hz)</span>
+            <span class="freq-role-pill">첼로·피아노·보컬 (250~2kHz)</span>
+            <span class="freq-role-pill">바이올린·금관·심벌 (2k~20kHz)</span>
+          </div>
+          <!-- 상한 수평 핸들 -->
+          <div class="bound-line bound-high" id="large-handle-high" title="드래그하여 상한(강주 제외 기준) 조절">
+            <span class="bound-handle-tag tabular" id="large-tag-high">상한 -12 LUFS ↕</span>
+          </div>
+          <!-- 목표 기준선 -->
+          <div class="target-line-pin" id="large-target-line">
+            <span class="target-line-tag tabular" id="large-tag-target">목표 -16 LUFS</span>
+          </div>
+          <!-- 하한 수평 핸들 -->
+          <div class="bound-line bound-low" id="large-handle-low" title="드래그하여 하한(여린 소리 제외 기준) 조절">
+            <span class="bound-handle-tag tabular" id="large-tag-low">하한 -30 LUFS ↕</span>
+          </div>
+        </div>
+
+        <div style="font-size:11px;color:var(--c-muted);line-height:1.45">
+          • <strong>장점</strong>: 옆에 있는 채널 페이더와 똑같이 <strong>"위가 큰 소리, 아래가 작은 소리"</strong>로 세로축이 일치해 직관적이며, 어떤 악기 대역(저음 타악기 vs 고음 금관)이 상한선을 뚫고 나가는지 한눈에 보입니다.
+        </div>
+      </div>
+
+      <!-- 안 B: 에이전트 제안 (1D 수평 구간 브래킷 바) -->
+      <div class="compare-card" id="card-mode-b" data-selected="false">
+        <div class="compare-head">
+          <div>
+            <span class="compare-badge badge-agent">안 B · 에이전트 기존 안</span>
+            <h2 class="compare-card-title">1D 수평 음압 막대 + 좌·우(↔) 브래킷 구간 지정</h2>
+            <div class="compare-card-sub">
+              단일 가로 막대(-60~0 LUFS) 위에 좌·우 브래킷(<code>[</code>, <code>]</code>)과 현재 입력 음압, 윈도우 평균(▲), 목표 핀(T)을 겹쳐 표시합니다.
+            </div>
+          </div>
+          <button type="button" class="lab-btn" id="apply-b-to-rack" data-active="false">우측 FX 랙에 켜 보기</button>
+        </div>
+
+        <div class="bar1d-box">
+          <div class="fx-meta-row">
+            <span style="color:var(--c-muted)">입력 음압 및 대표 채택 구간 (좌·우 브래킷 드래그)</span>
+            <span class="tabular" id="bar1d-readout" style="color:var(--c-primary);font-weight:700">-21.0 LUFS (구간 내 채택)</span>
+          </div>
+          <div class="bar1d-track-wrap" id="bar1d-large-track">
+            <div class="bar1d-input-fill" id="bar1d-input-fill"></div>
+            <div class="bar1d-band" id="bar1d-band"></div>
+            <div class="bar1d-avg-marker" id="bar1d-avg-marker" title="현재 윈도우 평균 음압"></div>
+            <div class="bar1d-target-marker" id="bar1d-target-marker" title="목표 음압 (-16 LUFS)"></div>
+            <div class="bar1d-handle" id="bar1d-handle-low" title="하한 드래그">
+              <div class="bar1d-handle-grip">[</div>
+            </div>
+            <div class="bar1d-handle" id="bar1d-handle-high" title="상한 드래그">
+              <div class="bar1d-handle-grip">]</div>
+            </div>
+          </div>
+          <div class="bar1d-scale tabular">
+            <span>-60 LUFS (무음)</span>
+            <span id="bar1d-low-lbl" style="color:var(--c-primary)">하한 -30</span>
+            <span style="color:var(--c-accent)">목표 -16</span>
+            <span id="bar1d-high-lbl" style="color:var(--c-primary)">상한 -12</span>
+            <span>0 LUFS (최대)</span>
+          </div>
+        </div>
+
+        <div style="font-size:11px;color:var(--c-muted);line-height:1.45">
+          • <strong>장점 / 한계</strong>: 세로 높이를 적게 차지(`52px`)하지만, 하나의 1차원 선 위에 막대·하한·상한·평균·목표 5개 요소가 겹쳐 초보자가 한눈에 해독하기에는 2D 스펙트럼(안 A)보다 추상적입니다.
+        </div>
+      </div>
+    </div>
+
+    <!-- 섹션 2: 실제 Fadedesk 콘솔 전체 조립 화면 (4-2 팝오버 + 5-2 4종 프리셋 + 6-A 스테레오 2열 미터 + 우측 고급 FX 랙) -->
+    <div class="console-section-label">
+      <span>▼ 실제 Fadedesk 콘솔 장착 모습 (상단 <code>균일 N ▾</code> 미니 시각화 팝오버[4-2] + 채널 스테레오 2열 L/R 미터[6-A] + 우측 <code>고급 FX ▸</code> 편집 뷰)</span>
+      <button type="button" class="lab-btn" id="toggle-popover-btn" data-active="true" style="height:22px;font-size:10.5px">상단 균일 N ▾ 팝오버 열기/닫기</button>
+    </div>
+
+    <div id="console-root">
+      <header class="top-deck">
+        <div class="deck-left">
+          <div class="brand-dot-btn"><span class="brand-dot"></span></div>
+          <span class="brand-title">FADEDESK</span>
+          <button type="button" class="icon-btn">?</button>
+          <button type="button" class="icon-btn">↗</button>
+          <div class="status-pill tabular">
+            <span class="status-dot"></span>
+            <span>재생 2 · 대기 1</span>
+          </div>
+        </div>
+        <div class="deck-right">
+          <div class="alpha-box tabular">
+            <span>Focus <i>α</i></span>
+            <span style="color:var(--c-primary);font-weight:700">0.70 · -12dB</span>
+          </div>
+          <div class="norm-split-group">
+            <button type="button" class="norm-main-btn">균일 N</button>
+            <button type="button" class="norm-preset-trigger" id="deck-preset-btn">▴</button>
+          </div>
+          <button type="button" class="top-toggle-btn">고급 FX ◂</button>
+        </div>
+      </header>
+
+      <!-- 결정 4-2 & 5-2 & 2-B: 상단 균일 N ▾ 팝오버 (4종 프리셋 + 비전문가 설명 + 전문가 수치 명세 + 하단 실시간 미니 시각화) -->
+      <div class="norm-popover-demo" id="norm-popover-box">
+        <div class="pop-head-row">
+          <span style="color:var(--c-muted);font-weight:600">자동 음압 균일화 모드 (기본 ON)</span>
+          <span class="tabular" style="color:var(--c-primary);font-weight:700" id="pop-active-summary">클래식 · 광대역 (ON)</span>
+        </div>
+
+        <div class="preset-item" data-preset="classical" data-active="true">
+          <div class="preset-row1">
+            <span>클래식 · 원음 (광대역 보존)</span>
+            <span class="tabular" style="color:var(--c-primary);font-size:10px">신설 · 5-2</span>
+          </div>
+          <div class="preset-easy-desc">여린 독주(ppp)와 폭발하는 강주(fff)는 건드리지 않고 0dB로 물러나 원음의 넓은 강약 의도를 살립니다.</div>
+          <div class="preset-expert-spec tabular">목표 -16 LUFS · 창 15s · 대표 [-28..-13] · 체류 1.8s · 0회귀 0.5dB/s · 최대 +4dB</div>
+        </div>
+
+        <div class="preset-item" data-preset="music" data-active="false">
+          <div class="preset-row1">
+            <span>음악 (기본 · 곡 간 균일)</span>
+            <span class="tabular" style="color:var(--c-muted);font-size:10px">기본값 · 1-A</span>
+          </div>
+          <div class="preset-easy-desc">일반 대중음악 플레이리스트에서 곡 내부의 후렴 대비는 유지하고 곡이 바뀔 때 볼륨 편차만 맞춥니다.</div>
+          <div class="preset-expert-spec tabular">목표 -16 LUFS · 창 9s · 대표 [-32..-10] · 체류 1.2s · 0회귀 0.35dB/s · 최대 +6dB</div>
+        </div>
+
+        <div class="preset-item" data-preset="standard" data-active="false">
+          <div class="preset-row1">
+            <span>표준 (영상 · 스트리밍)</span>
+            <span class="tabular" style="color:var(--c-muted);font-size:10px">3s 단기</span>
+          </div>
+          <div class="preset-easy-desc">유튜브·라이브 방송·강의 탭을 오갈 때 들쭉날쭉한 목소리와 배경음 크기를 빠르게 정렬합니다.</div>
+          <div class="preset-expert-spec tabular">목표 -16 LUFS · 창 3s · 대표 [-36..-8] · Attack 0.4s / Release 2.5s · 최대 +7.5dB</div>
+        </div>
+
+        <div class="preset-item" data-preset="night" data-active="false">
+          <div class="preset-row1">
+            <span>야간 (갑작스러운 큰 소리 억제)</span>
+            <span class="tabular" style="color:var(--c-muted);font-size:10px">0.4s 순간</span>
+          </div>
+          <div class="preset-easy-desc">늦은 밤 이어폰·스피커 청취 시 갑작스러운 비명·폭발음을 즉시 누르고 작은 대사를 또렷하게 유지합니다.</div>
+          <div class="preset-expert-spec tabular">목표 -18 LUFS · 창 0.45s · 대표 [-42..-6] · Attack 0.15s / Release 1.2s · 최대 +9dB</div>
+        </div>
+
+        <!-- 결정 4-2: 팝오버 하단 읽기 전용 미니 실시간 시각화 바 -->
+        <div class="popover-mini-viz">
+          <div class="fx-meta-row">
+            <span style="color:var(--c-muted)">현재 탭 실시간 음압 & 채택 구간</span>
+            <span class="tabular" id="pop-mini-status" style="color:var(--c-primary);font-weight:700">채택 적분 중</span>
+          </div>
+          <div class="bar1d-track-wrap" style="height:14px">
+            <div class="bar1d-input-fill" id="pop-mini-fill" style="top:3px;bottom:3px"></div>
+            <div class="bar1d-band" id="pop-mini-band"></div>
+            <div class="bar1d-target-marker" id="pop-mini-target"></div>
+          </div>
+          <div class="fx-meta-row tabular" style="font-size:9px;color:var(--c-muted)">
+            <span id="pop-mini-in">입력 -21.0 LUFS</span>
+            <span id="pop-mini-range">대표 [-28 .. -13]</span>
+            <span id="pop-mini-trim" style="color:var(--c-primary);font-weight:700">보정 +3.2 dB</span>
+          </div>
+        </div>
+      </div>
+
+      <main class="console-bay">
+        <div class="channels-scroll">
+          <!-- 채널 1: 클래식 교향곡 탭 (선택됨, 스테레오 2열 L/R 미터 6-A) -->
+          <section class="channel-strip" data-selected="true">
+            <div class="strip-grip">
+              <span>⠿</span>
+              <span class="norm-badge tabular">N</span>
+            </div>
+            <div class="strip-header">
+              <div class="strip-host">audio · L/R</div>
+              <div class="strip-title">교향곡 9번 · 1악장</div>
+            </div>
+            <div class="fader-well">
+              <div class="fader-track">
+                <div class="fader-slot">
+                  <div class="fader-fill" style="height:83.3%"></div>
+                </div>
+                <div class="fader-cap" style="bottom:calc(83.3% - 6.5px)"></div>
+              </div>
+              <div class="scale-col tabular">
+                <div style="position:absolute;top:2%">+12</div>
+                <div style="position:absolute;bottom:81%;color:var(--c-text);font-weight:700">0</div>
+                <div style="position:absolute;bottom:50%">-24</div>
+                <div style="position:absolute;bottom:14%">-48</div>
+              </div>
+              <!-- 결정 6-A: 상시 스테레오 2열 (L / R) 미터 -->
+              <div class="stereo-vu-pair" title="스테레오 L / R 출력 레벨 미터 (6-A)">
+                <div class="vu-col" id="ch1-vu-l"></div>
+                <div class="vu-col" id="ch1-vu-r"></div>
+              </div>
+            </div>
+            <div class="readout-box tabular">
+              <div class="readout-db">0.0 dB</div>
+              <div class="readout-sub" id="ch1-sub-trim">균일 +3.2dB</div>
+            </div>
+            <div class="switch-bank">
+              <div class="sw-btn">M</div>
+              <div class="sw-btn">S</div>
+              <div class="sw-btn" style="background:var(--c-primary);color:var(--c-on-primary);border-color:var(--c-primary)">F</div>
+            </div>
+          </section>
+
+          <!-- 채널 2: 라이브 방송 탭 (스테레오 2열 L/R 미터 6-A) -->
+          <section class="channel-strip" data-selected="false">
+            <div class="strip-grip">
+              <span>⠿</span>
+              <span class="norm-badge tabular">N</span>
+            </div>
+            <div class="strip-header">
+              <div class="strip-host">live · L/R</div>
+              <div class="strip-title">라이브 토크 스트림</div>
+            </div>
+            <div class="fader-well">
+              <div class="fader-track">
+                <div class="fader-slot">
+                  <div class="fader-fill" style="height:75%"></div>
+                </div>
+                <div class="fader-cap" style="bottom:calc(75% - 6.5px)"></div>
+              </div>
+              <div class="scale-col tabular">
+                <div style="position:absolute;top:2%">+12</div>
+                <div style="position:absolute;bottom:81%">0</div>
+                <div style="position:absolute;bottom:50%">-24</div>
+                <div style="position:absolute;bottom:14%">-48</div>
+              </div>
+              <div class="stereo-vu-pair">
+                <div class="vu-col" id="ch2-vu-l"></div>
+                <div class="vu-col" id="ch2-vu-r"></div>
+              </div>
+            </div>
+            <div class="readout-box tabular">
+              <div class="readout-db">-6.0 dB</div>
+              <div class="readout-sub" style="color:var(--c-muted)">실효 -18.0dB</div>
+            </div>
+            <div class="switch-bank">
+              <div class="sw-btn">M</div>
+              <div class="sw-btn">S</div>
+              <div class="sw-btn">F</div>
+            </div>
+          </section>
+        </div>
+
+        <!-- 우측 마스터 도크 -->
+        <div class="master-dock">
+          <section class="master-strip">
+            <div class="strip-header" style="text-align:center">
+              <div class="tabular" style="font-size:9px;color:var(--c-primary);font-weight:700;letter-spacing:0.1em">MASTER BUS</div>
+              <div class="strip-title">전체 출력</div>
+            </div>
+            <div class="fader-well" style="padding:8px">
+              <div class="vu-col" id="master-vu-l" style="width:6px"></div>
+              <div class="fader-track">
+                <div class="fader-slot"><div class="fader-fill" style="height:83.3%"></div></div>
+                <div class="fader-cap" style="bottom:calc(83.3% - 6.5px)"></div>
+              </div>
+              <div class="vu-col" id="master-vu-r" style="width:6px"></div>
+            </div>
+            <div class="readout-box tabular">
+              <div class="readout-db">0.0 dB</div>
+              <div class="readout-sub" style="color:var(--c-muted)">마스터 게인</div>
+            </div>
+          </section>
+        </div>
+
+        <!-- 우측 고급 FX 사이드 랙: 노멀라이저 시각화 + 0회귀 텐션 패널 장착 -->
+        <aside class="side-fx-rack">
+          <div class="fx-rack-head">
+            <div class="fx-rack-row1">
+              <span style="font-weight:700;font-size:11.5px">교향곡 9번 · 1악장</span>
+              <span class="fx-trim-pill tabular" id="rack-trim-badge">보정 +3.2dB</span>
+            </div>
+            <div style="font-size:10px;color:var(--c-muted)" id="rack-sub-desc">audio · 클래식(광대역) 적용 중</div>
+          </div>
+
+          <section class="fx-card">
+            <div class="fx-meta-row">
+              <span style="font-weight:700">노멀라이저</span>
+              <span class="tabular" style="color:var(--c-primary)" id="rack-in-readout">입력 -21.0 LUFS</span>
+              <button type="button" id="rack-viz-toggle-btn" class="fx-seg-btn tabular" data-active="true" style="padding:0 6px;height:18px" title="클릭하여 2D 프리퀀시 파형(↕) ↔ 1D 수평 구간(↔) 뷰 토글">2D 파형 ↕</button>
+            </div>
+            <div class="fx-seg-grid3">
+              <button type="button" class="fx-seg-btn" data-active="true">전역 따름</button>
+              <button type="button" class="fx-seg-btn" data-active="false">개별 ON</button>
+              <button type="button" class="fx-seg-btn" data-active="false">개별 OFF</button>
+            </div>
+
+            <!-- 랙 내부 시각화 슬롯: 안 A (2D 프리퀀시 상·하 구간) -->
+            <div class="spec2d-box compact" id="rack-viz-a">
+              <canvas class="spec2d-canvas" id="canvas-rack-a"></canvas>
+              <div class="bound-line bound-high" id="rack-handle-high">
+                <span class="bound-handle-tag tabular" id="rack-tag-high">상한 -12 ↕</span>
+              </div>
+              <div class="target-line-pin" id="rack-target-line">
+                <span class="target-line-tag tabular" id="rack-tag-target">목표 -16</span>
+              </div>
+              <div class="bound-line bound-low" id="rack-handle-low">
+                <span class="bound-handle-tag tabular" id="rack-tag-low">하한 -30 ↕</span>
+              </div>
+            </div>
+
+            <!-- 랙 내부 시각화 슬롯: 안 B (1D 수평 구간 브래킷) -->
+            <div class="bar1d-box hidden" id="rack-viz-b" style="padding:8px 6px">
+              <div class="bar1d-track-wrap" style="height:20px">
+                <div class="bar1d-input-fill" id="rack-bar1d-fill" style="top:5px;bottom:5px"></div>
+                <div class="bar1d-band" id="rack-bar1d-band"></div>
+                <div class="bar1d-target-marker" id="rack-bar1d-target"></div>
+              </div>
+              <div class="bar1d-scale tabular" style="font-size:9px">
+                <span id="rack-bar1d-low">하한 -30</span>
+                <span style="color:var(--c-accent)">목표 -16</span>
+                <span id="rack-bar1d-high">상한 -12</span>
+              </div>
+            </div>
+
+            <!-- 실시간 보정량 & 0.0dB 회귀 텐션 게이지 + 조절 슬라이더 (제안 5·6) -->
+            <div class="tension-box">
+              <div class="tension-head">
+                <span style="color:var(--c-muted)">보정 게인 · 0dB 텐션</span>
+                <span class="tension-status-pill tabular" id="tension-state-pill">채택 구간 적분 중</span>
+              </div>
+              <div class="bipolar-track">
+                <div class="bipolar-zero" title="0.0 dB (원음 기준)"></div>
+                <div class="bipolar-bar" id="bipolar-trim-bar"></div>
+              </div>
+              <div class="fx-meta-row" style="margin-top:2px">
+                <span style="color:var(--c-muted)">0.0dB 회귀 텐션</span>
+                <span class="tabular" id="tension-val-lbl">0.50 dB/s</span>
+              </div>
+              <input type="range" min="0.1" max="1.5" step="0.05" value="0.50" class="fx-range" id="tension-slider" />
+            </div>
+
+            <div class="fx-meta-row">
+              <span style="color:var(--c-muted)">목표 기준 음압</span>
+              <span class="tabular" id="target-val-lbl">-16 LUFS</span>
+            </div>
+            <input type="range" min="-20" max="-12" step="1" value="-16" class="fx-range" id="target-slider" />
+          </section>
+
+          <!-- 하단 컴팩트 패닝 / 게이트 / 컴프레서 요약 카드 -->
+          <section class="fx-card" style="gap:4px">
+            <div class="fx-meta-row">
+              <span style="font-weight:700">스테레오 패닝 (Pan)</span>
+              <span class="tabular" id="pan-val-lbl" style="color:var(--c-primary)">C</span>
+            </div>
+            <input type="range" min="-100" max="100" step="5" value="0" class="fx-range" id="pan-slider" title="좌우로 돌리면 채널 스트립의 2열 L/R 미터(6-A)가 즉시 반응합니다" />
+          </section>
+        </aside>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // 상태 변수 (-60 ~ 0 LUFS 범위)
+    const state = {
+      scene: "mf", // "ppp" | "mf" | "fff" | "auto"
+      autoTimer: 0,
+      inputLufs: -21.0,
+      avgLufs: -21.0,
+      targetLufs: -16.0,
+      lowBoundLufs: -30.0,
+      highBoundLufs: -12.0,
+      trimDb: 3.2,
+      tensionDbPerSec: 0.50,
+      pan: 0,
+      rackMode: "A", // "A" (2D 스펙트럼) | "B" (1D 바)
+      phase: 0,
+    };
+
+    // 20단 LED 생성 헬퍼
+    function initLedCols() {
+      ["ch1-vu-l", "ch1-vu-r", "ch2-vu-l", "ch2-vu-r", "master-vu-l", "master-vu-r"].forEach((id) => {
+        const col = document.getElementById(id);
+        if (!col) return;
+        col.innerHTML = "";
+        for (let i = 0; i < 20; i++) {
+          const s = document.createElement("span");
+          s.className = "vu-seg";
+          col.appendChild(s);
+        }
+      });
+    }
+    initLedCols();
+
+    function paintVu(id, ratio) {
+      const col = document.getElementById(id);
+      if (!col) return;
+      const segs = col.children;
+      const lit = Math.round(Math.max(0, Math.min(1, ratio)) * 20);
+      for (let i = 0; i < 20; i++) {
+        const color = i >= 18 ? "#f5605b" : i >= 16 ? "#eda922" : "#4fc678";
+        segs[i].style.backgroundColor = i < lit ? color : "#2d3b3c";
+        segs[i].style.opacity = i < lit ? "0.95" : "0.26";
+      }
+    }
+
+    function lufsToPct(lufs) {
+      return Math.max(0, Math.min(100, ((lufs + 60) / 60) * 100));
+    }
+    function lufsToYRatio(lufs) {
+      // 0 LUFS -> top (0%), -60 LUFS -> bottom (100%)
+      return 1 - Math.max(0, Math.min(1, (lufs + 60) / 60));
+    }
+    function yRatioToLufs(r) {
+      return Math.round(-60 + (1 - Math.max(0, Math.min(1, r))) * 60);
+    }
+
+    // 상·하 핸들 드래그 바인딩 (2D 스펙트럼 뷰)
+    function bindVerticalBoundDrag(boxId, handleId, isHigh) {
+      const box = document.getElementById(boxId);
+      const handle = document.getElementById(handleId);
+      if (!box || !handle) return;
+      handle.addEventListener("pointerdown", (ev) => {
+        ev.preventDefault();
+        const onMove = (me) => {
+          const rect = box.getBoundingClientRect();
+          const r = (me.clientY - rect.top) / rect.height;
+          const lufs = yRatioToLufs(r);
+          if (isHigh) {
+            state.highBoundLufs = Math.max(state.lowBoundLufs + 4, Math.min(-2, lufs));
+          } else {
+            state.lowBoundLufs = Math.min(state.highBoundLufs - 4, Math.max(-56, lufs));
+          }
+          syncStaticControls();
+        };
+        const onUp = () => {
+          window.removeEventListener("pointermove", onMove);
+          window.removeEventListener("pointerup", onUp);
+        };
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", onUp);
+      });
+    }
+    bindVerticalBoundDrag("spec2d-large", "large-handle-high", true);
+    bindVerticalBoundDrag("spec2d-large", "large-handle-low", false);
+    bindVerticalBoundDrag("rack-viz-a", "rack-handle-high", true);
+    bindVerticalBoundDrag("rack-viz-a", "rack-handle-low", false);
+
+    // 좌·우 브래킷 드래그 바인딩 (1D 수평 바 뷰)
+    function bindHorizontalBoundDrag(handleId, isHigh) {
+      const track = document.getElementById("bar1d-large-track");
+      const handle = document.getElementById(handleId);
+      if (!track || !handle) return;
+      handle.addEventListener("pointerdown", (ev) => {
+        ev.preventDefault();
+        const onMove = (me) => {
+          const rect = track.getBoundingClientRect();
+          const pct = Math.max(0, Math.min(1, (me.clientX - rect.left) / rect.width));
+          const lufs = Math.round(-60 + pct * 60);
+          if (isHigh) {
+            state.highBoundLufs = Math.max(state.lowBoundLufs + 4, Math.min(-2, lufs));
+          } else {
+            state.lowBoundLufs = Math.min(state.highBoundLufs - 4, Math.max(-56, lufs));
+          }
+          syncStaticControls();
+        };
+        const onUp = () => {
+          window.removeEventListener("pointermove", onMove);
+          window.removeEventListener("pointerup", onUp);
+        };
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", onUp);
+      });
+    }
+    bindHorizontalBoundDrag("bar1d-handle-low", false);
+    bindHorizontalBoundDrag("bar1d-handle-high", true);
+
+    function syncStaticControls() {
+      const highY = lufsToYRatio(state.highBoundLufs) * 100;
+      const lowY = lufsToYRatio(state.lowBoundLufs) * 100;
+      const targetY = lufsToYRatio(state.targetLufs) * 100;
+
+      document.getElementById("large-handle-high").style.top = `${highY}%`;
+      document.getElementById("large-handle-low").style.top = `${lowY}%`;
+      document.getElementById("large-target-line").style.top = `${targetY}%`;
+      document.getElementById("large-tag-high").textContent = `상한 ${state.highBoundLufs} LUFS ↕`;
+      document.getElementById("large-tag-low").textContent = `하한 ${state.lowBoundLufs} LUFS ↕`;
+      document.getElementById("large-tag-target").textContent = `목표 ${state.targetLufs} LUFS`;
+
+      document.getElementById("rack-handle-high").style.top = `${highY}%`;
+      document.getElementById("rack-handle-low").style.top = `${lowY}%`;
+      document.getElementById("rack-target-line").style.top = `${targetY}%`;
+      document.getElementById("rack-tag-high").textContent = `상한 ${state.highBoundLufs} ↕`;
+      document.getElementById("rack-tag-low").textContent = `하한 ${state.lowBoundLufs} ↕`;
+      document.getElementById("rack-tag-target").textContent = `목표 ${state.targetLufs}`;
+
+      const lowPct = lufsToPct(state.lowBoundLufs);
+      const highPct = lufsToPct(state.highBoundLufs);
+      const targetPct = lufsToPct(state.targetLufs);
+
+      for (const bandId of ["bar1d-band", "pop-mini-band", "rack-bar1d-band"]) {
+        const b = document.getElementById(bandId);
+        if (b) {
+          b.style.left = `${lowPct}%`;
+          b.style.width = `${Math.max(2, highPct - lowPct)}%`;
+        }
+      }
+      document.getElementById("bar1d-handle-low").style.left = `${lowPct}%`;
+      document.getElementById("bar1d-handle-high").style.left = `${highPct}%`;
+      document.getElementById("bar1d-target-marker").style.left = `${targetPct}%`;
+      document.getElementById("pop-mini-target").style.left = `${targetPct}%`;
+      document.getElementById("rack-bar1d-target").style.left = `${targetPct}%`;
+
+      document.getElementById("bar1d-low-lbl").textContent = `하한 ${state.lowBoundLufs}`;
+      document.getElementById("bar1d-high-lbl").textContent = `상한 ${state.highBoundLufs}`;
+      document.getElementById("rack-bar1d-low").textContent = `하한 ${state.lowBoundLufs}`;
+      document.getElementById("rack-bar1d-high").textContent = `상한 ${state.highBoundLufs}`;
+      document.getElementById("pop-mini-range").textContent = `대표 [${state.lowBoundLufs} .. ${state.highBoundLufs}]`;
+    }
+
+    // 2D 스펙트럼 캔버스 렌더링 (주파수 곡선 + 상·하 대표 구간 하이라이트 + 현재 음압 수평선)
+    function drawSpectrum2D(canvasId, compact) {
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      if (canvas.width !== Math.round(rect.width * dpr) || canvas.height !== Math.round(rect.height * dpr)) {
+        canvas.width = Math.round(rect.width * dpr);
+        canvas.height = Math.round(rect.height * dpr);
+      }
+      const ctx = canvas.getContext("2d");
+      ctx.save();
+      ctx.scale(dpr, dpr);
+      const W = rect.width;
+      const H = rect.height;
+      const padL = 26;
+
+      ctx.clearRect(0, 0, W, H);
+
+      // 1. 배경 dB 눈금 그리드 (-12, -24, -36, -48)
+      ctx.font = "9px Consolas, monospace";
+      ctx.textAlign = "right";
+      [-12, -24, -36, -48].forEach((db) => {
+        const y = lufsToYRatio(db) * H;
+        ctx.strokeStyle = "rgba(45, 59, 60, 0.55)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(padL, y);
+        ctx.lineTo(W, y);
+        ctx.stroke();
+        ctx.fillStyle = "#98a4a6";
+        ctx.fillText(String(db), padL - 4, y + 3);
+      });
+
+      // 2. 상·하 대표 음압 구간(Representative Band) 배경 띠
+      const highY = lufsToYRatio(state.highBoundLufs) * H;
+      const lowY = lufsToYRatio(state.lowBoundLufs) * H;
+      const inBand = state.inputLufs >= state.lowBoundLufs && state.inputLufs <= state.highBoundLufs;
+
+      ctx.fillStyle = inBand ? "rgba(0, 189, 206, 0.15)" : "rgba(152, 164, 166, 0.07)";
+      ctx.fillRect(padL, highY, W - padL, Math.max(2, lowY - highY));
+
+      // 상단 제외 구역(강주 제외) 빗금/음영 & 하단 제외 구역(여린 소리 제외) 음영
+      ctx.fillStyle = "rgba(245, 96, 91, 0.06)";
+      ctx.fillRect(padL, 0, W - padL, highY);
+      ctx.fillStyle = "rgba(0, 0, 0, 0.32)";
+      ctx.fillRect(padL, lowY, W - padL, H - lowY);
+
+      // 3. 20Hz ~ 20kHz 주파수 스펙트럼 곡선 생성
+      const N = 56;
+      const pts = [];
+      for (let i = 0; i <= N; i++) {
+        const normX = i / N; // 0 (20Hz) .. 1 (20kHz)
+        // 악기 대역별 에너지 프로파일
+        const bassBump = Math.exp(-Math.pow((normX - 0.18) / 0.14, 2)) * (state.inputLufs > -12 ? 7 : 3);
+        const midBump = Math.exp(-Math.pow((normX - 0.48) / 0.22, 2)) * 4.5;
+        const highBump = Math.exp(-Math.pow((normX - 0.76) / 0.16, 2)) * (state.inputLufs > -12 ? 5.5 : 1.5);
+        const ripple = Math.sin(normX * 26 + state.phase * 3.2) * 1.6 + Math.cos(normX * 43 - state.phase * 2.1) * 1.1;
+        const rolloff = normX > 0.88 ? -(normX - 0.88) * 90 : normX < 0.07 ? -(0.07 - normX) * 70 : 0;
+
+        const binDb = Math.max(-60, Math.min(0, state.inputLufs - 3 + bassBump + midBump + highBump + ripple + rolloff));
+        const x = padL + normX * (W - padL);
+        const y = lufsToYRatio(binDb) * H;
+        pts.push({ x, y, binDb });
+      }
+
+      // 스펙트럼 채우기
+      const grad = ctx.createLinearGradient(0, highY, 0, H);
+      if (inBand) {
+        grad.addColorStop(0, "rgba(0, 189, 206, 0.55)");
+        grad.addColorStop(1, "rgba(0, 189, 206, 0.05)");
+      } else if (state.inputLufs > state.highBoundLufs) {
+        grad.addColorStop(0, "rgba(237, 169, 34, 0.55)");
+        grad.addColorStop(1, "rgba(237, 169, 34, 0.05)");
+      } else {
+        grad.addColorStop(0, "rgba(152, 164, 166, 0.35)");
+        grad.addColorStop(1, "rgba(152, 164, 166, 0.04)");
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(padL, H);
+      pts.forEach((p) => ctx.lineTo(p.x, p.y));
+      ctx.lineTo(W, H);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // 스펙트럼 외곽선
+      ctx.beginPath();
+      pts.forEach((p, idx) => (idx === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
+      ctx.strokeStyle = inBand ? "#00bdce" : state.inputLufs > state.highBoundLufs ? "#eda922" : "#98a4a6";
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+
+      // 4. 현재 K-가중 통합 입력 음압 수평 기준선 (L_in)
+      const inY = lufsToYRatio(state.inputLufs) * H;
+      ctx.strokeStyle = inBand ? "#4fc678" : "#eda922";
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(padL, inY);
+      ctx.lineTo(W, inY);
+      ctx.stroke();
+
+      // 5. 하단 주파수 축 라벨
+      ctx.fillStyle = "#98a4a6";
+      ctx.font = "8.5px Consolas, monospace";
+      ctx.textAlign = "center";
+      const freqLabels = compact
+        ? [[0.08, "50Hz"], [0.35, "400Hz"], [0.62, "2kHz"], [0.88, "12kHz"]]
+        : [[0.06, "30Hz"], [0.22, "120Hz"], [0.42, "500Hz"], [0.64, "2kHz"], [0.82, "8kHz"], [0.95, "18kHz"]];
+      freqLabels.forEach(([nx, lbl]) => {
+        ctx.fillText(lbl, padL + nx * (W - padL), H - 3);
+      });
+
+      ctx.restore();
+    }
+
+    // UI 이벤트 바인딩
+    document.querySelectorAll("[data-scene]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.scene = btn.dataset.scene;
+        state.autoTimer = 0;
+        document.querySelectorAll("[data-scene]").forEach((b) => {
+          b.dataset.active = String(b === btn && state.scene !== "auto");
+        });
+      });
+    });
+
+    function setRackVizMode(mode) {
+      state.rackMode = mode;
+      const isA = mode === "A";
+      document.getElementById("card-mode-a").dataset.selected = String(isA);
+      document.getElementById("card-mode-b").dataset.selected = String(!isA);
+      document.getElementById("apply-a-to-rack").dataset.active = String(isA);
+      document.getElementById("apply-a-to-rack").textContent = isA ? "우측 FX 랙에 적용 중" : "우측 FX 랙에 켜 보기";
+      document.getElementById("apply-b-to-rack").dataset.active = String(!isA);
+      document.getElementById("apply-b-to-rack").textContent = !isA ? "우측 FX 랙에 적용 중" : "우측 FX 랙에 켜 보기";
+      document.getElementById("rack-viz-a").classList.toggle("hidden", !isA);
+      document.getElementById("rack-viz-b").classList.toggle("hidden", isA);
+      document.getElementById("rack-viz-toggle-btn").textContent = isA ? "2D 파형 ↕" : "1D 구간 ↔";
+    }
+
+    document.getElementById("apply-a-to-rack").addEventListener("click", () => setRackVizMode("A"));
+    document.getElementById("apply-b-to-rack").addEventListener("click", () => setRackVizMode("B"));
+    document.getElementById("rack-viz-toggle-btn").addEventListener("click", () => {
+      setRackVizMode(state.rackMode === "A" ? "B" : "A");
+    });
+
+    const togglePopBtn = document.getElementById("toggle-popover-btn");
+    const popBox = document.getElementById("norm-popover-box");
+    togglePopBtn.addEventListener("click", () => {
+      const hidden = popBox.classList.toggle("hidden");
+      togglePopBtn.dataset.active = String(!hidden);
+      document.getElementById("deck-preset-btn").textContent = hidden ? "▾" : "▴";
+    });
+    document.getElementById("deck-preset-btn").addEventListener("click", () => togglePopBtn.click());
+
+    // 프리셋 클릭 시 대표 구간 & 텐션 프리셋 반영
+    const PRESET_CONFIGS = {
+      classical: { label: "클래식 · 광대역", low: -28, high: -13, target: -16, tension: 0.50 },
+      music: { label: "음악 · 9s", low: -32, high: -10, target: -16, tension: 0.35 },
+      standard: { label: "표준 · 3s", low: -36, high: -8, target: -16, tension: 0.25 },
+      night: { label: "야간 · 0.4s", low: -42, high: -6, target: -18, tension: 0.15 },
+    };
+    document.querySelectorAll(".preset-item").forEach((item) => {
+      item.addEventListener("click", () => {
+        const key = item.dataset.preset;
+        const cfg = PRESET_CONFIGS[key];
+        if (!cfg) return;
+        document.querySelectorAll(".preset-item").forEach((el) => (el.dataset.active = String(el === item)));
+        state.lowBoundLufs = cfg.low;
+        state.highBoundLufs = cfg.high;
+        state.targetLufs = cfg.target;
+        state.tensionDbPerSec = cfg.tension;
+        document.getElementById("target-slider").value = String(cfg.target);
+        document.getElementById("target-val-lbl").textContent = `${cfg.target} LUFS`;
+        document.getElementById("tension-slider").value = cfg.tension.toFixed(2);
+        document.getElementById("tension-val-lbl").textContent = `${cfg.tension.toFixed(2)} dB/s`;
+        document.getElementById("pop-active-summary").textContent = `${cfg.label} (ON)`;
+        document.getElementById("rack-sub-desc").textContent = `audio · ${cfg.label} 적용 중`;
+        syncStaticControls();
+      });
+    });
+
+    document.getElementById("tension-slider").addEventListener("input", (ev) => {
+      state.tensionDbPerSec = Number(ev.target.value);
+      document.getElementById("tension-val-lbl").textContent = `${state.tensionDbPerSec.toFixed(2)} dB/s`;
+    });
+    document.getElementById("target-slider").addEventListener("input", (ev) => {
+      state.targetLufs = Number(ev.target.value);
+      document.getElementById("target-val-lbl").textContent = `${state.targetLufs} LUFS`;
+      syncStaticControls();
+    });
+    document.getElementById("pan-slider").addEventListener("input", (ev) => {
+      state.pan = Number(ev.target.value);
+      document.getElementById("pan-val-lbl").textContent =
+        state.pan === 0 ? "C" : state.pan < 0 ? `L${Math.abs(state.pan)}` : `R${state.pan}`;
+    });
+
+    syncStaticControls();
+
+    // 60fps 실시간 시뮬레이션 루프
+    function tick() {
+      state.phase += 0.06;
+      let baseLufs = -21.0;
+      if (state.scene === "auto") {
+        state.autoTimer = (state.autoTimer + 1) % 720; // 12초 주기 순환
+        if (state.autoTimer < 240) baseLufs = -38.0; // 여린 도입부 ppp
+        else if (state.autoTimer < 480) baseLufs = -21.0; // 중위 주선율 mf
+        else baseLufs = -7.0; // 오케스트라 강주 fff
+      } else if (state.scene === "ppp") {
+        baseLufs = -38.0;
+      } else if (state.scene === "mf") {
+        baseLufs = -21.0;
+      } else if (state.scene === "fff") {
+        baseLufs = -7.0;
+      }
+
+      const flutter = Math.sin(state.phase * 1.9) * 1.1 + Math.cos(state.phase * 3.1) * 0.6;
+      state.inputLufs = Math.max(-58, Math.min(-1, baseLufs + flutter));
+
+      const inBand = state.inputLufs >= state.lowBoundLufs && state.inputLufs <= state.highBoundLufs;
+      if (inBand) {
+        state.avgLufs += (state.inputLufs - state.avgLufs) * 0.04;
+        const targetTrim = Math.max(-16, Math.min(6, state.targetLufs - state.avgLufs));
+        state.trimDb += (targetTrim - state.trimDb) * 0.04;
+      } else {
+        // 제안 5: 구간 외 제외 시 0.0 dB 회귀 텐션 작동
+        const step = (state.tensionDbPerSec / 60) * 2.5;
+        if (Math.abs(state.trimDb) <= step) state.trimDb = 0;
+        else if (state.trimDb > 0) state.trimDb -= step;
+        else state.trimDb += step;
+      }
+
+      // 1D 바 & 팝오버 미니 바 동기화
+      const inPct = lufsToPct(state.inputLufs);
+      const avgPct = lufsToPct(state.avgLufs);
+      const fillColor = inBand ? "#00bdce" : state.inputLufs > state.highBoundLufs ? "#eda922" : "#98a4a6";
+
+      for (const fillId of ["bar1d-input-fill", "pop-mini-fill", "rack-bar1d-fill"]) {
+        const el = document.getElementById(fillId);
+        if (el) {
+          el.style.width = `${inPct}%`;
+          el.style.backgroundColor = fillColor;
+        }
+      }
+      document.getElementById("bar1d-avg-marker").style.left = `${avgPct}%`;
+
+      const statusText = inBand
+        ? "구간 내 채택 (평균 적분 중)"
+        : state.inputLufs < state.lowBoundLufs
+          ? "하한 미달 제외 · 0dB 복귀 ↺"
+          : "상한 초과 제외 · 0dB 복귀 ↺";
+
+      document.getElementById("bar1d-readout").textContent = `${state.inputLufs.toFixed(1)} LUFS (${statusText})`;
+      document.getElementById("bar1d-readout").style.color = fillColor;
+      document.getElementById("rack-in-readout").textContent = `입력 ${state.inputLufs.toFixed(1)} LUFS`;
+      document.getElementById("pop-mini-in").textContent = `입력 ${state.inputLufs.toFixed(1)} LUFS`;
+      document.getElementById("pop-mini-status").textContent = statusText;
+      document.getElementById("pop-mini-status").style.color = fillColor;
+
+      const sign = state.trimDb >= 0 ? "+" : "";
+      const trimStr = `${sign}${state.trimDb.toFixed(1)}dB`;
+      document.getElementById("ch1-sub-trim").textContent = `균일 ${trimStr}`;
+      document.getElementById("rack-trim-badge").textContent = `보정 ${trimStr}`;
+      document.getElementById("pop-mini-trim").textContent = `보정 ${trimStr}`;
+
+      const pill = document.getElementById("tension-state-pill");
+      pill.textContent = inBand ? `채택 적분 중 (${trimStr})` : `0dB 텐션 복귀 중 ↺ (${trimStr})`;
+      pill.style.color = inBand ? "#00bdce" : "#eda922";
+      pill.style.borderColor = inBand ? "#00bdce" : "#eda922";
+
+      // 양방향 보정 게인 바 (-16dB ~ +9dB, 0dB = 64%)
+      const zeroPct = 64;
+      const trimPct = ((state.trimDb + 16) / 25) * 100;
+      const biBar = document.getElementById("bipolar-trim-bar");
+      biBar.style.left = `${Math.min(zeroPct, trimPct)}%`;
+      biBar.style.width = `${Math.max(1.5, Math.abs(trimPct - zeroPct))}%`;
+      biBar.style.backgroundColor = inBand ? "#00bdce" : "#eda922";
+
+      // 결정 6-A: 스테레오 2열 L/R VU 미터 (패닝 연동 및 좌우 위상차 반영)
+      const outDb = state.inputLufs + state.trimDb;
+      const baseRatio = Math.max(0.05, Math.min(0.98, (outDb + 60) / 72));
+      const panL = state.pan <= 0 ? 1 : Math.cos((state.pan / 100) * (Math.PI / 2));
+      const panR = state.pan >= 0 ? 1 : Math.cos((-state.pan / 100) * (Math.PI / 2));
+      const stereoSpreadL = Math.sin(state.phase * 2.7) * 0.045;
+      const stereoSpreadR = Math.cos(state.phase * 2.3) * 0.045;
+
+      const ch1L = Math.max(0, (baseRatio + stereoSpreadL) * panL);
+      const ch1R = Math.max(0, (baseRatio + stereoSpreadR) * panR);
+      paintVu("ch1-vu-l", ch1L);
+      paintVu("ch1-vu-r", ch1R);
+
+      const ch2L = 0.42 + Math.sin(state.phase * 1.4) * 0.04;
+      const ch2R = 0.40 + Math.cos(state.phase * 1.7) * 0.04;
+      paintVu("ch2-vu-l", ch2L);
+      paintVu("ch2-vu-r", ch2R);
+
+      paintVu("master-vu-l", Math.min(0.95, Math.hypot(ch1L * 0.85, ch2L * 0.5)));
+      paintVu("master-vu-r", Math.min(0.95, Math.hypot(ch1R * 0.85, ch2R * 0.5)));
+
+      // 2D 캔버스 드로잉
+      drawSpectrum2D("canvas-large-a", false);
+      if (state.rackMode === "A") {
+        drawSpectrum2D("canvas-rack-a", true);
+      }
+
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>

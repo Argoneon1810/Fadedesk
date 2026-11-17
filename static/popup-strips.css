@@ -182,7 +182,7 @@
 }
 
 .master-strip .fader-well {
-  padding: 9px 10px;
+  padding: 9px 8px;
 }
 
 #console-root[data-dark="true"] .fader-well {
@@ -334,8 +334,15 @@
   white-space: nowrap;
 }
 
+.stereo-vu-pair {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  height: 100%;
+}
+
 .vu-col {
-  width: 7px;
+  width: 4.5px;
   height: 100%;
   display: flex;
   flex-direction: column-reverse;
@@ -345,7 +352,7 @@
 .vu-seg {
   width: 100%;
   flex: 1 1 0;
-  min-height: 3.5px;
+  min-height: 2px;
   border-radius: 1px;
   display: block;
 }

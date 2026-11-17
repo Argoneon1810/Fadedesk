@@ -347,6 +347,12 @@ async function handlePopupAction(msg: PopupActionMessage): Promise<void> {
       broadcastSnapshotAndBadge();
       break;
 
+    case "SET_NORM_VIZ_MODE":
+      store.setNormVizMode(msg.mode);
+      await persistSettings();
+      broadcastSnapshotAndBadge();
+      break;
+
     case "COMPLETE_ONBOARDING":
       if (store.completeOnboarding()) {
         await persistSettings();
@@ -478,7 +484,12 @@ chrome.runtime.onMessage.addListener((rawMsg: unknown, sender, sendResponse) => 
         }
         broadcastSnapshotAndBadge();
       } else if (bridgeMsg.type === "FRAME_VU") {
-        store.updateFrameVu(tabId, frameId, bridgeMsg.vuLevel, bridgeMsg.vuPeak, bridgeMsg.normTrimDb);
+        store.updateFrameVu(tabId, frameId, bridgeMsg.vuLevel, bridgeMsg.vuPeak, bridgeMsg.normTrimDb, {
+          vuLevelL: bridgeMsg.vuLevelL,
+          vuLevelR: bridgeMsg.vuLevelR,
+          inputLufs: bridgeMsg.inputLufs,
+          spectrumBins: bridgeMsg.spectrumBins,
+        });
       } else if (bridgeMsg.type === "FRAME_UNLOAD") {
         store.removeFrame(tabId, frameId);
         broadcastSnapshotAndBadge();

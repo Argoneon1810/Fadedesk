@@ -118,7 +118,27 @@ export function installAudioHook(
   }
 
   function tryAttachWebAudioToElement(el: HTMLMediaElement): boolean {
-    if (state.hookedEntries.has(el)) return true;
+    const existingEntry = state.hookedEntries.get(el);
+    if (existingEntry) {
+      // 핫스왑 시 구버전 DSP 체인(스펙트럼/스테레오 VU 미지원)을 기존 MediaElementAudioSourceNode에 무중단 재연결
+      if (typeof existingEntry.dspChain.getSpectrumBins !== "function") {
+        const ctx = ensureSharedContext(state);
+        if (ctx) {
+          try {
+            existingEntry.sourceNode.disconnect();
+            existingEntry.dspChain.dispose?.();
+            try { existingEntry.dspChain.inputNode?.disconnect(); } catch {}
+            try { existingEntry.dspChain.postAnalyser?.disconnect(); } catch {}
+            const nextChain = createDspChain(ctx, state.targetGain, state.currentDsp, state.internalBypassNodes);
+            existingEntry.sourceNode.connect(nextChain.inputNode);
+            existingEntry.dspChain = nextChain;
+          } catch {
+            // 재연결 실패 시 기존 체인 유지
+          }
+        }
+      }
+      return true;
+    }
     if (isElementCorsOrDrmRestricted(state, win, el)) return false;
     const src = el.currentSrc || el.getAttribute("src") || "";
     if (!src) return false;
@@ -143,7 +163,7 @@ export function installAudioHook(
 
   function syncElementGain(el: HTMLMediaElement, rampSec?: number): void {
     const siteVol = readSiteVolume(state, el);
-    if (!el.paused && !state.hookedEntries.has(el)) {
+    if (!el.paused) {
       tryAttachWebAudioToElement(el);
     }
     const entry = state.hookedEntries.get(el);
@@ -204,27 +224,42 @@ export function installAudioHook(
 
   function runAudioTick(): void {
     let maxRatio = 0;
+    let maxRatioL = 0;
+    let maxRatioR = 0;
     let activeTrimDb = 0;
+    let activeInputLufs = -100;
+    let activeSpectrum: number[] = [];
     let hasActiveChain = false;
 
     for (const el of state.trackedElements) {
       const isPlaying = !el.paused && !el.ended && !el.muted;
       const entry = state.hookedEntries.get(el);
       if (entry) {
-        const trim = entry.dspChain.tickDynamicDsp(state.currentDsp, isPlaying);
+        const siteVol = readSiteVolume(state, el);
+        const trim = entry.dspChain.tickDynamicDsp(state.currentDsp, isPlaying, siteVol);
         if (isPlaying || !hasActiveChain) {
           activeTrimDb = trim;
+          activeInputLufs = entry.dspChain.getInputLufs?.() ?? -100;
+          activeSpectrum = entry.dspChain.getSpectrumBins?.() ?? [];
           hasActiveChain = isPlaying || hasActiveChain;
         }
         if (state.meteringActive && isPlaying && state.targetGain > 0) {
-          const r = entry.dspChain.readPostVuRatio();
-          if (r > maxRatio) maxRatio = r;
+          const st = entry.dspChain.readPostStereoVuRatio?.() ?? {
+            left: entry.dspChain.readPostVuRatio(),
+            right: entry.dspChain.readPostVuRatio(),
+            mono: entry.dspChain.readPostVuRatio(),
+          };
+          if (st.mono > maxRatio) maxRatio = st.mono;
+          if (st.left > maxRatioL) maxRatioL = st.left;
+          if (st.right > maxRatioR) maxRatioR = st.right;
         }
       } else if (state.meteringActive && isPlaying && state.targetGain > 0) {
         const effVol = readSiteVolume(state, el) * Math.min(1, state.targetGain);
         if (effVol > 0) {
           const approxRatio = dbToRatio(linearToDb(effVol * 0.65));
           if (approxRatio > maxRatio) maxRatio = approxRatio;
+          if (approxRatio > maxRatioL) maxRatioL = approxRatio;
+          if (approxRatio > maxRatioR) maxRatioR = approxRatio;
         }
       }
     }
@@ -232,28 +267,48 @@ export function installAudioHook(
     for (const wc of state.pageContexts) {
       if (wc.ctx.state === "closed" || !wc.hasConnectedNodes) continue;
       const isPlaying = wc.ctx.state === "running";
-      const trim = wc.dspChain.tickDynamicDsp(state.currentDsp, isPlaying);
+      const trim = wc.dspChain.tickDynamicDsp(state.currentDsp, isPlaying, 1.0);
       if (isPlaying || !hasActiveChain) {
         activeTrimDb = trim;
+        activeInputLufs = wc.dspChain.getInputLufs?.() ?? -100;
+        activeSpectrum = wc.dspChain.getSpectrumBins?.() ?? [];
         hasActiveChain = isPlaying || hasActiveChain;
       }
       if (state.meteringActive && isPlaying && state.targetGain > 0) {
-        const r = wc.dspChain.readPostVuRatio();
-        if (r > maxRatio) maxRatio = r;
+        const st = wc.dspChain.readPostStereoVuRatio?.() ?? {
+          left: wc.dspChain.readPostVuRatio(),
+          right: wc.dspChain.readPostVuRatio(),
+          mono: wc.dspChain.readPostVuRatio(),
+        };
+        if (st.mono > maxRatio) maxRatio = st.mono;
+        if (st.left > maxRatioL) maxRatioL = st.left;
+        if (st.right > maxRatioR) maxRatioR = st.right;
       }
     }
 
     state.lastNormTrimDb = state.currentDsp.normActive ? activeTrimDb : 0;
+    state.lastInputLufs = activeInputLufs;
+    state.lastSpectrumBins = activeSpectrum;
 
     if (state.meteringActive) {
       const instant = Math.max(0, Math.min(1, maxRatio));
+      const instantL = Math.max(0, Math.min(1, maxRatioL));
+      const instantR = Math.max(0, Math.min(1, maxRatioR));
       state.vuCur =
         instant > state.vuCur ? state.vuCur + (instant - state.vuCur) * 0.62 : Math.max(0, state.vuCur - 0.05);
+      state.vuCurL =
+        instantL > state.vuCurL ? state.vuCurL + (instantL - state.vuCurL) * 0.62 : Math.max(0, state.vuCurL - 0.05);
+      state.vuCurR =
+        instantR > state.vuCurR ? state.vuCurR + (instantR - state.vuCurR) * 0.62 : Math.max(0, state.vuCurR - 0.05);
       state.vuPeak = state.vuCur >= state.vuPeak ? state.vuCur : Math.max(state.vuCur, state.vuPeak - 0.015);
       emitToBridge({
         type: "VU_TICK",
         vuLevel: Math.round(state.vuCur * 1000) / 1000,
         vuPeak: Math.round(state.vuPeak * 1000) / 1000,
+        vuLevelL: Math.round(state.vuCurL * 1000) / 1000,
+        vuLevelR: Math.round(state.vuCurR * 1000) / 1000,
+        inputLufs: state.lastInputLufs,
+        spectrumBins: state.lastSpectrumBins,
         normTrimDb: state.lastNormTrimDb,
       });
     }
@@ -311,6 +366,10 @@ export function installAudioHook(
       mediaTitle: sessionTitle,
       vuLevel: state.vuCur,
       vuPeak: state.vuPeak,
+      vuLevelL: state.vuCurL,
+      vuLevelR: state.vuCurR,
+      inputLufs: state.lastInputLufs,
+      spectrumBins: state.lastSpectrumBins,
       normTrimDb: state.lastNormTrimDb,
     };
   }

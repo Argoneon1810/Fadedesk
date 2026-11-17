@@ -213,6 +213,12 @@ test("dB 수치 직접 입력 파서(parseDbInput) 및 0.1dB 정밀도·예외 �
 
 test("비파괴 2계층 노멀라이저 해석 및 전역 균일 토글 시 개별 FX 100% 보존 검증", () => {
   const store = new MixerStateStore();
+  // 1-A: 기본 상태는 autoNormEnabled === true, autoNormPreset === "music"
+  assert.equal(store.getSettings().autoNormEnabled, true);
+  assert.equal(store.getSettings().autoNormPreset, "music");
+
+  // OFF 상태부터 토글 검증을 시작하기 위해 먼저 1회 토글
+  store.toggleAutoNorm();
   assert.equal(store.getSettings().autoNormEnabled, false);
 
   const baseReport = {
@@ -271,7 +277,7 @@ test("비파괴 2계층 노멀라이저 해석 및 전역 균일 토글 시 개�
   const dsp3_off = store.computeDspForTab(3);
   assert.equal(dsp3_off.normActive, false);
   assert.equal(dsp3_off.normTargetLufs, -16);
-  assert.equal(dsp3_off.normSpeed, "std");
+  assert.equal(dsp3_off.normSpeed, "slow");
 
   const dsp4_off = store.computeDspForTab(4);
   assert.equal(dsp4_off.normActive, false); // CORS 캡으로 강제 우회
@@ -293,7 +299,7 @@ test("비파괴 2계층 노멀라이저 해석 및 전역 균일 토글 시 개�
   const dsp3_on = store.computeDspForTab(3);
   assert.equal(dsp3_on.normActive, true); // 전역 스위치 추종하여 활성화
   assert.equal(dsp3_on.normTargetLufs, -16);
-  assert.equal(dsp3_on.normSpeed, "std");
+  assert.equal(dsp3_on.normSpeed, "slow");
 
   store.toggleAutoNorm(); // false
   assert.equal(store.getSettings().autoNormEnabled, false);
@@ -325,10 +331,10 @@ test("비파괴 2계층 노멀라이저 해석 및 전역 균일 토글 시 개�
   assert.deepEqual(res2, { active: false, targetLufs: -18, speed: "slow", source: "custom-off" });
 
   const res3_on = resolveEffectiveNormalizer(true, ch3.fx, false);
-  assert.deepEqual(res3_on, { active: true, targetLufs: -16, speed: "std", source: "auto" });
+  assert.deepEqual(res3_on, { active: true, targetLufs: -16, speed: "slow", source: "auto" });
 
   const res3_off = resolveEffectiveNormalizer(false, ch3.fx, false);
-  assert.deepEqual(res3_off, { active: false, targetLufs: -16, speed: "std", source: "off" });
+  assert.deepEqual(res3_off, { active: false, targetLufs: -16, speed: "slow", source: "off" });
 });
 
 test("선형 진폭 RSS 마스터 스테레오 VU 연산 및 L/R 팬 분리도 검증", () => {
@@ -523,9 +529,9 @@ test("독립 콘솔 창 크기(setPopoutBounds · clampStandaloneWindowBounds) 5
   assert.deepEqual(clampStandaloneWindowBounds(680, 480), { clamped: false, width: 680, height: 480 });
 });
 
-test("0.7.0 이지 노멀라이저 3종 프리셋(음악·표준·야간) 합성 및 온보딩 완료 플래그 검증", () => {
+test("이지 노멀라이저 4종 프리셋(클래식·음악·표준·야간) 합성 및 온보딩 완료 플래그 검증", () => {
   const store = new MixerStateStore();
-  assert.equal(store.getSettings().autoNormPreset, "standard");
+  assert.equal(store.getSettings().autoNormPreset, "music");
   assert.equal(store.getSettings().onboardingDone, false);
 
   // 온보딩 완료는 최초 1회만 true 반환 (이후 중복 호출은 false)
@@ -533,7 +539,13 @@ test("0.7.0 이지 노멀라이저 3종 프리셋(음악·표준·야간) 합성
   assert.equal(store.getSettings().onboardingDone, true);
   assert.equal(store.completeOnboarding(), false);
 
-  // 전역 따름("follow") 채널에 대한 프리셋별 목표 음압·EBU 계측 창(slow:9s / std:3s / fast:0.4s) 해석
+  // 전역 따름("follow") 채널에 대한 프리셋별 목표 음압·EBU 계측 창(slow:9s~15s / std:3s / fast:0.4s) 해석
+  assert.deepEqual(resolveEffectiveNormalizer(true, DEFAULT_CHANNEL_FX, false, "classical"), {
+    active: true,
+    targetLufs: -16,
+    speed: "slow",
+    source: "auto",
+  });
   assert.deepEqual(resolveEffectiveNormalizer(true, DEFAULT_CHANNEL_FX, false, "music"), {
     active: true,
     targetLufs: -16,

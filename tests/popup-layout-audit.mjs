@@ -182,6 +182,10 @@ function buildAuditHtml(sc) {
 
         const masterCount = document.querySelectorAll(".master-strip").length;
         if (masterCount !== 1) issues.push("MISSING_MASTER_STRIP: count=" + masterCount);
+        const masterRightVuCols = document.querySelectorAll(".master-strip .stereo-vu-pair .vu-col").length;
+        if (masterRightVuCols !== 2) {
+          issues.push("MASTER_STRIP_STEREO_VU_PAIR_MISMATCH: " + masterRightVuCols + " !== 2");
+        }
 
         // 0.7.0 첫 실행 온보딩 자동 표시 & 빈 화면 예시 채널 7단계 실화면 스포트라이트 투어 검증
         if (${JSON.stringify(Boolean(sc.testOnboardingTour))}) {
@@ -232,8 +236,27 @@ function buildAuditHtml(sc) {
             if (npr.left < rr.left - 1 || npr.right > rr.right + 1 || npr.bottom > rr.bottom + 1) {
               issues.push("NORM_POPOVER_OUT_OF_BOUNDS");
             }
-            if (normPop.querySelectorAll("[data-norm-preset]").length !== 3) {
+            if (normPop.querySelectorAll("[data-norm-preset]").length !== 4) {
               issues.push("NORM_PRESET_COUNT_MISMATCH");
+            }
+            const miniViz = normPop.querySelector(".norm-pop-mini-viz");
+            if (!miniViz) {
+              issues.push("NORM_POPOVER_MINI_VIZ_MISSING");
+            } else {
+              const nightBtn = normPop.querySelector('[data-norm-preset="night"]');
+              const previewBand = miniViz.querySelector('[data-ref="previewBand"]');
+              const miniSummary = miniViz.querySelector('[data-ref="miniSummary"]');
+              nightBtn?.dispatchEvent(new PointerEvent("pointerenter", { bubbles: true }));
+              if (!previewBand || previewBand.classList.contains("hidden")) {
+                issues.push("NORM_POPOVER_HOVER_PREVIEW_BAND_NOT_SHOWN");
+              }
+              if (!miniSummary || !miniSummary.textContent?.includes("→")) {
+                issues.push("NORM_POPOVER_HOVER_PREVIEW_SUMMARY_MISSING");
+              }
+              nightBtn?.dispatchEvent(new PointerEvent("pointerleave", { bubbles: true }));
+              if (previewBand && !previewBand.classList.contains("hidden")) {
+                issues.push("NORM_POPOVER_HOVER_PREVIEW_BAND_NOT_HIDDEN_ON_LEAVE");
+              }
             }
           }
         }
@@ -355,7 +378,13 @@ function buildAuditHtml(sc) {
           }
         }
 
-        // 1) 모든 .switch-bank가 3개 버튼(M, S, F)을 온전히 갖추었는지 검증
+        // 1) 모든 .switch-bank가 3개 버튼(M, S, F)을 온전히 갖추고, 각 .channel-strip이 스테레오 2열(.vu-col 2개)을 갖추었는지 검증
+        document.querySelectorAll(".channel-strip").forEach((strip, idx) => {
+          const vuCols = strip.querySelectorAll(".stereo-vu-pair .vu-col");
+          if (vuCols.length !== 2) {
+            issues.push("STEREO_VU_COL_COUNT_MISMATCH #" + idx + ": " + vuCols.length + " !== 2");
+          }
+        });
         document.querySelectorAll(".switch-bank").forEach((bank, idx) => {
           const btns = bank.querySelectorAll("button");
           if (btns.length !== 3) issues.push("SWITCH_BANK_COUNT_MISMATCH #" + idx + ": " + btns.length + " !== 3");
@@ -387,6 +416,33 @@ function buildAuditHtml(sc) {
         const advRack = document.getElementById("side-fx-rack");
         const advRackHeight = advRack && !advRack.classList.contains("hidden")
           ? Math.round(advRack.getBoundingClientRect().height) : 0;
+
+        if (${JSON.stringify(sc.name)} === "adv_rack_normal" && advRack && !advRack.classList.contains("hidden")) {
+          const vizToggle = advRack.querySelector('[data-ref="modeToggleBtn"]');
+          const spec2d = advRack.querySelector('[data-ref="spec2dWrap"]');
+          const bar1d = advRack.querySelector('[data-ref="bar1dWrap"]');
+          if (!vizToggle || !spec2d || !bar1d) {
+            issues.push("MISSING_NORM_VISUALIZER_ELEMENTS");
+          } else {
+            if (spec2d.classList.contains("hidden") || !bar1d.classList.contains("hidden")) {
+              issues.push("NORM_VIZ_DEFAULT_SHOULD_BE_2D");
+            }
+            if (vizToggle.getAttribute("data-icon-state") !== "collapse" || vizToggle.textContent.trim().length > 0) {
+              issues.push("NORM_VIZ_ICON_SHOULD_BE_COLLAPSE_IN_2D");
+            }
+            vizToggle.click();
+            if (!spec2d.classList.contains("hidden") || bar1d.classList.contains("hidden")) {
+              issues.push("NORM_VIZ_TOGGLE_TO_1D_FAILED");
+            }
+            if (vizToggle.getAttribute("data-icon-state") !== "expand" || vizToggle.textContent.trim().length > 0) {
+              issues.push("NORM_VIZ_ICON_SHOULD_BE_EXPAND_IN_1D");
+            }
+            vizToggle.click();
+            if (spec2d.classList.contains("hidden") || !bar1d.classList.contains("hidden")) {
+              issues.push("NORM_VIZ_TOGGLE_BACK_TO_2D_FAILED");
+            }
+          }
+        }
 
         if (${JSON.stringify(sc.name)} === "adv_rack_cors" && advRack && !advRack.classList.contains("hidden")) {
           const ch2 = document.querySelector('.channel-strip[data-tab-id="2"]');

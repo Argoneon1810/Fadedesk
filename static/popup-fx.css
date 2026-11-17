@@ -7,16 +7,16 @@
   width: 214px;
   flex-shrink: 0;
   border-left: 1px solid var(--c-border);
-  padding: 10px;
+  padding: 8px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
   font-size: 12px;
 }
 
 .fx-rack-header {
-  padding-bottom: 6px;
+  padding-bottom: 5px;
   border-bottom: 1px solid var(--c-border);
   display: flex;
   flex-direction: column;
@@ -55,7 +55,7 @@
 .fx-cards-wrap {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .fx-cards-disabled {
@@ -64,12 +64,12 @@
 }
 
 .fx-card {
-  padding: 8px;
+  padding: 6px 7px;
   border-radius: 6px;
   border: 1px solid var(--c-border);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 
 .fx-card-head {
@@ -155,4 +155,238 @@ input[type="range"].fx-range::-webkit-slider-thumb {
 
 input[type="range"].fx-range:active::-webkit-slider-thumb {
   cursor: grabbing;
+}
+
+/* 노멀라이저 2D 스펙트럼(상·하 구간 ↕) ↔ 1D 수평 브래킷(↔) 토글 시각화 & 0.0dB 회귀 텐션 스타일 */
+.norm-viz-deck {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.norm-viz-state {
+  font-size: 9.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.norm-viz-icon-btn {
+  width: 22px;
+  height: 18px;
+  padding: 0;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.norm-spec2d-box {
+  position: relative;
+  height: 76px;
+  border-radius: 5px;
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  overflow: hidden;
+}
+
+.norm-spec2d-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.norm-bound-line {
+  position: absolute;
+  left: 20px;
+  right: 0;
+  height: 12px;
+  margin-top: -6px;
+  cursor: ns-resize;
+  display: flex;
+  align-items: center;
+  z-index: 4;
+}
+
+.norm-bound-line::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--c-primary);
+}
+
+.norm-bound-low::before {
+  border-top: 1px dashed var(--c-primary);
+  background: transparent;
+}
+
+.norm-bound-tag {
+  position: relative;
+  margin-left: auto;
+  margin-right: 3px;
+  padding: 0 3px;
+  border-radius: 2px;
+  background: var(--c-bg);
+  border: 1px solid var(--c-primary);
+  color: var(--c-primary);
+  font-size: 8.5px;
+  font-weight: 700;
+  line-height: 11px;
+  white-space: nowrap;
+}
+
+.norm-target-line {
+  position: absolute;
+  left: 20px;
+  right: 0;
+  height: 0;
+  border-top: 1px dotted var(--c-accent);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.norm-target-tag {
+  position: absolute;
+  left: 2px;
+  top: -7px;
+  padding: 0 3px;
+  border-radius: 2px;
+  background: var(--c-bg);
+  border: 1px solid var(--c-accent);
+  color: var(--c-accent);
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 11px;
+  white-space: nowrap;
+}
+
+.norm-bar1d-box {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 3px 0 1px;
+}
+
+.norm-bar1d-track {
+  position: relative;
+  height: 18px;
+  border-radius: 4px;
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  overflow: visible;
+}
+
+.norm-bar1d-fill {
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 0 2px 2px 0;
+}
+
+.norm-bar1d-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 189, 206, 0.16);
+  border-left: 2px solid var(--c-primary);
+  border-right: 2px solid var(--c-primary);
+}
+
+.norm-bar1d-target {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 1.5px;
+  background: var(--c-primary);
+  z-index: 3;
+}
+
+.norm-bar1d-preview-band {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  background: rgba(230, 151, 50, 0.24);
+  border-left: 2px dashed var(--c-accent);
+  border-right: 2px dashed var(--c-accent);
+  pointer-events: none;
+  z-index: 4;
+}
+
+.norm-bar1d-preview-target {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 1.5px;
+  border-left: 1.5px dashed var(--c-accent);
+  pointer-events: none;
+  z-index: 5;
+}
+
+.norm-bar1d-handle {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 10px;
+  margin-left: -5px;
+  cursor: ew-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+}
+
+.norm-bar1d-grip {
+  width: 6px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--c-primary);
+  color: var(--c-on-primary, #000);
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 14px;
+  text-align: center;
+}
+
+.norm-bar1d-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  color: var(--c-muted);
+}
+
+.norm-bipolar-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.norm-bipolar-track {
+  position: relative;
+  height: 7px;
+  border-radius: 999px;
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  overflow: hidden;
+}
+
+.norm-bipolar-zero {
+  position: absolute;
+  left: 64%;
+  top: 0;
+  bottom: 0;
+  width: 1.5px;
+  background: var(--c-text);
+  z-index: 2;
+}
+
+.norm-bipolar-bar {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  border-radius: 999px;
 }

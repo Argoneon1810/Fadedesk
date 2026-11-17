@@ -6,8 +6,9 @@ export type ThemeKey = "teal" | "amber" | "cobalt" | "emerald";
 export type ModePref = "dark" | "light" | "system";
 export type ExclusiveMode = "solo" | "focus";
 export type ChannelNormMode = "follow" | "on" | "off";
-export type AutoNormPreset = "music" | "standard" | "night";
+export type AutoNormPreset = "classical" | "music" | "standard" | "night";
 export type NormSpeedPreset = "slow" | "std" | "fast";
+export type NormVizMode = "spectrum2d" | "bar1d";
 export type CompRatioPreset = 2 | 4 | 8;
 export type EffectiveNormSource = "off" | "auto" | "custom-on" | "custom-off";
 
@@ -48,6 +49,12 @@ export interface ChannelFxState {
   normTargetLufs: number;
   /** 개별 모드("on")에서 사용할 EBU 3341 계측 창·응답 속도 ("slow": 9s | "std": 3s | "fast": 0.4s) */
   normSpeed: NormSpeedPreset;
+  /** 대표 음압 채택 구간 하한 (-50 .. -18 LUFS, 기본 -32) — 이보다 작은 여린 소리는 적분에서 제외 */
+  normRangeLowLufs?: number;
+  /** 대표 음압 채택 구간 상한 (-24 .. -4 LUFS, 기본 -10) — 이보다 큰 강주 폭발음은 적분에서 제외 */
+  normRangeHighLufs?: number;
+  /** 적분 생략 시 보정 게인이 0.0dB로 복귀하는 텐션 속도 (0.05 .. 1.50 dB/s, 기본 0.35) */
+  normZeroReturnRate?: number;
   /** 스테레오 패닝 (-100 좌측 끝 .. 0 중앙 .. +100 우측 끝) */
   pan: number;
   /** 바닥 잡음 차단 노이즈 게이트 활성 여부 */
@@ -67,11 +74,24 @@ export interface ResolvedNormalizerConfig {
   source: EffectiveNormSource;
 }
 
+export interface ResolvedNormalizerBounds {
+  rangeLowLufs: number;
+  rangeHighLufs: number;
+  zeroReturnRate: number;
+  minDwellBlocks: number;
+  maxBoostDb: number;
+}
+
 /** 백그라운드가 MAIN 월드 오디오 DSP 체인에 전달하는 실효 신호 처리 파라미터 */
 export interface DspConfigPayload {
   normActive: boolean;
   normTargetLufs: number;
   normSpeed: NormSpeedPreset;
+  normRangeLowLufs?: number;
+  normRangeHighLufs?: number;
+  normZeroReturnRate?: number;
+  normMinDwellBlocks?: number;
+  normMaxBoostDb?: number;
   pan: number;
   gateEnabled: boolean;
   gateThresholdDb: number;
@@ -89,10 +109,12 @@ export interface PersistedSettings {
   masterDb: number;
   /** 전체 출력 음소거 여부 */
   masterMuted: boolean;
-  /** 전역 Easy 다이나믹 노멀라이저(`균일 N`) 스위치 — `normMode === "follow"` 채널에만 적용 */
+  /** 전역 Easy 다이나믹 노멀라이저(`균일 N`) 스위치 — `normMode === "follow"` 채널에만 적용 (기본값 true) */
   autoNormEnabled: boolean;
-  /** 전역 Easy 노멀라이저 프리셋 ("music" | "standard" | "night", 기본 "standard") */
+  /** 전역 Easy 노멀라이저 프리셋 ("classical" | "music" | "standard" | "night", 기본 "music") */
   autoNormPreset: AutoNormPreset;
+  /** 고급 FX 노멀라이저 시각화 뷰 모드 ("spectrum2d" 2D 프리퀀시 상·하 구간 | "bar1d" 1D 수평 구간) */
+  normVizMode?: NormVizMode;
   /** 최초 실행 온보딩(빠른 투어 안내) 확인/생략 완료 여부 */
   onboardingDone: boolean;
   /** 우측 고급 FX 사이드 랙 열림 여부 */
@@ -114,6 +136,10 @@ export interface FrameMediaPayload {
   mediaTitle: string;
   vuLevel: number;
   vuPeak: number;
+  vuLevelL?: number;
+  vuLevelR?: number;
+  inputLufs?: number;
+  spectrumBins?: number[];
   normTrimDb: number;
 }
 
@@ -135,8 +161,12 @@ export interface TabChannelState {
   corsCap: boolean;
   fx: ChannelFxState;
   normTrimDb: number;
+  inputLufs?: number;
+  spectrumBins?: number[];
   vuLevel: number;
   vuPeak: number;
+  vuLevelL?: number;
+  vuLevelR?: number;
   firstSeenAt: number;
   sortOrder: number;
 }
@@ -164,12 +194,31 @@ export type HookCommand =
 /** MAIN 월드 오디오 훅이 브리지로 내보내는 이벤트 */
 export type HookReportEvent =
   | { type: "MEDIA_REPORT"; payload: FrameMediaPayload }
-  | { type: "VU_TICK"; vuLevel: number; vuPeak: number; normTrimDb: number };
+  | {
+      type: "VU_TICK";
+      vuLevel: number;
+      vuPeak: number;
+      vuLevelL?: number;
+      vuLevelR?: number;
+      inputLufs?: number;
+      spectrumBins?: number[];
+      normTrimDb: number;
+    };
 
 /** ISOLATED 콘텐츠 브리지 -> 백그라운드 메시지 */
 export type BridgeToBgMessage =
   | { source: "content-bridge"; type: "FRAME_REPORT"; payload: FrameMediaPayload }
-  | { source: "content-bridge"; type: "FRAME_VU"; vuLevel: number; vuPeak: number; normTrimDb: number }
+  | {
+      source: "content-bridge";
+      type: "FRAME_VU";
+      vuLevel: number;
+      vuPeak: number;
+      vuLevelL?: number;
+      vuLevelR?: number;
+      inputLufs?: number;
+      spectrumBins?: number[];
+      normTrimDb: number;
+    }
   | { source: "content-bridge"; type: "FRAME_UNLOAD" };
 
 /** 백그라운드 -> ISOLATED 콘텐츠 브리지 메시지 */
@@ -193,6 +242,7 @@ export type PopupActionMessage =
   | { source: "popup"; type: "TOGGLE_MASTER_MUTE" }
   | { source: "popup"; type: "TOGGLE_AUTO_NORM" }
   | { source: "popup"; type: "SET_AUTO_NORM_PRESET"; preset: AutoNormPreset; enable?: boolean }
+  | { source: "popup"; type: "SET_NORM_VIZ_MODE"; mode: NormVizMode }
   | { source: "popup"; type: "COMPLETE_ONBOARDING" }
   | { source: "popup"; type: "SET_ADV_RACK_OPEN"; open: boolean }
   | { source: "popup"; type: "UPDATE_TAB_FX"; tabId: number; patch: Partial<ChannelFxState> }
@@ -214,5 +264,14 @@ export type BgToPopupPortMessage =
   | { type: "SNAPSHOT"; snapshot: ConsoleSnapshot }
   | {
       type: "VU_BATCH";
-      levels: Array<{ tabId: number; vuLevel: number; vuPeak: number; normTrimDb: number }>;
+      levels: Array<{
+        tabId: number;
+        vuLevel: number;
+        vuPeak: number;
+        vuLevelL?: number;
+        vuLevelR?: number;
+        inputLufs?: number;
+        spectrumBins?: number[];
+        normTrimDb: number;
+      }>;
     };

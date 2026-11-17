@@ -156,10 +156,11 @@ const KO_HELP: HelpLocaleBundle = {
       ],
     },
     {
-      title: "자동 볼륨 균일화(균일 N ▾)와 전체 마스터 제어",
+      title: "자동 볼륨 균일화(균일 N ▾) 옵션 읽는 법과 마스터 제어",
       bullets: [
-        "상단 [균일 N ▾] 본체를 누르면 자동 볼륨 보정을 즉시 켜거나 끄며, 우측 ▾를 눌러 음악(강약 보존) · 표준(영상/방송) · 야간(강한 균일) 프리셋을 전환합니다.",
-        "우측 고정 [마스터 버스]에서는 스테레오 출력 레벨을 보며 전체 마스터 볼륨과 전체 정지·전체 음소거를 한 번에 제어합니다.",
+        "상단 [균일 N ▾]는 기본 켜짐(음악 모드)으로 동작하며, 우측 ▾에서 클래식(광대역) · 음악(기본) · 표준(영상/방송) · 야간(강한 균일) 4종 프리셋을 고릅니다.",
+        "옵션 읽는 법: '-16 LUFS · 9s'는 목표 기준 음량(-16)과 평균을 재는 시간 창(9초)을 뜻하며, '대표 [-32..-10] · 0회귀'는 이 구간 안의 소리만 평균에 반영하고 여린 독주나 폭발음에서는 원음(0.0dB)으로 물러난다는 뜻입니다(채널 하단 '균일 +2.4dB'는 현재 자동 보정량).",
+        "우측 고정 [마스터 버스]와 각 채널의 2열(L/R) [레벨 미터]로 스테레오 출력 밸런스를 보며 전체 볼륨·정지·음소거를 한 번에 제어합니다.",
       ],
     },
     {
@@ -174,18 +175,18 @@ const KO_HELP: HelpLocaleBundle = {
   ],
   advSteps: [
     {
-      title: "BS.1770 게이팅 노멀라이저 원리와 이지 프리셋",
+      title: "대표 음압 구간(3-A) · 0.0dB 회귀 텐션과 4종 프리셋",
       bullets: [
-        "노멀라이저는 방송 표준(ITU-R BS.1770-4 K-가중 · -10 LU 상대 게이트, EBU 3341 계측 창) 기반 실시간 청취 보정 엔진으로 동작합니다(납품 검수용 공인 계측기가 아님). 무음·잔향 구간은 상대 게이트가 자동 배제해 직후 타격음이 튀지 않습니다.",
-        "단기·순간 창(3s·0.4s)에서는 한 곡 안의 조용한 도입부~후렴 대비에도 반응해 역동성이 줄어들 수 있으므로 음악 감상 시에는 음악(9s) 프리셋을 권장합니다.",
-        "상단 [균일 N ▾]의 음악(9s) · 표준(3s) · 야간(0.4s) 프리셋은 고급 FX의 목표 LUFS와 응답 속도를 표준 조합으로 바로 지정합니다.",
+        "노멀라이저는 원본 입력 음압 중 '평균 음압을 대표하기에 마땅한 구간(예: -32 ~ -10 LUFS)' 안에 들어온 소리만 적분하며, 구간 밖의 여린 독주(ppp)나 강주 폭발(fff)은 제외하고 0.0dB 회귀 텐션으로 서서히 원음 볼륨(0.0dB)으로 복귀합니다.",
+        "클래식처럼 곡 전체에 걸쳐 다이나믹 레인지가 넓은 음악은 [균일 N ▾]에서 '클래식(광대역)' 프리셋을 고르면 급격한 도약 스침을 배제하고 원음 강약 대비를 보존합니다.",
+        "상단 [균일 N ▾] 팝오버 하단에서도 현재 탭의 실시간 입력 음압과 대표 채택 구간을 미니 바로 즉시 확인할 수 있습니다.",
       ],
     },
     {
-      title: "채널별 2계층 노멀라이저 (전역 따름 · 개별 ON/OFF)",
+      title: "대표 구간 확장·축소 뷰 & 채널별 2계층 제어",
       bullets: [
-        "상단 고급 FX ▸를 열면 선택 채널을 전역 따름, 개별 ON, 개별 OFF 중 하나로 지정할 수 있으며, 전역 스위치를 껐다 켜도 개별 설정값은 지워지지 않습니다.",
-        "개별 ON을 고르면 채널마다 목표 음압(-20 ~ -12 LUFS)과 반응 속도(완만 · 표준 · 민감)를 직접 지정합니다.",
+        "상단 고급 FX ▸를 열면 노멀라이저 카드 우측 상단 확장·축소 아이콘 버튼으로 대표 구간 표시기를 펼쳐 실시간 주파수 스펙트럼 위 상·하(↕) 임계선으로 조절하거나, 접어서 수평 막대 좌·우(↔) 브래킷으로 간결하게 조절할 수 있습니다.",
+        "전역 따름 · 개별 ON · 개별 OFF 2계층으로 분리되어 전역 스위치를 꺼도 개별 설정은 보존되며, 개별 모드에서 대표 구간(하한·상한), 0dB 회귀 텐션 속도(dB/s), 목표 LUFS를 직접 튜닝합니다.",
       ],
     },
     {
@@ -368,10 +369,11 @@ const EN_HELP: HelpLocaleBundle = {
       ],
     },
     {
-      title: "Auto Loudness (Level N ▾) & Master Bus",
+      title: "Reading Auto Loudness (Level N ▾) Options & Master Bus",
       bullets: [
-        "Click [Level N ▾] to toggle automatic loudness leveling on 'Follow' strips, or click ▾ to switch between Music (9s), Standard (3s), and Night (0.4s) presets.",
-        "Use the docked right-hand [Master Bus] to monitor stereo RSS output and control Master Gain, Pause All, and Mute All in one place.",
+        "[Level N ▾] is enabled by default (Music mode); open ▾ to switch among Classical (Wide), Music (Default), Standard (Video), and Night (Even) presets.",
+        "How to read options: '-16 LUFS · 9s' shows target loudness (-16) and averaging window (9s); 'Band [-32..-10] · Return' means only sounds inside that band update the average while soft solos or loud tuttis gently return toward 0.0 dB.",
+        "Monitor stereo L/R [Level Meter] bars on each strip and use [Master Bus] for Master Gain, Pause All, and Mute All.",
       ],
     },
     {
@@ -386,18 +388,18 @@ const EN_HELP: HelpLocaleBundle = {
   ],
   advSteps: [
     {
-      title: "BS.1770 Gated Normalizer & Presets",
+      title: "Representative Band (3-A) · 0.0 dB Return Tension & Presets",
       bullets: [
-        "Loudness leveling uses a real-time ITU-R BS.1770-4 K-weighted engine with a -10 LU relative gate and EBU 3341 windows (for listening comfort, not certified broadcast delivery). Silent pauses freeze gain so resumes do not spike.",
-        "Short windows (3s / 0.4s) also react to quiet-verse-to-chorus contrasts inside a single song; choose the Music (9s) preset to preserve musical dynamics.",
-        "The top [Level N ▾] presets map directly to target LUFS and ballistics without overwriting custom per-channel FX.",
+        "The normalizer integrates only sounds within the Representative Band (e.g. -32 to -10 LUFS). Quiet solos (ppp) and loud tuttis (fff) outside the band are excluded while gain gently returns toward 0.0 dB.",
+        "For wide-dynamic-range classical repertoire, choose the 'Classical (Wide)' preset in [Level N ▾] to ignore transient crossings and preserve natural dynamics.",
+        "A live mini bar at the bottom of the [Level N ▾] popover previews current input loudness and the active target band.",
       ],
     },
     {
-      title: "2-Tier Channel Normalizer (Follow · On · Off)",
+      title: "Expand / Collapse Band View & 2-Tier Channel Control",
       bullets: [
-        "Open FX Rack ▸ to set any strip to Follow, On, or Off. Toggling global Level N never erases per-strip settings.",
-        "When set to On, each strip can use its own target loudness (-20 to -12 LUFS) and response speed (Slow · Std · Fast).",
+        "In FX Rack ▸, click the expand/collapse icon button in the Normalizer card to expand the real-time frequency spectrum (drag top/bottom ↕ lines) or collapse into a compact horizontal bar (drag left/right ↔ brackets).",
+        "Set any strip to Follow, On, or Off without losing custom values; drag the representative band bounds, 0 dB return tension speed, and target LUFS directly.",
       ],
     },
     {

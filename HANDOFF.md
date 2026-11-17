@@ -24,7 +24,8 @@ npm run build
 | `work/v6-dsp-design` | 설계·시안(`v6`·`v7`) | 2계층 노멀라이저 및 우측 사이드 FX 랙 C안 확정 |
 | `v0.3.0` (`work/channel-dsp-and-console-ux`) | `0.3.0` | 채널 다이나믹 노멀라이저(`균일 N`), 고급 FX 사이드 랙(Pan/Gate/Comp), 투톤 빗금 게이지, 그립 드래그 정렬, 선형 RSS 마스터 VU |
 | `v0.4.0` / `main` | `0.4.0` | 박스형 `SOUND MANAGER` 명판 배지 + 원형 `?` 2탭 4단계 도움말 모달 + 8종 실물 부품 인라인 SVG 중첩 카드 + 순수 Node 빌드 파이프라인 |
-| **`work/popout-and-popup-sizing`** | **`0.5.0` → `0.5.1`** | 독립 콘솔 창 분리(`↗`, 창 크기 기억), 팝업 고정 외곽 폭(`740px`/`780px`), 중첩 카드 호버 비간섭, 블럭형 드래그 슬롯 일원화, 비선택 채널 원클릭 동작, 보조 `AudioContext` 보유 사이트(YouTube Music 등) 재생 복귀 수정 |
+| `v1.0.0` / `main` | `1.0.0` | 크롬 웹 스토어 최초 출시 판 (한·영 다국어, 7단계 스포트라이트 투어, 안전 고지, BS.1770-4 노멀라이저) |
+| **`v1.1.0-unstable` (`work/normalizer` → `main`)** | **`1.1.0` (`1.1.0-unstable`)** | 3-A 대표 음압 구간·`0.0 dB` 회귀 텐션·스침 방지 체류(`Dwell`), `클래식` 프리셋 신설, 기본 켜짐(`음악`), 사이트 볼륨 역보정·피크 헤드룸 가드, 실시간 16대역 스펙트럼 확장/축소 뷰, 팝오버 호버 구간 비교, 전 채널·마스터 우측 2열(L/R) 미터 통일 |
 
 *(참고: GitHub 웹 설정의 Default branch가 첫 푸시 당시 생성된 `work/db-inline-edit`로 되어 있다면 `git clone -b main ...`으로 클론하거나, GitHub 저장소 `Settings → General → Default branch`에서 `main`으로 변경하면 `-b main` 없이도 항상 최신 `main`이 클론된다.)*
 
@@ -61,3 +62,8 @@ npm run build
    - **추후 조치 방향**:
      - 핫스왑 시 `sourceNode`(`MediaElementAudioSourceNode`)는 유지하되 기존 `dspChain` 연결만 `disconnect()`하고 새 판의 `createDspChain()`으로 무중단 재결선(Rewire)하도록 개선.
      - 활성 재생 미디어 기준으로 `corsRestricted`를 판정하고, 소스 교체 시 `mediaKeys` 유무를 재확인해 이전 스트림의 보안 제한 기록을 갱신하도록 수정.
+
+2. **`#norm-popover` 닫힘 시 포커스 잔류로 인한 `aria-hidden` 경고 (`Known Issue` · 다음 작업 시 수정)**
+   - **현상**: `popup.html?view=window` 등에서 `#norm-popover` 내부의 `<button.norm-preset-item>`을 클릭해 프리셋을 선택하고 팝오버를 닫을 때, 클릭된 버튼이 포커스를 유지한 상태에서 부모 `<div#norm-popover>`에 `aria-hidden="true"`가 설정되면서 Chrome 확장 오류 창에 `Blocked aria-hidden on an element because its descendant retained focus` 경고가 기록됨.
+   - **원인**: `src/popup/norm-popover.ts`에서 `!open`일 때 내부 자식 요소의 포커스를 상단 트리거 버튼(`#auto-norm-preset-btn`)으로 되돌리거나 `blur()`하지 않고 바로 `pop.setAttribute("aria-hidden", "true")`를 호출함(`#theme-popover`도 동일 패턴 점검 필요).
+   - **조치 예정**: 팝오버가 닫힐 때(`!open`) `pop.contains(document.activeElement)`이면 트리거 버튼(`#auto-norm-preset-btn` / `#theme-dot-btn`)으로 포커스를 복원하고 `inert` 속성을 함께 동기화하도록 수정.

@@ -1,28 +1,12 @@
 import {
-  buildDspConfigPayload,
-  clampAlpha,
-  clampDb,
-  computeAppliedLinearGain,
-  DEFAULT_CHANNEL_FX,
-  extractDomainInfo,
-  isChannelPinned,
-  resolveEffectiveNormalizer,
-  sanitizeChannelFx,
-  toggleExclusiveFlags,
-  type MixerContextInput,
+  buildDspConfigPayload, clampAlpha, clampDb, computeAppliedLinearGain, DEFAULT_CHANNEL_FX,
+  extractDomainInfo, isChannelPinned, resolveEffectiveNormalizer, sanitizeChannelFx,
+  toggleExclusiveFlags, type MixerContextInput,
 } from "../shared/mixer-math";
 import { DEFAULT_SETTINGS } from "../shared/palettes";
 import type {
-  AutoNormPreset,
-  ChannelFxState,
-  ConsoleSnapshot,
-  DspConfigPayload,
-  ExclusiveMode,
-  FrameMediaPayload,
-  ModePref,
-  PersistedSettings,
-  TabChannelState,
-  ThemeKey,
+  AutoNormPreset, ChannelFxState, ConsoleSnapshot, DspConfigPayload, ExclusiveMode,
+  FrameMediaPayload, ModePref, PersistedSettings, TabChannelState, ThemeKey,
 } from "../shared/types";
 
 /**
@@ -60,6 +44,16 @@ export interface SerializedTabSession {
   frames: Array<[number, FrameMediaPayload]>;
 }
 
+interface FrameVuSample {
+  vuLevel: number;
+  vuPeak: number;
+  vuLevelL?: number;
+  vuLevelR?: number;
+  inputLufs?: number;
+  spectrumBins?: number[];
+  normTrimDb: number;
+}
+
 interface InternalTabRecord {
   tabId: number;
   windowId: number;
@@ -79,7 +73,7 @@ interface InternalTabRecord {
   firstSeenAt: number;
   sortOrder: number;
   frames: Map<number, FrameMediaPayload>;
-  frameVu: Map<number, { vuLevel: number; vuPeak: number; normTrimDb: number }>;
+  frameVu: Map<number, FrameVuSample>;
 }
 
 export class MixerStateStore {
@@ -102,12 +96,15 @@ export class MixerStateStore {
     if (!raw) return;
     const validThemes: ThemeKey[] = ["teal", "amber", "cobalt", "emerald"];
     const validModes: ModePref[] = ["dark", "light", "system"];
-    const validNormPresets: AutoNormPreset[] = ["music", "standard", "night"];
+    const validNormPresets: AutoNormPreset[] = ["classical", "music", "standard", "night"];
 
     if (raw.theme && validThemes.includes(raw.theme)) this.settings.theme = raw.theme;
     if (raw.modePref && validModes.includes(raw.modePref)) this.settings.modePref = raw.modePref;
     if (raw.autoNormPreset && validNormPresets.includes(raw.autoNormPreset)) {
       this.settings.autoNormPreset = raw.autoNormPreset;
+    }
+    if (raw.normVizMode === "spectrum2d" || raw.normVizMode === "bar1d") {
+      this.settings.normVizMode = raw.normVizMode;
     }
     if (typeof raw.onboardingDone === "boolean") this.settings.onboardingDone = raw.onboardingDone;
     if (typeof raw.alpha === "number") this.settings.alpha = clampAlpha(raw.alpha);
@@ -272,10 +269,11 @@ export class MixerStateStore {
     vuLevel: number,
     vuPeak: number,
     normTrimDb = 0,
+    extra?: { vuLevelL?: number; vuLevelR?: number; inputLufs?: number; spectrumBins?: number[] },
   ): void {
     const rec = this.tabs.get(tabId);
     if (!rec) return;
-    rec.frameVu.set(frameId, { vuLevel, vuPeak, normTrimDb });
+    rec.frameVu.set(frameId, { vuLevel, vuPeak, normTrimDb, ...extra });
   }
 
   hasKnownTab(tabId: number): boolean {
@@ -357,10 +355,16 @@ export class MixerStateStore {
   }
 
   setAutoNormPreset(preset: AutoNormPreset, enable?: boolean): void {
-    const valid: AutoNormPreset[] = ["music", "standard", "night"];
+    const valid: AutoNormPreset[] = ["classical", "music", "standard", "night"];
     if (!valid.includes(preset)) return;
     this.settings.autoNormPreset = preset;
     if (typeof enable === "boolean") this.settings.autoNormEnabled = enable;
+  }
+
+  setNormVizMode(mode: "spectrum2d" | "bar1d"): void {
+    if (mode === "spectrum2d" || mode === "bar1d") {
+      this.settings.normVizMode = mode;
+    }
   }
 
   completeOnboarding(): boolean {
@@ -567,22 +571,40 @@ export class MixerStateStore {
     return 0;
   }
 
-  collectVuLevels(): Array<{ tabId: number; vuLevel: number; vuPeak: number; normTrimDb: number }> {
-    return this.getVisibleRecords().map((rec) => {
-      const playing = this.isRecordPlaying(rec);
-      const corsCap = this.isRecordCorsCapped(rec);
-      const normTrimDb = this.readRecordNormTrimDb(rec, corsCap);
-      if (!playing || rec.muted || this.settings.masterMuted) {
-        return { tabId: rec.tabId, vuLevel: 0, vuPeak: 0, normTrimDb };
+  private aggregateRecordVu(rec: InternalTabRecord, playing: boolean): FrameVuSample {
+    const corsCap = this.isRecordCorsCapped(rec);
+    const normTrimDb = this.readRecordNormTrimDb(rec, corsCap);
+    if (!playing || rec.muted || this.settings.masterMuted) {
+      return { vuLevel: 0, vuPeak: 0, vuLevelL: 0, vuLevelR: 0, inputLufs: -100, normTrimDb };
+    }
+    let vuLevel = 0, vuPeak = 0, vuLevelL = 0, vuLevelR = 0, inputLufs = -100;
+    let spectrumBins: number[] | undefined;
+    for (const v of rec.frameVu.values()) {
+      if (v.vuLevel > vuLevel) vuLevel = v.vuLevel;
+      if (v.vuPeak > vuPeak) vuPeak = v.vuPeak;
+      if (typeof v.vuLevelL === "number" && v.vuLevelL > vuLevelL) vuLevelL = v.vuLevelL;
+      if (typeof v.vuLevelR === "number" && v.vuLevelR > vuLevelR) vuLevelR = v.vuLevelR;
+      if (typeof v.inputLufs === "number" && v.inputLufs > inputLufs) {
+        inputLufs = v.inputLufs;
+        spectrumBins = v.spectrumBins;
       }
-      let vuLevel = 0;
-      let vuPeak = 0;
-      for (const v of rec.frameVu.values()) {
-        if (v.vuLevel > vuLevel) vuLevel = v.vuLevel;
-        if (v.vuPeak > vuPeak) vuPeak = v.vuPeak;
-      }
-      return { tabId: rec.tabId, vuLevel, vuPeak, normTrimDb };
-    });
+    }
+    return {
+      vuLevel,
+      vuPeak,
+      vuLevelL: vuLevelL || vuLevel,
+      vuLevelR: vuLevelR || vuLevel,
+      inputLufs,
+      spectrumBins,
+      normTrimDb,
+    };
+  }
+
+  collectVuLevels(): Array<{ tabId: number } & FrameVuSample> {
+    return this.getVisibleRecords().map((rec) => ({
+      tabId: rec.tabId,
+      ...this.aggregateRecordVu(rec, this.isRecordPlaying(rec)),
+    }));
   }
 
   buildSnapshot(): ConsoleSnapshot {
@@ -596,14 +618,7 @@ export class MixerStateStore {
       }
       const playing = this.isRecordPlaying(rec);
       const corsCap = this.isRecordCorsCapped(rec);
-      let vuLevel = 0;
-      let vuPeak = 0;
-      if (playing && !rec.muted && !this.settings.masterMuted) {
-        for (const v of rec.frameVu.values()) {
-          if (v.vuLevel > vuLevel) vuLevel = v.vuLevel;
-          if (v.vuPeak > vuPeak) vuPeak = v.vuPeak;
-        }
-      }
+      const vu = this.aggregateRecordVu(rec, playing);
 
       const fallbackTitle = (() => {
         try {
@@ -633,9 +648,13 @@ export class MixerStateStore {
         focus: rec.focus,
         corsCap,
         fx: { ...rec.fx },
-        normTrimDb: this.readRecordNormTrimDb(rec, corsCap),
-        vuLevel,
-        vuPeak,
+        normTrimDb: vu.normTrimDb,
+        inputLufs: vu.inputLufs,
+        spectrumBins: vu.spectrumBins,
+        vuLevel: vu.vuLevel,
+        vuPeak: vu.vuPeak,
+        vuLevelL: vu.vuLevelL,
+        vuLevelR: vu.vuLevelR,
         firstSeenAt: rec.firstSeenAt,
         sortOrder: rec.sortOrder,
       };

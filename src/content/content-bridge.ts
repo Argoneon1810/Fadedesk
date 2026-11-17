@@ -89,6 +89,10 @@ export function installContentBridge(options?: { buildId?: string }): ContentBri
           type: "FRAME_VU",
           vuLevel: parsed.vuLevel,
           vuPeak: parsed.vuPeak,
+          vuLevelL: parsed.vuLevelL,
+          vuLevelR: parsed.vuLevelR,
+          inputLufs: parsed.inputLufs,
+          spectrumBins: parsed.spectrumBins,
           normTrimDb: typeof parsed.normTrimDb === "number" ? parsed.normTrimDb : 0,
         });
       }

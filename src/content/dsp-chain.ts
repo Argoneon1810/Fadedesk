@@ -22,9 +22,14 @@ const BS1770_OFFSET_DB = -0.691;
 const ABSOLUTE_GATE_LUFS = -55.0;
 /** ITU-R BS.1770-4 §2.2 표준 상대 게이트 오프셋 (-10.0 LU -> 평균제곱 0.1배) */
 const RELATIVE_GATE_LINEAR_RATIO = 0.1;
-/** 최대 슬라이딩 참조 창 블록 수 (120 * 75ms = 9.0s) */
-const MAX_GATE_HISTORY_BLOCKS = 120;
+/** 최대 슬라이딩 참조 창 블록 수 (200 * 75ms = 15.0s) */
+const MAX_GATE_HISTORY_BLOCKS = 200;
+/** 하한 미달(휴지기·잔향) 시 0.0dB 회귀 텐션 작동 전 단기 호흡 유예 블록 수 (24 * 75ms = 1.8s) */
+const LOW_HOLD_GRACE_BLOCKS = 24;
+/** 급격한 음압 도약 시 대표 구간을 스쳐 지나가는 과도 샘플을 걸러내는 최소 연속 블록 수 (6 * 75ms = 0.45s) */
+const TRANSIENT_CONFIRM_BLOCKS = 6;
 const MIN_NORM_TRIM_DB = -16.0;
+const SPECTRUM_BIN_COUNT = 16;
 
 /**
  * EBU Tech 3341 계측 시간축(Momentary 0.45s / Short-Term 3.0s / Long-Term 9.0s) 및
@@ -49,7 +54,12 @@ const NORM_BALLISTIC_PROFILES: Readonly<
 export const DEFAULT_DSP_CONFIG: Readonly<DspConfigPayload> = {
   normActive: false,
   normTargetLufs: -16,
-  normSpeed: "std",
+  normSpeed: "slow",
+  normRangeLowLufs: -32,
+  normRangeHighLufs: -10,
+  normZeroReturnRate: 0.35,
+  normMinDwellBlocks: 1,
+  normMaxBoostDb: 6.0,
   pan: 0,
   gateEnabled: false,
   gateThresholdDb: -48,
@@ -70,14 +80,22 @@ export interface DspChainInstance {
   applyFaderGain: (targetGain: number, rampSec?: number) => void;
   /** 정적 DSP 파라미터(패닝·컴프레서) 즉시 반영 */
   syncStaticDsp: (dsp: DspConfigPayload) => void;
-  /** 75ms 주기로 노이즈 게이트와 BS.1770-4 게이팅 라우드니스 노멀라이저 이득을 갱신하고 현재 보정 dB를 반환 */
-  tickDynamicDsp: (dsp: DspConfigPayload, isPlaying: boolean) => number;
+  /** 75ms 주기로 노이즈 게이트와 대표 구간·0dB 텐션 노멀라이저 이득을 갱신하고 현재 보정 dB를 반환 */
+  tickDynamicDsp: (dsp: DspConfigPayload, isPlaying: boolean, siteVolume?: number) => number;
   /** 탭 내 곡·영상 전환 시 이전 프로그램의 적분 이력을 초기화 */
   notifyTrackTransition: () => void;
-  /** 최종 출력 VU 비율 [0, 1] 측정 */
+  /** 최종 출력 모노 VU 비율 [0, 1] 측정 */
   readPostVuRatio: () => number;
+  /** 최종 출력 스테레오(L/R) 및 모노 VU 비율 [0, 1] 측정 (6-A) */
+  readPostStereoVuRatio: () => { left: number; right: number; mono: number };
   /** 현재 노멀라이저 보정 dB 조회 */
   getNormTrimDb: () => number;
+  /** 최근 계측된 원본 입력 음압(LUFS) 조회 */
+  getInputLufs: () => number;
+  /** 2D 프리퀀시 스펙트럼 시각화용 16-밴드 dB 배열([-60..0]) 조회 */
+  getSpectrumBins: () => number[];
+  /** 핫스왑 시 구 DSP 체인 연결 해제 */
+  dispose?: () => void;
 }
 
 type RawConnectFn = (
@@ -124,27 +142,105 @@ export function computePeakRatioFromAnalyser(
 function measureBlockMeanSquare(
   analyser: AnalyserNode,
   buf: Float32Array<ArrayBuffer>,
-): { meanSquare: number; rmsDb: number; blockLufs: number } {
+): { meanSquare: number; rmsDb: number; blockLufs: number; peakDb: number } {
   try {
     analyser.getFloatTimeDomainData(buf);
     let sumSq = 0;
+    let peak = 0;
     const len = buf.length || 1;
     for (let i = 0; i < len; i++) {
       const sample = buf[i] ?? 0;
+      const abs = Math.abs(sample);
+      if (abs > peak) peak = abs;
       sumSq += sample * sample;
     }
     const meanSquare = sumSq / len;
     if (meanSquare <= 1e-10) {
-      return { meanSquare: 0, rmsDb: -100, blockLufs: -100 };
+      return { meanSquare: 0, rmsDb: -100, blockLufs: -100, peakDb: -100 };
     }
     const powerDb = 10 * Math.log10(meanSquare);
+    const peakDb = peak <= 1e-5 ? -100 : 20 * Math.log10(peak);
     return {
       meanSquare,
       rmsDb: powerDb,
       blockLufs: BS1770_OFFSET_DB + powerDb,
+      peakDb,
     };
   } catch {
-    return { meanSquare: 0, rmsDb: -100, blockLufs: -100 };
+    return { meanSquare: 0, rmsDb: -100, blockLufs: -100, peakDb: -100 };
+  }
+}
+
+function extractSpectrumBins(
+  analyser: AnalyserNode,
+  freqBuf: Float32Array<ArrayBuffer>,
+  intrinsicLufs: number,
+  sampleRate = 48000,
+): number[] {
+  const anyAnalyser = analyser as unknown as {
+    getFloatFrequencyData?: (array: Float32Array<ArrayBuffer>) => void;
+  };
+  if (typeof anyAnalyser.getFloatFrequencyData !== "function" || intrinsicLufs <= -59.5) {
+    return Array.from({ length: SPECTRUM_BIN_COUNT }, () => -60);
+  }
+  try {
+    anyAnalyser.getFloatFrequencyData(freqBuf);
+    const total = freqBuf.length || 1024;
+    const nyquist = Math.max(8000, sampleRate / 2);
+    const binHz = nyquist / total;
+    const fMin = 25;
+    const fMax = Math.min(18000, nyquist * 0.92);
+    const bandPowers: number[] = [];
+
+    for (let b = 0; b < SPECTRUM_BIN_COUNT; b++) {
+      const f0 = fMin * Math.pow(fMax / fMin, b / SPECTRUM_BIN_COUNT);
+      const f1 = fMin * Math.pow(fMax / fMin, (b + 1) / SPECTRUM_BIN_COUNT);
+      const x0 = Math.max(1, f0 / binHz);
+      const x1 = Math.max(x0 + 0.25, Math.min(total - 1, f1 / binHz));
+
+      let powerSum = 0;
+      let weightSum = 0;
+      const kStart = Math.max(1, Math.floor(x0));
+      const kEnd = Math.min(total - 1, Math.ceil(x1));
+
+      if (kEnd <= kStart + 1) {
+        const xMid = 0.5 * (x0 + x1);
+        const kLow = Math.max(1, Math.min(total - 2, Math.floor(xMid)));
+        const frac = xMid - kLow;
+        const dbLow = freqBuf[kLow] ?? -120;
+        const dbHigh = freqBuf[kLow + 1] ?? -120;
+        const interpDb =
+          (Number.isFinite(dbLow) ? dbLow : -120) * (1 - frac) +
+          (Number.isFinite(dbHigh) ? dbHigh : -120) * frac;
+        powerSum = interpDb > -115 ? Math.pow(10, interpDb / 10) : 0;
+        weightSum = 1;
+      } else {
+        for (let k = kStart; k <= kEnd; k++) {
+          const val = freqBuf[k] ?? -120;
+          if (Number.isFinite(val) && val > -115) {
+            powerSum += Math.pow(10, val / 10);
+          }
+          weightSum += 1;
+        }
+      }
+      // 옥타브 대역 에너지 밀도(핑크 노이즈 기준 평탄화: 대역폭 비례 가중)
+      const bandEnergy = weightSum > 0 ? powerSum / Math.sqrt(weightSum) : 0;
+      bandPowers.push(bandEnergy);
+    }
+
+    const totalPower = bandPowers.reduce((acc, p) => acc + p, 0);
+    if (totalPower <= 1e-12) {
+      return Array.from({ length: SPECTRUM_BIN_COUNT }, () => -60);
+    }
+    const meanBandPower = totalPower / SPECTRUM_BIN_COUNT;
+    return bandPowers.map((p) => {
+      if (p <= 1e-14) return -60;
+      const relDb = 10 * Math.log10(p / meanBandPower);
+      const calibratedDb = intrinsicLufs + relDb;
+      return Math.max(-60, Math.min(0, Math.round(calibratedDb * 10) / 10));
+    });
+  } catch {
+    return Array.from({ length: SPECTRUM_BIN_COUNT }, () => -60);
   }
 }
 
@@ -179,11 +275,13 @@ export function createDspChain(
   const preAnalyser = ctx.createAnalyser();
   preAnalyser.fftSize = 2048;
   const preBuffer = new Float32Array(new ArrayBuffer(preAnalyser.fftSize * 4));
+  const freqBuffer = new Float32Array(new ArrayBuffer((preAnalyser.fftSize / 2) * 4));
 
   const anyCtx = ctx as unknown as {
     createBiquadFilter?: () => BiquadFilterNode;
     createDynamicsCompressor?: () => DynamicsCompressorNode;
     createStereoPanner?: () => StereoPannerNode;
+    createChannelSplitter?: (numberOfOutputs?: number) => ChannelSplitterNode;
   };
 
   // 1. ITU-R BS.1770-4 §2.1 2단 K-가중 필터 사이드체인 계측 경로
@@ -245,6 +343,7 @@ export function createDspChain(
 
   let tailNode: AudioNode = faderGain;
   let stereoPanner: StereoPannerNode | null = null;
+  let currentPan = initialDsp.pan;
   if (typeof anyCtx.createStereoPanner === "function") {
     stereoPanner = anyCtx.createStereoPanner.call(ctx);
     stereoPanner.pan.value = Math.max(-1, Math.min(1, initialDsp.pan / 100));
@@ -263,16 +362,61 @@ export function createDspChain(
     tailNode = safetyLimiter;
   }
 
+  let postAnalyserL: AnalyserNode | null = null;
+  let postAnalyserR: AnalyserNode | null = null;
+  let postBufferL: Float32Array<ArrayBuffer> | null = null;
+  let postBufferR: Float32Array<ArrayBuffer> | null = null;
+  if (typeof anyCtx.createChannelSplitter === "function") {
+    try {
+      const splitter = anyCtx.createChannelSplitter.call(ctx, 2);
+      postAnalyserL = ctx.createAnalyser();
+      postAnalyserR = ctx.createAnalyser();
+      postAnalyserL.fftSize = 256;
+      postAnalyserR.fftSize = 256;
+      postBufferL = new Float32Array(new ArrayBuffer(postAnalyserL.fftSize * 4));
+      postBufferR = new Float32Array(new ArrayBuffer(postAnalyserR.fftSize * 4));
+      connectNode(tailNode, splitter);
+      splitter.connect(postAnalyserL, 0);
+      splitter.connect(postAnalyserR, 1);
+      connectNode(postAnalyserL, zeroSink);
+      connectNode(postAnalyserR, zeroSink);
+    } catch {
+      postAnalyserL = null;
+      postAnalyserR = null;
+    }
+  }
+
   internalBypassNodes.add(postAnalyser);
   connectNode(tailNode, postAnalyser);
   connectNode(postAnalyser, ctx.destination);
 
   let gateOpen = true;
   let normTrimDb = 0;
-  /** ITU-R BS.1770-4 절대 게이트를 통과한 최근 K-가중 블록 평균제곱(z_k) 슬라이딩 링 버퍼 */
+  let lastInputLufs = -100;
+  let lastSpectrumBins: number[] = Array.from({ length: SPECTRUM_BIN_COUNT }, () => -60);
+  /** 대표 음압 구간([하한, 상한])으로 확정된 K-가중 블록 평균제곱(z_k) 슬라이딩 링 버퍼 */
   const zHistory: number[] = [];
+  /** 급격한 음압 점프(스침) 판별을 위한 임시 진입 버퍼 */
+  const tentativeBuffer: number[] = [];
+  let consecutiveInBand = 0;
+  let skippedLowBlocks = 0;
+
+  function applyZeroReturnTension(zeroReturnRate: number): void {
+    if (zeroReturnRate <= 0 || Math.abs(normTrimDb) < 0.005) {
+      if (Math.abs(normTrimDb) < 0.005) normTrimDb = 0;
+      return;
+    }
+    const stepDb = zeroReturnRate * TICK_SEC;
+    if (normTrimDb > 0) {
+      normTrimDb = Math.max(0, normTrimDb - stepDb);
+    } else {
+      normTrimDb = Math.min(0, normTrimDb + stepDb);
+    }
+    setAudioParamSmooth(normGain.gain, ctx, dbToLinear(normTrimDb), GAIN_SMOOTH_TAU_SEC);
+  }
 
   function syncStaticDsp(dsp: DspConfigPayload): void {
+    currentPan = dsp.pan;
     if (!dsp.normActive && normTrimDb !== 0) {
       normTrimDb = 0;
       setAudioParamSmooth(normGain.gain, ctx, 1.0, 0.04);
@@ -293,9 +437,29 @@ export function createDspChain(
     }
   }
 
-  function tickDynamicDsp(dsp: DspConfigPayload, isPlaying: boolean): number {
+  function tickDynamicDsp(dsp: DspConfigPayload, isPlaying: boolean, siteVolume = 1.0): number {
     syncStaticDsp(dsp);
-    const { meanSquare, rmsDb, blockLufs } = measureBlockMeanSquare(preAnalyser, preBuffer);
+    const { meanSquare, rmsDb, blockLufs, peakDb } = measureBlockMeanSquare(preAnalyser, preBuffer);
+
+    // 사이트 자체 볼륨 슬라이더(siteVolume)를 낮춘 사용자를 초저음량 음원으로 오판하지 않도록 원음 기준 음압 복원
+    const clampedSiteVol = Math.max(0.05, Math.min(1, Number.isFinite(siteVolume) && siteVolume > 0 ? siteVolume : 1));
+    const siteVolDbOffset = meanSquare > 0 ? 20 * Math.log10(clampedSiteVol) : 0;
+    const intrinsicMeanSquare = meanSquare > 0 ? meanSquare / (clampedSiteVol * clampedSiteVol) : 0;
+    const intrinsicLufs = meanSquare > 0 ? blockLufs - siteVolDbOffset : -100;
+    const intrinsicPeakDb = meanSquare > 0 ? peakDb - siteVolDbOffset : -100;
+
+    if (isPlaying && meanSquare > 0) {
+      lastInputLufs = Math.round(intrinsicLufs * 10) / 10;
+      lastSpectrumBins = extractSpectrumBins(
+        preAnalyser,
+        freqBuffer,
+        lastInputLufs,
+        typeof ctx.sampleRate === "number" && ctx.sampleRate > 0 ? ctx.sampleRate : 48000,
+      );
+    } else if (!isPlaying) {
+      lastInputLufs = -100;
+      lastSpectrumBins = Array.from({ length: SPECTRUM_BIN_COUNT }, () => -60);
+    }
 
     // 1. 노이즈 게이트 (3dB 히스테리시스로 발화 말끝 잘림 방지)
     if (dsp.gateEnabled && isPlaying) {
@@ -315,7 +479,7 @@ export function createDspChain(
       setAudioParamSmooth(gateGain.gain, ctx, 1.0, GATE_ATTACK_TAU_SEC);
     }
 
-    // 2. ITU-R BS.1770-4 + EBU Tech 3341 게이팅 라우드니스 노멀라이저
+    // 2. 3-A 대표 음압 구간([하한, 상한] LUFS) + 0.0dB 회귀 텐션 + 스침 방지 체류 라우드니스 노멀라이저
     if (!dsp.normActive) {
       normTrimDb = Math.abs(normTrimDb) < 0.08 ? 0 : normTrimDb * 0.72;
       setAudioParamSmooth(normGain.gain, ctx, dbToLinear(normTrimDb), 0.04);
@@ -326,31 +490,93 @@ export function createDspChain(
       return Math.round(normTrimDb * 10) / 10;
     }
 
-    // Stage A: BS.1770 절대 게이트(Γ_a = -55 LUFS) 미만 무음·바닥 히스 구간은 게인 적분 동결(Gated AGC Hold)
-    if (blockLufs < ABSOLUTE_GATE_LUFS || meanSquare <= 0) {
+    const lowLufs =
+      typeof dsp.normRangeLowLufs === "number" ? dsp.normRangeLowLufs : ABSOLUTE_GATE_LUFS;
+    const highLufs =
+      typeof dsp.normRangeHighLufs === "number" ? Math.max(lowLufs + 4, dsp.normRangeHighLufs) : 0;
+    const zeroReturnRate =
+      typeof dsp.normZeroReturnRate === "number" ? Math.max(0, dsp.normZeroReturnRate) : 0.35;
+    const minDwellBlocks =
+      typeof dsp.normMinDwellBlocks === "number" ? Math.max(1, dsp.normMinDwellBlocks) : 1;
+    const profile = NORM_BALLISTIC_PROFILES[dsp.normSpeed] ?? NORM_BALLISTIC_PROFILES.std;
+    const maxBoostDb =
+      typeof dsp.normMaxBoostDb === "number" ? dsp.normMaxBoostDb : profile.maxBoostDb;
+
+    // Stage A: BS.1770 절대 무음(-55 LUFS) 미만은 완전 침묵 동결
+    if (intrinsicLufs < ABSOLUTE_GATE_LUFS || intrinsicMeanSquare <= 0) {
+      tentativeBuffer.length = 0;
+      consecutiveInBand = 0;
       return Math.round(normTrimDb * 10) / 10;
     }
 
-    zHistory.push(meanSquare);
-    if (zHistory.length > MAX_GATE_HISTORY_BLOCKS) {
+    // Stage B: 3-A 대표 음압 구간([lowLufs, highLufs]) 판별
+    const belowBand = intrinsicLufs < lowLufs;
+    const aboveBand = intrinsicLufs > highLufs;
+    if (belowBand || aboveBand) {
+      // 대표 구간을 잠깐 스쳐 지나가다 빠져나간 미확정 샘플은 폐기(스침 방지)
+      tentativeBuffer.length = 0;
+      consecutiveInBand = 0;
+      if (aboveBand) {
+        skippedLowBlocks = 0;
+        if (normTrimDb > 0) {
+          // 상한 초과(강주 폭발 fff): 이전 여린 구간에서 걸린 양수 부스트가 리미터를 때리지 않도록 즉시 0.0dB 텐션 복귀 작동
+          applyZeroReturnTension(zeroReturnRate);
+        }
+      } else {
+        // 하한 미달(여린 독주 ppp / 프리즈): 단기 호흡 유예(1.8s) 후 0.0dB 텐션 복귀 작동
+        skippedLowBlocks++;
+        if (skippedLowBlocks > LOW_HOLD_GRACE_BLOCKS) {
+          applyZeroReturnTension(zeroReturnRate);
+        }
+      }
+      return Math.round(normTrimDb * 10) / 10;
+    }
+
+    // 대표 구간 내라도 기존 확정 평균 대비 -10 LU 미만인 급격한 잔향/휴지기이면 동결 후 텐션 적용
+    if (zHistory.length > 0) {
+      let sumExisting = 0;
+      for (let i = 0; i < zHistory.length; i++) sumExisting += zHistory[i]!;
+      const relativeGateZ = (sumExisting / zHistory.length) * RELATIVE_GATE_LINEAR_RATIO;
+      if (intrinsicMeanSquare < relativeGateZ) {
+        tentativeBuffer.length = 0;
+        consecutiveInBand = 0;
+        skippedLowBlocks++;
+        if (skippedLowBlocks > LOW_HOLD_GRACE_BLOCKS) {
+          applyZeroReturnTension(zeroReturnRate);
+        }
+        return Math.round(normTrimDb * 10) / 10;
+      }
+    }
+
+    consecutiveInBand++;
+    skippedLowBlocks = 0;
+
+    // 스침 방지(Minimum In-Band Dwell): 체류 조건(minDwellBlocks > 1)이 활성화된 상태에서
+    // 빈 윈도우에 첫 진입 시 최소 연속 블록(TRANSIENT_CONFIRM_BLOCKS)에 도달하기 전까지는 임시 버퍼에만 보관
+    const requiredConfirm = minDwellBlocks > 1 ? Math.min(TRANSIENT_CONFIRM_BLOCKS, minDwellBlocks) : 1;
+    if (zHistory.length === 0 && consecutiveInBand < requiredConfirm) {
+      tentativeBuffer.push(intrinsicMeanSquare);
+      applyZeroReturnTension(zeroReturnRate);
+      return Math.round(normTrimDb * 10) / 10;
+    }
+
+    if (tentativeBuffer.length > 0) {
+      for (const tz of tentativeBuffer) {
+        zHistory.push(tz);
+      }
+      tentativeBuffer.length = 0;
+    }
+    zHistory.push(intrinsicMeanSquare);
+    const maxWindow = Math.max(MAX_GATE_HISTORY_BLOCKS, profile.windowBlocks);
+    while (zHistory.length > maxWindow) {
       zHistory.shift();
     }
 
-    // Stage B: 참조 창 내 절대 게이트 통과 블록 평균제곱으로 상대 게이트 임계치(Γ_r = L_Γa - 10.0 LU) 산출
+    // Stage C: 활성 계측 창에서 상대 게이트를 통과한 대표 블록 평균제곱 산출
     let sumAll = 0;
-    for (let i = 0; i < zHistory.length; i++) {
-      sumAll += zHistory[i]!;
-    }
-    const meanUngated = sumAll / zHistory.length;
-    const relativeGateZ = meanUngated * RELATIVE_GATE_LINEAR_RATIO;
+    for (let i = 0; i < zHistory.length; i++) sumAll += zHistory[i]!;
+    const relativeGateZ = (sumAll / zHistory.length) * RELATIVE_GATE_LINEAR_RATIO;
 
-    // 현재 유입되는 신호 자체가 상대 게이트(-10 LU) 아래의 잔향·프리즈·휴지기이면 전경 신호 복귀 전까지 게인 동결
-    if (meanSquare < relativeGateZ) {
-      return Math.round(normTrimDb * 10) / 10;
-    }
-
-    // Stage C: 활성 EBU 3341 계측 창(0.45s / 3.0s / 9.0s)에서 상대 게이트를 통과한 전경 블록 평균제곱 산출
-    const profile = NORM_BALLISTIC_PROFILES[dsp.normSpeed] ?? NORM_BALLISTIC_PROFILES.std;
     const startIdx = Math.max(0, zHistory.length - profile.windowBlocks);
     let gatedSum = 0;
     let gatedCount = 0;
@@ -366,19 +592,49 @@ export function createDspChain(
     }
 
     const gatedLoudnessLufs = BS1770_OFFSET_DB + 10 * Math.log10(gatedSum / gatedCount);
-    const targetTrimDb = Math.max(
+    const maturity = minDwellBlocks > 1 ? Math.min(1, zHistory.length / minDwellBlocks) : 1;
+
+    // 피크 헤드룸 가드(문제 2 해결): 양수 부스트가 말단 -1.0dBFS 안전 리미터(20:1)를 때려 음색을 찌그러뜨리지 않도록 상한 보호
+    const safeHeadroomBoost =
+      intrinsicPeakDb > -40 ? Math.max(0, -1.2 - intrinsicPeakDb) : maxBoostDb;
+    const effectiveMaxBoost = Math.min(maxBoostDb, safeHeadroomBoost);
+
+    const rawTargetTrimDb = Math.max(
       MIN_NORM_TRIM_DB,
-      Math.min(profile.maxBoostDb, dsp.normTargetLufs - gatedLoudnessLufs),
+      Math.min(effectiveMaxBoost, dsp.normTargetLufs - gatedLoudnessLufs),
     );
+    const targetTrimDb = rawTargetTrimDb * maturity;
 
     // Stage D: 1차 지수 볼리스틱스 (감쇠 시 τ_attack, 증폭·복귀 시 τ_release)
     const tauSec = targetTrimDb < normTrimDb ? profile.attackTauSec : profile.releaseTauSec;
     const alpha = 1 - Math.exp(-TICK_SEC / tauSec);
     normTrimDb += alpha * (targetTrimDb - normTrimDb);
-    normTrimDb = Math.max(MIN_NORM_TRIM_DB, Math.min(profile.maxBoostDb, normTrimDb));
+    normTrimDb = Math.max(MIN_NORM_TRIM_DB, Math.min(maxBoostDb, normTrimDb));
 
     setAudioParamSmooth(normGain.gain, ctx, dbToLinear(normTrimDb), GAIN_SMOOTH_TAU_SEC);
     return Math.round(normTrimDb * 10) / 10;
+  }
+
+  function readPostStereoVuRatio(): { left: number; right: number; mono: number } {
+    const mono = computePeakRatioFromAnalyser(postAnalyser, postBuffer);
+    if (postAnalyserL && postAnalyserR && postBufferL && postBufferR) {
+      const left = computePeakRatioFromAnalyser(postAnalyserL, postBufferL);
+      const right = computePeakRatioFromAnalyser(postAnalyserR, postBufferR);
+      if (left > 0 || right > 0) {
+        return { left, right, mono: Math.max(mono, left, right) };
+      }
+    }
+    if (mono <= 0) return { left: 0, right: 0, mono: 0 };
+    const clampedPan = Math.max(-100, Math.min(100, currentPan));
+    if (clampedPan === 0) return { left: mono, right: mono, mono };
+    const amp = Math.pow(10, (-60 + mono * 72) / 20);
+    const gainL = clampedPan <= 0 ? 1 : Math.cos((clampedPan / 100) * (Math.PI / 2));
+    const gainR = clampedPan >= 0 ? 1 : Math.cos((-clampedPan / 100) * (Math.PI / 2));
+    return {
+      left: gainL <= 0.001 ? 0 : dbToRatio(Math.min(12, linearToDb(amp * gainL))),
+      right: gainR <= 0.001 ? 0 : dbToRatio(Math.min(12, linearToDb(amp * gainR))),
+      mono,
+    };
   }
 
   syncStaticDsp(initialDsp);
@@ -397,8 +653,19 @@ export function createDspChain(
     tickDynamicDsp,
     notifyTrackTransition: () => {
       zHistory.length = 0;
+      tentativeBuffer.length = 0;
+      consecutiveInBand = 0;
+      skippedLowBlocks = 0;
     },
     readPostVuRatio: () => computePeakRatioFromAnalyser(postAnalyser, postBuffer),
+    readPostStereoVuRatio,
     getNormTrimDb: () => Math.round(normTrimDb * 10) / 10,
+    getInputLufs: () => lastInputLufs,
+    getSpectrumBins: () => lastSpectrumBins.slice(),
+    dispose: () => {
+      try { inputNode.disconnect(); } catch {}
+      try { postAnalyser.disconnect(); } catch {}
+      try { zeroSink.disconnect(); } catch {}
+    },
   };
 }

@@ -85,28 +85,39 @@ export function getThemeLabel(theme: ThemeKey, locale: UiLocale = getUiLocale())
 
 const AUTO_NORM_META_EN: Record<
   AutoNormPreset,
-  { label: string; shortLabel: string; badge: string; summary: string }
+  { label: string; shortLabel: string; badge: string; spec: string; summary: string }
 > = {
+  classical: {
+    label: "Classical (Wide Range)",
+    shortLabel: "Class.",
+    badge: "-16 LUFS · Wide(15s)",
+    spec: "Band [-28..-13] · Dwell 1.8s · Return 0.50dB/s · Max +4dB",
+    summary:
+      "Excludes soft solos (ppp) and loud tuttis (fff) while returning toward 0.0 dB to preserve wide dynamics.",
+  },
   music: {
-    label: "Music (Dynamic)",
+    label: "Music (Default)",
     shortLabel: "Music",
     badge: "-16 LUFS · Slow(9s)",
+    spec: "Band [-32..-10] · Dwell 1.2s · Return 0.35dB/s · Max +6dB",
     summary:
-      "9s BS.1770 gated window preserves intra-song chorus dynamics while matching loudness across tracks.",
+      "Preserves intra-song chorus dynamics while gently matching average loudness across tracks.",
   },
   standard: {
     label: "Standard (Video)",
     shortLabel: "Std",
     badge: "-16 LUFS · Std(3s)",
+    spec: "Band [-36..-8] · Dwell 0.45s · Return 0.25dB/s · Max +7.5dB",
     summary:
-      "3s EBU 3341 short-term window balances loudness across video, live stream, and lecture tabs.",
+      "Balances speech and background loudness quickly across video, live stream, and lecture tabs.",
   },
   night: {
     label: "Night (Even)",
     shortLabel: "Night",
     badge: "-18 LUFS · Fast(0.4s)",
+    spec: "Band [-42..-6] · Dwell 0.15s · Return 0.15dB/s · Max +9dB",
     summary:
-      "0.4s EBU 3341 momentary window tames sudden loud peaks quickly while keeping speech clear.",
+      "Tames sudden loud peaks quickly while keeping quiet speech clear for late-night listening.",
   },
 };
 
@@ -117,18 +128,23 @@ export function getLocalizedPresetMeta(
   label: string;
   shortLabel: string;
   badge: string;
+  spec: string;
   targetLufs: number;
   speed: NormSpeedPreset;
+  rangeLowLufs: number;
+  rangeHighLufs: number;
+  zeroReturnRate: number;
   summary: string;
 } {
-  const base = AUTO_NORM_PRESET_META[preset] ?? AUTO_NORM_PRESET_META.standard;
+  const base = AUTO_NORM_PRESET_META[preset] ?? AUTO_NORM_PRESET_META.music;
   if (locale !== "en") return base;
-  const en = AUTO_NORM_META_EN[preset] ?? AUTO_NORM_META_EN.standard;
+  const en = AUTO_NORM_META_EN[preset] ?? AUTO_NORM_META_EN.music;
   return {
     ...base,
     label: en.label,
     shortLabel: en.shortLabel,
     badge: en.badge,
+    spec: en.spec,
     summary: en.summary,
   };
 }
@@ -229,6 +245,19 @@ export interface UiDictionary {
   fxNormTargetAria: string;
   fxNormModes: Record<ChannelNormMode, string>;
   fxNormSpeeds: Record<NormSpeedPreset, string>;
+  fxVizExpandTitle: string;
+  fxVizCollapseTitle: string;
+  fxBoundHighTag: (lufs: number) => string;
+  fxBoundLowTag: (lufs: number) => string;
+  fxTargetPinTag: (lufs: number) => string;
+  fxRangeSummary: (low: number, high: number) => string;
+  fxRangePreview: (curLow: number, curHigh: number, nextLow: number, nextHigh: number) => string;
+  fxTensionLabel: string;
+  fxTensionAria: string;
+  fxStateInBand: string;
+  fxStateReturnZero: string;
+  fxStateIdle: string;
+  normMiniTitle: string;
   fxPanCardTitle: string;
   fxPanResetTitle: string;
   fxPanAria: string;
@@ -335,6 +364,19 @@ const KO_UI: UiDictionary = {
   fxNormTargetAria: "개별 목표 음압 LUFS",
   fxNormModes: { follow: "전역 따름", on: "개별 ON", off: "개별 OFF" },
   fxNormSpeeds: { slow: "완만", std: "표준", fast: "민감" },
+  fxVizExpandTitle: "대표 구간 표시기 펼치기 (주파수 스펙트럼 확장)",
+  fxVizCollapseTitle: "대표 구간 표시기 접기 (막대 축소)",
+  fxBoundHighTag: (l) => `상한 ${l} ↕`,
+  fxBoundLowTag: (l) => `하한 ${l} ↕`,
+  fxTargetPinTag: (l) => `목표 ${l}`,
+  fxRangeSummary: (low, high) => `대표 [${low}..${high}]`,
+  fxRangePreview: (curLow, curHigh, nextLow, nextHigh) => `대표 [${curLow}..${curHigh}] → [${nextLow}..${nextHigh}]`,
+  fxTensionLabel: "0dB 회귀 텐션",
+  fxTensionAria: "적분 생략 시 0.0dB 복귀 텐션 속도",
+  fxStateInBand: "채택 적분 중",
+  fxStateReturnZero: "0dB 복귀 ↺",
+  fxStateIdle: "대기 중",
+  normMiniTitle: "실시간 음압 · 대표 구간",
   fxPanCardTitle: "패닝 (Pan)",
   fxPanResetTitle: "클릭 시 중앙(C) 복귀",
   fxPanAria: "스테레오 좌우 패닝",
@@ -441,6 +483,19 @@ const EN_UI: UiDictionary = {
   fxNormTargetAria: "Target loudness LUFS",
   fxNormModes: { follow: "Follow", on: "On", off: "Off" },
   fxNormSpeeds: { slow: "Slow", std: "Std", fast: "Fast" },
+  fxVizExpandTitle: "Expand representative band visualizer",
+  fxVizCollapseTitle: "Collapse representative band visualizer",
+  fxBoundHighTag: (l) => `Max ${l} ↕`,
+  fxBoundLowTag: (l) => `Min ${l} ↕`,
+  fxTargetPinTag: (l) => `Tgt ${l}`,
+  fxRangeSummary: (low, high) => `Band [${low}..${high}]`,
+  fxRangePreview: (curLow, curHigh, nextLow, nextHigh) => `Band [${curLow}..${curHigh}] → [${nextLow}..${nextHigh}]`,
+  fxTensionLabel: "0dB Return",
+  fxTensionAria: "0.0 dB return tension speed when out of band",
+  fxStateInBand: "In-Band Active",
+  fxStateReturnZero: "0dB Return ↺",
+  fxStateIdle: "Idle",
+  normMiniTitle: "Live Input & Target Band",
   fxPanCardTitle: "Stereo Pan",
   fxPanResetTitle: "Click to reset to Center (C)",
   fxPanAria: "Stereo left-right pan",

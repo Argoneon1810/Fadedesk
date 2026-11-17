@@ -58,6 +58,7 @@ export interface ChannelStripRefs {
   knobLine: HTMLElement;
   scaleItems: Array<{ db: number; el: HTMLDivElement }>;
   vu: LedColumnRef;
+  vuR: LedColumnRef;
   readoutBtn: HTMLElement;
   dbText: HTMLElement;
   subText: HTMLElement;
@@ -156,7 +157,7 @@ export function paintLedColumn(
   }
 }
 
-function buildScaleDom(): { wrap: HTMLDivElement; items: Array<{ db: number; el: HTMLDivElement }> } {
+export function buildScaleDom(): { wrap: HTMLDivElement; items: Array<{ db: number; el: HTMLDivElement }> } {
   const wrap = document.createElement("div");
   wrap.className = "scale-wrap";
   const items = SCALE_TICKS.map((db) => {
@@ -286,9 +287,14 @@ export function buildChannelStripDom(
 
   const scale = buildScaleDom();
   const vu = createLedColumn();
+  const vuR = createLedColumn();
+  const stereoPair = document.createElement("div");
+  stereoPair.className = "stereo-vu-pair";
+  stereoPair.appendChild(vu.col);
+  stereoPair.appendChild(vuR.col);
   const well = el.querySelector('[data-ref="faderWell"]')!;
   well.appendChild(scale.wrap);
-  well.appendChild(vu.col);
+  well.appendChild(stereoPair);
 
   const q = <T extends HTMLElement>(name: string): T => el.querySelector(`[data-ref="${name}"]`) as T;
   const refs: ChannelStripRefs = {
@@ -309,6 +315,7 @@ export function buildChannelStripDom(
     knobLine: q("knobLine"),
     scaleItems: scale.items,
     vu,
+    vuR,
     readoutBtn: q("readoutBtn"),
     dbText: q("dbText"),
     subText: q("subText"),
@@ -381,6 +388,35 @@ export function buildChannelStripDom(
   refs.focusBtn.onclick = (ev) => cb.onToggleMode(initialCh.tabId, "focus", ev.shiftKey);
 
   return refs;
+}
+
+export function paintChannelStereoVu(
+  r: ChannelStripRefs,
+  ch: TabChannelState,
+  t: ThemeTokens,
+): void {
+  const hasExplicit =
+    !ch.corsCap &&
+    typeof ch.vuLevelL === "number" &&
+    typeof ch.vuLevelR === "number" &&
+    (ch.vuLevelL !== ch.vuLevel || ch.vuLevelR !== ch.vuLevel);
+  let lvlL = ch.vuLevel;
+  let lvlR = ch.vuLevel;
+  if (hasExplicit) {
+    lvlL = ch.vuLevelL!;
+    lvlR = ch.vuLevelR!;
+  } else if (!ch.corsCap && ch.vuLevel > 0 && ch.fx.pan !== 0) {
+    const pan = Math.max(-100, Math.min(100, ch.fx.pan));
+    const amp = Math.pow(10, (-60 + ch.vuLevel * 72) / 20);
+    const gL = pan <= 0 ? 1 : Math.cos((pan / 100) * (Math.PI / 2));
+    const gR = pan >= 0 ? 1 : Math.cos((-pan / 100) * (Math.PI / 2));
+    lvlL = gL <= 0.001 ? 0 : Math.max(0, Math.min(1, (20 * Math.log10(amp * gL) + 60) / 72));
+    lvlR = gR <= 0.001 ? 0 : Math.max(0, Math.min(1, (20 * Math.log10(amp * gR) + 60) / 72));
+  }
+  const peakL = lvlL >= ch.vuPeak ? lvlL : Math.min(ch.vuPeak, lvlL + 0.08);
+  const peakR = lvlR >= ch.vuPeak ? lvlR : Math.min(ch.vuPeak, lvlR + 0.08);
+  paintLedColumn(r.vu.segs, lvlL, peakL, t);
+  paintLedColumn(r.vuR.segs, lvlR, peakR, t);
 }
 
 export function syncChannelReadoutSub(
@@ -516,7 +552,7 @@ export function syncChannelStripDom(
   r.knob.style.color = ch.focus ? t.onPrimary : ch.solo ? t.onAccent : t.text;
   r.knobLine.style.backgroundColor = ch.focus ? t.onPrimary : ch.solo ? t.onAccent : t.text;
 
-  paintLedColumn(r.vu.segs, ch.vuLevel, ch.vuPeak, t);
+  paintChannelStereoVu(r, ch, t);
 
   if (r.readoutBtn.dataset.editing === "true") {
     r.readoutBtn.style.borderColor = t.primary;

@@ -16,9 +16,10 @@ import { buildHelpModalDom, syncHelpModalDom, type HelpModalRefs } from "./help-
 import { ICONS } from "./icons";
 import { buildMasterStripDom, syncMasterStripDom, updateMasterBusVu, type MasterStripRefs } from "./master-view";
 import { renderNormPopoverDom } from "./norm-popover";
+import { syncPopoverMiniVizDom } from "./norm-visualizer";
 import { initViewModeAndPopout } from "./popout-window";
 import {
-  attachKnobDrag, buildChannelStripDom, paintLedColumn,
+  attachKnobDrag, buildChannelStripDom, paintChannelStereoVu,
   syncChannelReadoutSub, syncChannelStripDom,
   type ChannelStripRefs, type StripCallbacks,
 } from "./strip-view";
@@ -159,6 +160,8 @@ function renderAll(): void {
     document.documentElement.style.setProperty(k, v);
   }
 
+  const channels = activeChannels();
+  const selCh = findChannel(selectedTabId ?? 0) ?? channels[0];
   renderThemePopover(t, isDark);
   renderNormPopoverDom(snapshot.settings, normPopoverOpen, t, (preset: AutoNormPreset) => {
     snapshot.settings.autoNormPreset = preset;
@@ -166,9 +169,7 @@ function renderAll(): void {
     normPopoverOpen = false;
     sendAction({ source: "popup", type: "SET_AUTO_NORM_PRESET", preset, enable: true });
     flashToast(ui().toastPresetApplied(getLocalizedPresetMeta(preset).shortLabel));
-  });
-
-  const channels = activeChannels();
+  }, selCh);
   const playingCount = channels.filter((c) => c.playing).length;
   const pausedCount = channels.length - playingCount;
   const anySolo = channels.some((c) => c.solo);
@@ -585,15 +586,28 @@ function connectBackgroundPort(): void {
         };
         for (const item of msg.levels) {
           const ch = findChannel(item.tabId);
-          if (ch) { ch.vuLevel = item.vuLevel; ch.vuPeak = item.vuPeak; ch.normTrimDb = item.normTrimDb; }
+          if (ch) {
+            ch.vuLevel = item.vuLevel;
+            ch.vuPeak = item.vuPeak;
+            ch.vuLevelL = item.vuLevelL ?? item.vuLevel;
+            ch.vuLevelR = item.vuLevelR ?? item.vuLevel;
+            if (typeof item.inputLufs === "number") ch.inputLufs = item.inputLufs;
+            if (item.spectrumBins) ch.spectrumBins = item.spectrumBins;
+            ch.normTrimDb = item.normTrimDb;
+          }
           const refs = stripMap.get(item.tabId);
-          if (refs) {
-            paintLedColumn(refs.vu.segs, item.vuLevel, item.vuPeak, t);
-            if (ch) syncChannelReadoutSub(refs, ch, snapshot.settings, ctx, t);
+          if (refs && ch) {
+            paintChannelStereoVu(refs, ch, t);
+            syncChannelReadoutSub(refs, ch, snapshot.settings, ctx, t);
           }
         }
+        const selCh = findChannel(selectedTabId ?? 0) ?? channels[0];
         updateMasterBusVu(masterRefs, snapshot.settings, channels, t);
-        syncFxRackTrimBadge(fxRackRefs, findChannel(selectedTabId ?? 0) ?? channels[0], snapshot.settings, t);
+        syncFxRackTrimBadge(fxRackRefs, selCh, snapshot.settings, t);
+        if (normPopoverOpen) {
+          const miniVizEl = document.querySelector<HTMLElement>("#norm-popover .norm-pop-mini-viz");
+          if (miniVizEl) syncPopoverMiniVizDom(miniVizEl, selCh, snapshot.settings, t);
+        }
       }
     });
     port.onDisconnect.addListener(() => { port = null; });
@@ -624,13 +638,23 @@ function bootstrapPopup(): void {
   document.getElementById("master-dock")!.appendChild(masterRefs.el);
 
   const sideFxRack = document.getElementById("side-fx-rack")!;
-  fxRackRefs = buildFxRackDom(sideFxRack, () => findChannel(selectedTabId ?? 0) ?? activeChannels()[0], (tabId, patch) => {
-    const ch = findChannel(tabId);
-    if (!ch) return;
-    ch.fx = sanitizeChannelFx(ch.fx, patch);
-    if (tabId >= 0) sendAction({ source: "popup", type: "UPDATE_TAB_FX", tabId, patch });
-    renderAll();
-  });
+  fxRackRefs = buildFxRackDom(
+    sideFxRack,
+    () => findChannel(selectedTabId ?? 0) ?? activeChannels()[0],
+    (tabId, patch) => {
+      const ch = findChannel(tabId);
+      if (!ch) return;
+      ch.fx = sanitizeChannelFx(ch.fx, patch);
+      if (tabId >= 0) sendAction({ source: "popup", type: "UPDATE_TAB_FX", tabId, patch });
+      renderAll();
+    },
+    () => snapshot.settings,
+    (nextMode) => {
+      snapshot.settings.normVizMode = nextMode;
+      sendAction({ source: "popup", type: "SET_NORM_VIZ_MODE", mode: nextMode });
+      renderAll();
+    },
+  );
 
   setupTopDeckAndKeyboard();
   renderAll();

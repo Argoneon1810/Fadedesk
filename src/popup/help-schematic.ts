@@ -125,11 +125,12 @@ export function renderSchematicSvg(active: HelpTermKey | null): string {
   <g class="svg-part svg-masterBus ${is("masterBus")}" data-schematic="masterBus">
     <rect x="62" y="17" width="30" height="105" rx="3" class="svg-part-box svg-master-frame" />
     <text x="77" y="24" font-size="3.8" font-weight="800" text-anchor="middle" letter-spacing="0.4">MASTER</text>
-    <!-- 좌측 VU 열 + 중앙 페이더/노브 + 우측 VU 열 -->
-    <rect x="65" y="27" width="3" height="51" rx="1" opacity="0.6" />
-    <rect x="75.5" y="27" width="3" height="51" rx="1.5" opacity="0.4" />
-    <rect x="72" y="50" width="10" height="6" rx="1.5" />
-    <rect x="84" y="27" width="3" height="51" rx="1" opacity="0.6" />
+    <!-- 좌측 페이더/노브 + 중앙 눈금 + 우측 2열(L/R) VU 미터 -->
+    <rect x="66.5" y="27" width="3.5" height="51" rx="1.5" opacity="0.4" />
+    <rect x="64" y="50" width="8.5" height="6" rx="1.5" />
+    <line x1="74" y1="53" x2="77" y2="53" stroke="currentColor" stroke-width="0.7" opacity="0.5" />
+    <rect x="81" y="27" width="3" height="51" rx="1" opacity="0.6" />
+    <rect x="85.5" y="27" width="3" height="51" rx="1" opacity="0.6" />
     <!-- 마스터 수치창 -->
     <rect x="65" y="82" width="24" height="9" rx="2" opacity="0.6" />
     <text x="77" y="88.5" font-size="4.2" font-family="monospace" font-weight="bold" text-anchor="middle">0.0 dB</text>

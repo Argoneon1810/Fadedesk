@@ -6,11 +6,12 @@ import type {
   DspConfigPayload,
   ExclusiveMode,
   NormSpeedPreset,
+  ResolvedNormalizerBounds,
   ResolvedNormalizerConfig,
 } from "./types";
 
 /**
- * dB 로그 볼륨 변환, Focus 일반화 원-핫 감쇠, 비파괴 2계층 노멀라이저 해석, 선형 진폭 RSS 마스터 미터 연산.
+ * dB 로그 볼륨 변환, Focus 일반화 원-핫 감쇠, 비파괴 2계층 노멀라이저(대표 구간·0dB 회귀 텐션) 해석, 선형 진폭 RSS 마스터 미터 연산.
  */
 
 export const MIN_DB = -60;
@@ -22,7 +23,10 @@ export const SCALE_TICKS: readonly number[] = [12, 6, 0, -12, -24, -48];
 export const DEFAULT_CHANNEL_FX: Readonly<ChannelFxState> = {
   normMode: "follow",
   normTargetLufs: -16,
-  normSpeed: "std",
+  normSpeed: "slow",
+  normRangeLowLufs: -32,
+  normRangeHighLufs: -10,
+  normZeroReturnRate: 0.35,
   pan: 0,
   gateEnabled: false,
   gateThresholdDb: -48,
@@ -30,40 +34,77 @@ export const DEFAULT_CHANNEL_FX: Readonly<ChannelFxState> = {
   compRatio: 4,
 };
 
-export const AUTO_NORM_PRESET_META: Record<
-  AutoNormPreset,
-  {
-    label: string;
-    shortLabel: string;
-    badge: string;
-    targetLufs: number;
-    speed: NormSpeedPreset;
-    summary: string;
-  }
-> = {
-  music: {
-    label: "음악 (강약 보존)",
-    shortLabel: "음악",
-    badge: "-16 LUFS · 완만(9s)",
+export interface AutoNormPresetMetaEntry {
+  label: string;
+  shortLabel: string;
+  badge: string;
+  spec: string;
+  targetLufs: number;
+  speed: NormSpeedPreset;
+  rangeLowLufs: number;
+  rangeHighLufs: number;
+  zeroReturnRate: number;
+  minDwellBlocks: number;
+  maxBoostDb: number;
+  summary: string;
+}
+
+export const AUTO_NORM_PRESET_META: Record<AutoNormPreset, AutoNormPresetMetaEntry> = {
+  classical: {
+    label: "클래식 · 원음 (광대역)",
+    shortLabel: "클래식",
+    badge: "-16 LUFS · 광대역(15s)",
+    spec: "대표 [-28..-13] · 체류 1.8s · 0회귀 0.50dB/s · 최대 +4dB",
     targetLufs: -16,
     speed: "slow",
-    summary: "BS.1770 게이팅 9초 장기 계측으로 곡 안의 후렴·프리즈 대비는 살리고 곡 간 평균 음압만 맞춥니다.",
+    rangeLowLufs: -28,
+    rangeHighLufs: -13,
+    zeroReturnRate: 0.5,
+    minDwellBlocks: 24,
+    maxBoostDb: 4.0,
+    summary: "여린 독주(ppp)와 폭발하는 강주(fff)는 제외하고 0.0dB로 물러나 원음의 넓은 강약 의도를 살립니다.",
+  },
+  music: {
+    label: "음악 (강약 보존 · 기본)",
+    shortLabel: "음악",
+    badge: "-16 LUFS · 완만(9s)",
+    spec: "대표 [-32..-10] · 체류 1.2s · 0회귀 0.35dB/s · 최대 +6dB",
+    targetLufs: -16,
+    speed: "slow",
+    rangeLowLufs: -32,
+    rangeHighLufs: -10,
+    zeroReturnRate: 0.35,
+    minDwellBlocks: 16,
+    maxBoostDb: 6.0,
+    summary: "곡 안의 후렴·프리즈 대비는 유지하고 곡이 바뀔 때 평균 음압 편차만 부드럽게 맞춥니다.",
   },
   standard: {
     label: "표준 (영상·방송)",
     shortLabel: "표준",
     badge: "-16 LUFS · 표준(3s)",
+    spec: "대표 [-36..-8] · 체류 0.45s · 0회귀 0.25dB/s · 최대 +7.5dB",
     targetLufs: -16,
     speed: "std",
-    summary: "EBU 3341 3초 단기(Short-Term) 계측으로 유튜브·스트리밍·강의 탭 간 음압 편차를 정렬합니다.",
+    rangeLowLufs: -36,
+    rangeHighLufs: -8,
+    zeroReturnRate: 0.25,
+    minDwellBlocks: 6,
+    maxBoostDb: 7.5,
+    summary: "유튜브·스트리밍·강의 탭을 오갈 때 들쭉날쭉한 목소리와 배경음 볼륨을 빠르게 정렬합니다.",
   },
   night: {
     label: "야간 (강한 균일)",
     shortLabel: "야간",
     badge: "-18 LUFS · 민감(0.4s)",
+    spec: "대표 [-42..-6] · 체류 0.15s · 0회귀 0.15dB/s · 최대 +9dB",
     targetLufs: -18,
     speed: "fast",
-    summary: "EBU 3341 0.4초 순간(Momentary) 계측으로 갑작스러운 큰 소리는 빠르게 누르고 대사를 유지합니다.",
+    rangeLowLufs: -42,
+    rangeHighLufs: -6,
+    zeroReturnRate: 0.15,
+    minDwellBlocks: 2,
+    maxBoostDb: 9.0,
+    summary: "늦은 밤 청취 시 갑작스러운 큰 소리는 빠르게 누르고 작은 대사를 또렷하게 유지합니다.",
   },
 };
 
@@ -224,6 +265,8 @@ export function computeMasterStereoVu(
     muted: boolean;
     corsCap: boolean;
     vuLevel: number;
+    vuLevelL?: number;
+    vuLevelR?: number;
     fx?: { pan: number };
   }>,
   masterMuted: boolean,
@@ -233,7 +276,20 @@ export function computeMasterStereoVu(
   let sumSqL = 0;
   let sumSqR = 0;
   for (const ch of channels) {
-    if (!ch.playing || ch.muted || ch.vuLevel <= 0) continue;
+    if (!ch.playing || ch.muted) continue;
+    const hasStereo =
+      !ch.corsCap &&
+      typeof ch.vuLevelL === "number" &&
+      typeof ch.vuLevelR === "number" &&
+      (ch.vuLevelL > 0 || ch.vuLevelR > 0);
+    if (hasStereo) {
+      const ampL = ratioToLinearAmplitude(ch.vuLevelL!);
+      const ampR = ratioToLinearAmplitude(ch.vuLevelR!);
+      sumSqL += ampL * ampL;
+      sumSqR += ampR * ampR;
+      continue;
+    }
+    if (ch.vuLevel <= 0) continue;
     const amp = ratioToLinearAmplitude(ch.vuLevel);
     if (amp <= 0) continue;
     const pan = ch.corsCap ? 0 : Math.max(-100, Math.min(100, ch.fx?.pan ?? 0));
@@ -305,11 +361,20 @@ export function sanitizeChannelFx(
     : -16;
   const rawSpeed = merged.normSpeed as string;
   const normSpeed: NormSpeedPreset =
-    rawSpeed === "music"
+    rawSpeed === "music" || rawSpeed === "classical"
       ? "slow"
       : validSpeeds.includes(rawSpeed as NormSpeedPreset)
         ? (rawSpeed as NormSpeedPreset)
-        : "std";
+        : "slow";
+  const rawLow = Number.isFinite(merged.normRangeLowLufs)
+    ? Math.max(-56, Math.min(-14, Math.round(merged.normRangeLowLufs!)))
+    : -32;
+  const rawHigh = Number.isFinite(merged.normRangeHighLufs)
+    ? Math.max(rawLow + 4, Math.min(-2, Math.round(merged.normRangeHighLufs!)))
+    : Math.max(rawLow + 4, -10);
+  const normZeroReturnRate = Number.isFinite(merged.normZeroReturnRate)
+    ? Math.round(Math.max(0.05, Math.min(1.5, merged.normZeroReturnRate!)) * 100) / 100
+    : 0.35;
   const pan = Number.isFinite(merged.pan)
     ? Math.max(-100, Math.min(100, Math.round(merged.pan)))
     : 0;
@@ -324,6 +389,9 @@ export function sanitizeChannelFx(
     normMode,
     normTargetLufs,
     normSpeed,
+    normRangeLowLufs: rawLow,
+    normRangeHighLufs: rawHigh,
+    normZeroReturnRate,
     pan,
     gateEnabled,
     gateThresholdDb,
@@ -336,16 +404,16 @@ export function sanitizeChannelFx(
  * 전역 `autoNormEnabled`(`균일 N`) 스위치와 채널별 고급 `ChannelFxState`를 비파괴로 합성한다.
  * - `normMode === "on"`: 전역 스위치와 무관하게 사용자의 개별 목표 음압·속도로 동작
  * - `normMode === "off"`: 전역 스위치가 켜져도 우회하며 사용자의 세부 수치는 그대로 보존
- * - `normMode === "follow"`: 전역 스위치를 따르며 전역 프리셋(음악 / 표준 / 야간)을 사용
+ * - `normMode === "follow"`: 전역 스위치를 따르며 전역 프리셋(클래식 / 음악 / 표준 / 야간)을 사용
  */
 export function resolveEffectiveNormalizer(
   autoNormEnabled: boolean,
   fx: ChannelFxState,
   corsCap: boolean,
-  autoNormPreset: AutoNormPreset = "standard",
+  autoNormPreset: AutoNormPreset = "music",
 ): ResolvedNormalizerConfig {
   if (corsCap) {
-    return { active: false, targetLufs: -16, speed: "std", source: "off" };
+    return { active: false, targetLufs: -16, speed: "slow", source: "off" };
   }
   if (fx.normMode === "on") {
     return {
@@ -363,7 +431,7 @@ export function resolveEffectiveNormalizer(
       source: "custom-off",
     };
   }
-  const meta = AUTO_NORM_PRESET_META[autoNormPreset] ?? AUTO_NORM_PRESET_META.standard;
+  const meta = AUTO_NORM_PRESET_META[autoNormPreset] ?? AUTO_NORM_PRESET_META.music;
   return {
     active: autoNormEnabled,
     targetLufs: meta.targetLufs,
@@ -372,19 +440,55 @@ export function resolveEffectiveNormalizer(
   };
 }
 
+/** 채널의 실효 대표 음압 구간([하한, 상한] LUFS), 0dB 회귀 텐션 속도, 최소 체류 블록 수를 해석한다. */
+export function resolveEffectiveNormalizerBounds(
+  fx: ChannelFxState,
+  autoNormPreset: AutoNormPreset = "music",
+): ResolvedNormalizerBounds {
+  const meta = AUTO_NORM_PRESET_META[autoNormPreset] ?? AUTO_NORM_PRESET_META.music;
+  if (fx.normMode === "on") {
+    const low = typeof fx.normRangeLowLufs === "number" ? fx.normRangeLowLufs : -32;
+    const high =
+      typeof fx.normRangeHighLufs === "number" ? Math.max(low + 4, fx.normRangeHighLufs) : -10;
+    const rate = typeof fx.normZeroReturnRate === "number" ? fx.normZeroReturnRate : 0.35;
+    const minDwellBlocks = fx.normSpeed === "slow" ? 16 : fx.normSpeed === "std" ? 6 : 2;
+    const maxBoostDb = fx.normSpeed === "slow" ? 6.0 : fx.normSpeed === "std" ? 7.5 : 9.0;
+    return {
+      rangeLowLufs: low,
+      rangeHighLufs: high,
+      zeroReturnRate: rate,
+      minDwellBlocks,
+      maxBoostDb,
+    };
+  }
+  return {
+    rangeLowLufs: meta.rangeLowLufs,
+    rangeHighLufs: meta.rangeHighLufs,
+    zeroReturnRate: meta.zeroReturnRate,
+    minDwellBlocks: meta.minDwellBlocks,
+    maxBoostDb: meta.maxBoostDb,
+  };
+}
+
 /** 오디오 훅(`dsp-chain.ts`)에 전달할 채널별 DSP 설정 페이로드를 생성한다. */
 export function buildDspConfigPayload(
   autoNormEnabled: boolean,
   fx: ChannelFxState,
   corsCap: boolean,
-  autoNormPreset: AutoNormPreset = "standard",
+  autoNormPreset: AutoNormPreset = "music",
 ): DspConfigPayload {
   const norm = resolveEffectiveNormalizer(autoNormEnabled, fx, corsCap, autoNormPreset);
+  const bounds = resolveEffectiveNormalizerBounds(fx, autoNormPreset);
   if (corsCap) {
     return {
       normActive: false,
       normTargetLufs: -16,
-      normSpeed: "std",
+      normSpeed: "slow",
+      normRangeLowLufs: -32,
+      normRangeHighLufs: -10,
+      normZeroReturnRate: 0.35,
+      normMinDwellBlocks: 16,
+      normMaxBoostDb: 6.0,
       pan: 0,
       gateEnabled: false,
       gateThresholdDb: -48,
@@ -396,6 +500,11 @@ export function buildDspConfigPayload(
     normActive: norm.active,
     normTargetLufs: norm.targetLufs,
     normSpeed: norm.speed,
+    normRangeLowLufs: bounds.rangeLowLufs,
+    normRangeHighLufs: bounds.rangeHighLufs,
+    normZeroReturnRate: bounds.zeroReturnRate,
+    normMinDwellBlocks: bounds.minDwellBlocks,
+    normMaxBoostDb: bounds.maxBoostDb,
     pan: fx.pan,
     gateEnabled: fx.gateEnabled,
     gateThresholdDb: fx.gateThresholdDb,
