@@ -3,7 +3,7 @@
     "message": "Fadedesk"
   },
   "extDescription": {
-    "message": "여러 창과 백그라운드 탭의 소리를 한곳에서 재생·정지하고 dB 페이더, Focus/Solo, 스테레오 팬, 음량 평준화(LUFS), 도메인 핀으로 제어하는 오디오 콘솔"
+    "message": "여러 창과 백그라운드 탭의 소리를 한곳에서 재생·정지하고 dB 페이더, Focus/Solo, 스테레오 팬, 음량 평준화(LUFS), 사이트 고정 핀으로 제어하는 오디오 콘솔"
   },
   "actionTitle": {
     "message": "Fadedesk — 탭별 오디오 믹서 콘솔"
