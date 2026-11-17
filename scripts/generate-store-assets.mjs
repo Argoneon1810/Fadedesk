@@ -580,9 +580,9 @@ const SCREENSHOT_SPECS = [
     lang: "en",
     glowHex: "#13233b",
     accentHex: "#3b82f6",
-    kicker: "BS.1770 LOUDNESS & PER-CHANNEL DSP RACK",
-    headline: "Shape Each Tab with Loudness Target, Stereo Pan, Gate & Compressor",
-    subtitle: "2-tier ITU-R BS.1770-4 gated normalizer (Music 9s · Std 3s · Night 0.4s) + non-destructive per-strip FX",
+    kicker: "BS.1770 LOUDNESS & FX RACK",
+    headline: "Set Effects for All Channels at Once, or Just This Tab",
+    subtitle: "4 loudness presets (Classical · Music · Standard · Night) · My Presets · Pan, Gate & Compressor",
     snap: {
       settings: { ...BASE_SETTINGS, theme: "cobalt", modePref: "dark", advRackOpen: true, globalFx: globalFx(true), globalPan: 0, userPresets: [] },
       channels: DEMO_CHANNELS_EN,
@@ -590,6 +590,8 @@ const SCREENSHOT_SPECS = [
     afterActionJs: `
       const ch2 = document.querySelector('.channel-strip[data-tab-id="2"]');
       if (ch2) ch2.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+      // 1.2.0 세부 창: 노멀라이저 카드의 세부 ▸를 열어 프리셋·유효 구간·목표 음량을 보인다
+      document.querySelector('.fx-card[data-panel="norm"] .fx-more-btn')?.click();
     `,
   },
   {
@@ -597,9 +599,9 @@ const SCREENSHOT_SPECS = [
     lang: "ko",
     glowHex: "#122b2f",
     accentHex: "#14b8a6",
-    kicker: "FADEDESK · 한·영 동시 지원 & 실화면 스포트라이트 투어",
-    headline: "실제 콘솔 위에서 연관 조작부를 한눈에 비추는 7단계 인터랙티브 투어",
-    subtitle: "하단 집중 청취(M·S·F)와 상단 Focus α 감쇠 슬라이더·직접 입력창을 다중 스포트라이트 홀로 안내",
+    kicker: "FADEDESK · 한·영 지원 & 8단계 화면 투어",
+    headline: "콘솔 화면을 직접 비추며 안내하는 8단계 화면 투어",
+    subtitle: "열린 탭이 없어도 예시 채널로 체험하며 모든 채널·이 채널 고급 FX까지 쉽게 익힙니다",
     snap: {
       settings: { ...BASE_SETTINGS, theme: "teal", modePref: "dark", onboardingDone: false },
       channels: DEMO_CHANNELS_KO,
@@ -607,7 +609,8 @@ const SCREENSHOT_SPECS = [
     afterActionJs: `
       document.querySelector("[data-tour-start]")?.click();
       const nextBtn = document.querySelector("#tour-overlay [data-tour-next]");
-      for (let i = 0; i < 4; i++) nextBtn?.click();
+      // 8단계: 고급 FX 랙과 채널 N·G·C·P 배지를 비추는 단계
+      for (let i = 0; i < 7; i++) nextBtn?.click();
     `,
   },
   {
@@ -615,9 +618,9 @@ const SCREENSHOT_SPECS = [
     lang: "ko",
     glowHex: "#2a2011",
     accentHex: "#f59e0b",
-    kicker: "IN-APP CONSOLE GUIDE & SAFETY NOTICES",
-    headline: "설치 후 언제든 열람 가능한 부품 도면 가이드와 안전·유의사항 고지",
-    subtitle: "청력·스피커 보호, 통화·경보 감쇠 주의, 시험·보안 페이지 호환, BS.1770 계측 기준을 인앱 ? 버튼에 상시 수록",
+    kicker: "FADEDESK · 콘솔 사용법 & 안전 유의사항",
+    headline: "언제든 ? 버튼으로 다시 보는 사용법 그림과 안전 안내",
+    subtitle: "기능 위치 안내 그림부터 청력 보호, 통화·경보 주의, 보안 페이지 호환까지 한곳에 담았습니다",
     snap: {
       settings: { ...BASE_SETTINGS, theme: "amber", modePref: "dark", onboardingDone: true },
       channels: DEMO_CHANNELS_KO,
